@@ -1,0 +1,104 @@
+# ─── .NET / C# ──────────────────────────────────────────────────
+bin/
+obj/
+*.user
+*.suo
+*.userprefs
+*.cache
+*.dll
+*.pdb
+*.exe
+*.config
+*.exclude
+*.lock.json
+*.nupkg
+*.snupkg
+*.dbmdl
+*.tlog
+*.swp
+.vs/
+project.lock.json
+project.fragment.lock.json
+artifacts/
+TestResults/
+*.coverage
+*.coveragexml
+coverage*.json
+coverage*.xml
+coverage*.info
+
+# Build / restore intermediates
+[Dd]ebug/
+[Rr]elease/
+x64/
+x86/
+[Aa][Rr][Mm]/
+[Aa][Rr][Mm]64/
+bld/
+[Bb]in/
+[Oo]bj/
+[Ll]og/
+[Ll]ogs/
+
+# ─── IDE ────────────────────────────────────────────────────────
+# Visual Studio
+*.sln.docstates
+.vs/
+*.opensdf
+*.sdf
+*.suo
+
+# Rider / IntelliJ
+.idea/
+*.iml
+
+# VS Code
+.vscode/
+*.code-workspace
+
+# ─── Windows ────────────────────────────────────────────────────
+Thumbs.db
+Desktop.ini
+$RECYCLE.BIN/
+*.lnk
+
+# ─── 临时 / 本地 ─────────────────────────────────────────────────
+*.tmp
+*.log
+*.bak
+*~
+.DS_Store
+
+# 本地配置 (含 SW 路径、API key 等)
+.env
+.env.local
+appsettings.Local.json
+appsettings.Development.json
+secrets.json
+
+# 生成的 SW 文件（测试输出）
+*.sldprt
+*.SLDPRT
+*.sldasm
+*.SLDASM
+*.slddrw
+*.SLDDRW
+*.step
+*.STEP
+*.stp
+*.STP
+*.iges
+*.IGES
+*.igs
+*.IGS
+*.stl
+*.STL
+
+# 测试 / debug 中间产物
+test-output/
+debug-output/
+*.swp.lock
+~$*
+
+# Claude Code session local
+.claude/local/

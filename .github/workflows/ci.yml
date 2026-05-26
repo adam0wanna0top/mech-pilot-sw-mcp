@@ -1,0 +1,76 @@
+name: CI
+
+on:
+  push:
+    branches: [master]
+  pull_request:
+    branches: [master]
+
+jobs:
+  build-and-test:
+    name: Build + L1 单元测试
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup .NET 8
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '8.0.x'
+
+      - name: Display .NET version
+        run: dotnet --info
+
+      # 注意：CI runner 没有 SW，所以只跑 L1 单元测试 (纯逻辑)
+      # L2 CLI 集成测试需要本机有 SW，在开发机上人工跑
+
+      - name: Restore dependencies
+        run: |
+          if (Test-Path MechPilot.SwMcp/MechPilot.SwMcp.csproj) {
+            dotnet restore MechPilot.SwMcp/MechPilot.SwMcp.csproj
+          } else {
+            Write-Host "Project not yet created, skipping restore (still in M0 init)."
+          }
+        shell: pwsh
+
+      - name: Build
+        run: |
+          if (Test-Path MechPilot.SwMcp/MechPilot.SwMcp.csproj) {
+            dotnet build MechPilot.SwMcp/MechPilot.SwMcp.csproj --no-restore --configuration Release
+          } else {
+            Write-Host "Project not yet created, skipping build (still in M0 init)."
+          }
+        shell: pwsh
+
+      - name: L1 单元测试
+        run: |
+          if (Test-Path MechPilot.SwMcp.Tests/MechPilot.SwMcp.Tests.csproj) {
+            dotnet test MechPilot.SwMcp.Tests/MechPilot.SwMcp.Tests.csproj --no-build --configuration Release --verbosity normal
+          } else {
+            Write-Host "Test project not yet created, skipping (still in M0 init)."
+          }
+        shell: pwsh
+
+  format-check:
+    name: dotnet format check
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup .NET 8
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '8.0.x'
+
+      - name: Verify formatting
+        run: |
+          if (Test-Path MechPilot.SwMcp/MechPilot.SwMcp.csproj) {
+            dotnet format --verify-no-changes --severity warn
+          } else {
+            Write-Host "Project not yet created, skipping format check."
+          }
+        shell: pwsh
