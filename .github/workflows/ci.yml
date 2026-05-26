@@ -25,22 +25,23 @@ jobs:
 
       # 注意：CI runner 没有 SW，所以只跑 L1 单元测试 (纯逻辑)
       # L2 CLI 集成测试需要本机有 SW，在开发机上人工跑
+      # .csproj 通过 HasSolidWorks 条件判断, 检测不到 SW Interop DLL 时跳过 Reference
 
       - name: Restore dependencies
         run: |
-          if (Test-Path MechPilot.SwMcp/MechPilot.SwMcp.csproj) {
-            dotnet restore MechPilot.SwMcp/MechPilot.SwMcp.csproj
+          if (Test-Path MechPilot.SwMcp.sln) {
+            dotnet restore MechPilot.SwMcp.sln
           } else {
-            Write-Host "Project not yet created, skipping restore (still in M0 init)."
+            Write-Host "Solution not yet created, skipping restore (still in M0 init)."
           }
         shell: pwsh
 
       - name: Build
         run: |
-          if (Test-Path MechPilot.SwMcp/MechPilot.SwMcp.csproj) {
-            dotnet build MechPilot.SwMcp/MechPilot.SwMcp.csproj --no-restore --configuration Release
+          if (Test-Path MechPilot.SwMcp.sln) {
+            dotnet build MechPilot.SwMcp.sln --no-restore --configuration Release
           } else {
-            Write-Host "Project not yet created, skipping build (still in M0 init)."
+            Write-Host "Solution not yet created, skipping build (still in M0 init)."
           }
         shell: pwsh
 
@@ -68,9 +69,9 @@ jobs:
 
       - name: Verify formatting
         run: |
-          if (Test-Path MechPilot.SwMcp/MechPilot.SwMcp.csproj) {
-            dotnet format --verify-no-changes --severity warn
+          if (Test-Path MechPilot.SwMcp.sln) {
+            dotnet format MechPilot.SwMcp.sln --verify-no-changes --severity warn
           } else {
-            Write-Host "Project not yet created, skipping format check."
+            Write-Host "Solution not yet created, skipping format check."
           }
         shell: pwsh
