@@ -1,0 +1,9 @@
+{
+  "mcpServers": {
+    "mech-pilot-sw": {
+      "command": "C:/Users/Hello/mech-pilot-v2/MechPilot.SwMcp/bin/Debug/net8.0-windows/mech-pilot-sw.exe",
+      "args": [],
+      "env": {}
+    }
+  }
+}
