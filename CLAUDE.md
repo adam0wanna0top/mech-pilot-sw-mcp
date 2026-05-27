@@ -25,9 +25,20 @@
 
 ## 当前阶段
 
-🚧 **MVP 开发中**：`create_cylinder` + `create_flange` 2 个工具。
+✅ **MVP 已完成** (2026-05-27)。3 工具全部在 master：
 
-详见 [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) "MVP 三阶段里程碑"。
+| Tool | LLM-facing name | 用途 |
+|---|---|---|
+| ping | `mcp__mech_pilot_sw__ping` | sanity check |
+| create_cylinder | `mcp__mech_pilot_sw__create_cylinder` | 圆柱零件 |
+| create_flange | `mcp__mech_pilot_sw__create_flange` | 法兰 / 端盖 / 周向孔板 |
+
+**所有 L1 / L2 / L3 验证通过** (40/40 单元测试 + 3 个 PowerShell L2 集成 +
+真客户端自然语言端到端)。
+
+**下一步**: ARCHITECTURE.md 明确"MVP 后暂停, 根据实际体验决定"。
+候选方向 (CI 自动化 / REPL / 前 10 高频工具 / SW 任务面板 WPF / ...) 详见
+[`docs/DEV_LOG.md`](docs/DEV_LOG.md) "下一步候选" 段。
 
 ---
 
@@ -91,6 +102,8 @@ CI 通过 + (本人 / 协作者) review → merge。**不能直接 push master**
 
 ## 项目级 "黄金法则"
 
+> MVP 实战累积的 12 条铁律. 新工具 PR 前对照检查.
+
 1. **业务核心 vs 入口分离**：所有 SW 业务逻辑放 `Tools/`，MCP 入口和 CLI 入口都调
    同一个 Tool 类的同一个方法。**写一份，多处用**。
 
@@ -104,18 +117,43 @@ CI 通过 + (本人 / 协作者) review → merge。**不能直接 push master**
    直接 reference (`EmbedInteropTypes=true`)，享受 IntelliSense + 类型检查 + 枚举常量。
    避免重蹈 v1 late binding 覆辙 (详 `docs/v1-history.md` PR #35)。
 
-5. **录的宏 ≠ reliable code**：SW 录的 .swp 宏只是参考起点，复杂特征 (pattern / mirror /
-   hole_wizard) 单独跑很可能 silent fail (v1 经验)。**先 VBA IDE 里手动跑通宏**再
-   1:1 复刻到 C#。
+5. **签名前置反射** (M2 教训): 调任何新 SW API 前**先 PowerShell + Reflection
+   读 DLL 拿真签名**, 不照搬 VBA 文档. SW 2024+ 部分 API 尾部加了 Variant 占位
+   (详 `docs/SW_API_REFERENCE.md` §3)。
+   ```powershell
+   $asm = [Reflection.Assembly]::LoadFrom('G:\solidwork\SOLIDWORKS Corp2026\SOLIDWORKS\api\redist\SolidWorks.Interop.sldworks.dll')
+   $asm.GetType('SolidWorks.Interop.sldworks.IFeatureManager').GetMethod('FeatureXxx').GetParameters() |
+     ForEach-Object { Write-Host ("  [{0,2}] {1,-30} {2}" -f $_.Position, $_.Name, $_.ParameterType.Name) }
+   ```
 
-6. **绕过限制思维**：某个 SW API 多 stage 探针仍 silent fail (如 v1 PR #35
+6. **`SelectByID2 + empty Name + coord` 在 API 模式不可靠** (M3 教训): 没 active
+   view 时 SW ray-cast 行为不可预测. 选面用 body 导航:
+   `GetBodies2 → GetFaces → IsPlane → Normal.Z → IEntity.Select4`.
+
+7. **新 SW API 不工作就降级到老版本** (M3 教训): `FeatureCut4` 在 face-based 草图
+   silent return null, 切到 `FeatureCut2` 第一次就成. 表面积小的版本往往绕过新版
+   严苛的 selection state 前置条件.
+
+8. **录的宏 ≠ reliable code**：SW 录的 .swp 宏只是参考起点，复杂特征 (pattern /
+   mirror / hole_wizard) 单独跑很可能 silent fail (v1 经验)。**先 VBA IDE 里手
+   动跑通宏**再 1:1 复刻到 C#。
+
+9. **绕过限制思维**：某个 SW API 多 stage 探针仍 silent fail (如 v1 PR #35
    pattern_circular)，**绕过比硬刚强**：加一个粗粒度一键工具
    (如 `create_flange` 一次画所有孔 + 一次 cut，根本不调 pattern)。
 
-7. **commit message 用 conventional commits**：
-   - `feat(scope): subject` — 新功能
-   - `fix(scope): subject` — bug 修复
-   - `docs:` / `chore:` / `test:` / `refactor:`
+10. **PR merge 后别再 push 老分支** (M2 配套教训): 老分支上的新 commit 是孤儿,
+    没进 master. 修复: 新分支从 master 拉 + `git cherry-pick <commit>` + 新 PR.
+
+11. **build 期间 .exe 可能被 MCP server 锁住** (M3 教训): 另一个 Claude session
+    挂了 mech-pilot-sw MCP 时, 那个进程占住 Debug exe.
+    `Stop-Process -Name mech-pilot-sw -Force` 即可 (另一 session 下次调工具自动
+    re-spawn).
+
+12. **commit message 用 conventional commits**：
+    - `feat(scope): subject` — 新功能
+    - `fix(scope): subject` — bug 修复
+    - `docs:` / `chore:` / `test:` / `refactor:`
 
 ---
 
@@ -147,11 +185,15 @@ dotnet format --verify-no-changes
 
 ---
 
-## 进入新对话先做这 3 件事
+## 进入新对话先做这 4 件事
 
-1. **读 [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md)** → 了解架构 + 当前 MVP 阶段
+1. **读 [`docs/DEV_LOG.md`](docs/DEV_LOG.md)** → 5 分钟拿到 MVP 全貌 + 7 条核心
+   踩坑教训 + 下一步候选 (本文件是 30 秒入门, DEV_LOG 是开发上下文全貌)
 2. **跑 `gh pr list --state open`** → 看是否有未合 PR 影响本次开发
-3. **跑 `git log --oneline -5`** → 看最近 commits 状态
+3. **跑 `git log --oneline -10`** → 看最近 commits 状态
+4. **按需深读** [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) (完整架构 + 15 决策),
+   [`docs/SW_API_REFERENCE.md`](docs/SW_API_REFERENCE.md) (SW API 知识库 710 行),
+   [`docs/v1-history.md`](docs/v1-history.md) (老 v1 35 PR 教训 992 行)
 
 ---
 
@@ -162,42 +204,45 @@ mech-pilot-sw-mcp/                  ← 项目根 (= GitHub repo)
 ├── README.md                       # 对外说明
 ├── CLAUDE.md                       # 本文件 (AI 助手项目级指引)
 ├── .gitignore                      # C# .NET + IDE + Windows
+├── .mcp.json                       # 项目级 Claude Code MCP 配置 (PR #3)
+├── MechPilot.SwMcp.sln             # solution: 让 dotnet/CI 统一操作两个 csproj
 ├── .github/
 │   └── workflows/
 │       └── ci.yml                  # GitHub Actions (dotnet build/test/format)
-├── MechPilot.SwMcp/                # C# 主项目
-│   ├── MechPilot.SwMcp.csproj
-│   ├── Program.cs                  # 入口分发
+├── MechPilot.SwMcp/                # C# 主项目 (net8.0-windows)
+│   ├── MechPilot.SwMcp.csproj      # AssemblyName=mech-pilot-sw + HasSolidWorks 条件
+│   ├── Program.cs                  # 入口分发 (args 空 → MCP / 非空 → CLI)
 │   ├── Entrypoints/
 │   │   ├── McpServer.cs            # MCP stdio 入口
-│   │   └── CliRunner.cs            # CLI 子命令入口
-│   ├── Tools/                      # 业务核心 (所有入口共用)
-│   │   ├── PingTool.cs
-│   │   ├── CreateCylinderTool.cs   # MVP M2
-│   │   └── CreateFlangeTool.cs     # MVP M3
+│   │   └── CliRunner.cs            # CLI 子命令入口 (ping / create-cylinder / create-flange)
+│   ├── Tools/                      # 业务核心 (CLI + MCP + L1 测试共用)
+│   │   ├── PingTool.cs             # M1
+│   │   ├── CreateCylinderTool.cs   # M2
+│   │   └── CreateFlangeTool.cs     # M3
 │   ├── Models/                     # POCO 数据类型
-│   │   ├── CylinderSpec.cs
-│   │   ├── FlangeSpec.cs
-│   │   └── ToolResult.cs
+│   │   ├── ToolResult.cs
+│   │   ├── CylinderSpec.cs         # + Validate()
+│   │   └── FlangeSpec.cs           # + Validate() (13 个几何约束)
 │   ├── Interop/
-│   │   ├── SwConnection.cs         # ISldWorks 单例 + retry
-│   │   └── SketchHelpers.cs        # 草图通用 helper
+│   │   └── SwConnection.cs         # ISldWorks 单例 + lazy connect (#if HAS_SOLIDWORKS)
 │   └── Exceptions/
 │       └── McpToolException.cs     # 业务异常 → MCP isError / CLI [error]
-├── MechPilot.SwMcp.Tests/          # L1 xUnit 单元测试
-│   └── ...
+├── MechPilot.SwMcp.Tests/          # L1 xUnit 单元测试 (40/40 passed)
+│   ├── MechPilot.SwMcp.Tests.csproj
+│   ├── PingToolTests.cs
+│   ├── CylinderSpecTests.cs        # 15 个用例
+│   └── FlangeSpecTests.cs          # 24 个用例
 ├── tests/
-│   └── integration/                # L2 CLI 集成测试 (PowerShell)
+│   └── integration/                # L2 PowerShell 集成测试 (需本机有 SW)
 │       ├── M1-ping.test.ps1
 │       ├── M2-cylinder.test.ps1
 │       ├── M3-flange.test.ps1
 │       └── run-all.ps1
-├── docs/
-│   ├── ARCHITECTURE.md             # 架构方案 (605 行，必读)
-│   ├── SW_API_REFERENCE.md         # SW API 知识库 (从 v1 迁移)
-│   └── v1-history.md               # 老 mech-pilot 35 PR 教训
-└── scripts/
-    └── start-mcp-session.ps1       # 一键 build + 提示重启 Claude
+└── docs/
+    ├── DEV_LOG.md                  # **新会话先读** — MVP 全貌 + 踩坑教训 + 下一步
+    ├── ARCHITECTURE.md             # 架构方案 (605 行, 按需深读)
+    ├── SW_API_REFERENCE.md         # SW API 知识库 (710 行, 从 v1 迁移)
+    └── v1-history.md               # 老 mech-pilot 35 PR 教训 (992 行)
 ```
 
 ---
