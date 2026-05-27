@@ -20,6 +20,7 @@ public static class CliRunner
 
         root.Subcommands.Add(BuildPingCommand());
         root.Subcommands.Add(BuildCreateCylinderCommand());
+        root.Subcommands.Add(BuildCreateFlangeCommand());
 
         var parseResult = root.Parse(args);
         return await parseResult.InvokeAsync();
@@ -98,6 +99,85 @@ public static class CliRunner
                     SavePath = parseResult.GetValue(outOpt) ?? string.Empty,
                 };
                 var result = CreateCylinderTool.RunWithSpec(spec);
+                WriteResult(result, parseResult.GetValue(formatOpt) ?? "text");
+                return 0;
+            }
+            catch (McpToolException ex)
+            {
+                Console.Error.WriteLine($"[error] {ex.Message}");
+                return 1;
+            }
+        });
+
+        return cmd;
+    }
+
+    private static Command BuildCreateFlangeCommand()
+    {
+        var outerOpt = new Option<double>("--outer")
+        {
+            Description = "Outer disk diameter in mm, e.g. 80.",
+            Required = true,
+        };
+        var thicknessOpt = new Option<double>("--thickness")
+        {
+            Description = "Disk thickness in mm, e.g. 10.",
+            Required = true,
+        };
+        var outPathOpt = new Option<string>("--out")
+        {
+            Description = "Absolute output .sldprt path, e.g. C:/tmp/flange.sldprt.",
+            Required = true,
+        };
+        var centerHoleOpt = new Option<double>("--center-hole")
+        {
+            Description = "Concentric center hole diameter in mm; 0 for none.",
+            DefaultValueFactory = _ => 0.0,
+        };
+        var boltCountOpt = new Option<int>("--bolt-count")
+        {
+            Description = "Number of bolt holes evenly distributed on PCD; 0 for none.",
+            DefaultValueFactory = _ => 0,
+        };
+        var boltDOpt = new Option<double>("--bolt-d")
+        {
+            Description = "Diameter of each bolt clearance hole in mm.",
+            DefaultValueFactory = _ => 0.0,
+        };
+        var pcdOpt = new Option<double>("--pcd")
+        {
+            Description = "Pitch circle diameter (PCD) for bolt holes in mm.",
+            DefaultValueFactory = _ => 0.0,
+        };
+        var formatOpt = new Option<string>("--output")
+        {
+            Description = "Output format: text | json",
+            DefaultValueFactory = _ => "text",
+        };
+
+        var cmd = new Command("create-flange",
+            "Create a parametric flange / end-cap / bolt-circle plate.")
+        {
+            outerOpt, thicknessOpt, outPathOpt,
+            centerHoleOpt, boltCountOpt, boltDOpt, pcdOpt,
+            formatOpt,
+        };
+
+        cmd.SetAction(parseResult =>
+        {
+            try
+            {
+                var spec = new FlangeSpec
+                {
+                    OuterDiameterMm = parseResult.GetValue(outerOpt),
+                    ThicknessMm = parseResult.GetValue(thicknessOpt),
+                    SavePath = parseResult.GetValue(outPathOpt) ?? string.Empty,
+                    CenterHoleDiameterMm = parseResult.GetValue(centerHoleOpt),
+                    BoltCount = parseResult.GetValue(boltCountOpt),
+                    BoltDiameterMm = parseResult.GetValue(boltDOpt),
+                    BoltCircleDiameterMm = parseResult.GetValue(pcdOpt),
+                };
+                var result = CreateFlangeTool.RunWithSpec(spec);
                 WriteResult(result, parseResult.GetValue(formatOpt) ?? "text");
                 return 0;
             }
