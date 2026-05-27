@@ -19,6 +19,7 @@ public static class CliRunner
         var root = new RootCommand("mech-pilot-sw: SolidWorks MCP server + CLI");
 
         root.Subcommands.Add(BuildPingCommand());
+        root.Subcommands.Add(BuildCreateCylinderCommand());
 
         var parseResult = root.Parse(args);
         return await parseResult.InvokeAsync();
@@ -55,6 +56,61 @@ public static class CliRunner
         return cmd;
     }
 
+    private static Command BuildCreateCylinderCommand()
+    {
+        var diameterOpt = new Option<double>("--diameter")
+        {
+            Description = "Outer diameter in mm (e.g. 30).",
+            Required = true,
+        };
+        var lengthOpt = new Option<double>("--length")
+        {
+            Description = "Extrusion length in mm (e.g. 50).",
+            Required = true,
+        };
+        var outOpt = new Option<string>("--out")
+        {
+            Description = "Absolute output path ending in .sldprt (e.g. C:/tmp/cyl.sldprt).",
+            Required = true,
+        };
+        var formatOpt = new Option<string>("--output")
+        {
+            Description = "Output format: text | json",
+            DefaultValueFactory = _ => "text",
+        };
+
+        var cmd = new Command("create-cylinder", "Create a parametric cylinder part.")
+        {
+            diameterOpt,
+            lengthOpt,
+            outOpt,
+            formatOpt,
+        };
+
+        cmd.SetAction(parseResult =>
+        {
+            try
+            {
+                var spec = new CylinderSpec
+                {
+                    DiameterMm = parseResult.GetValue(diameterOpt),
+                    LengthMm = parseResult.GetValue(lengthOpt),
+                    SavePath = parseResult.GetValue(outOpt) ?? string.Empty,
+                };
+                var result = CreateCylinderTool.RunWithSpec(spec);
+                WriteResult(result, parseResult.GetValue(formatOpt) ?? "text");
+                return 0;
+            }
+            catch (McpToolException ex)
+            {
+                Console.Error.WriteLine($"[error] {ex.Message}");
+                return 1;
+            }
+        });
+
+        return cmd;
+    }
+
     private static void WriteResult(ToolResult result, string format)
     {
         if (string.Equals(format, "json", StringComparison.OrdinalIgnoreCase))
@@ -63,7 +119,12 @@ public static class CliRunner
         }
         else
         {
-            Console.WriteLine(result.Message ?? result.Status);
+            var msg = result.Message ?? result.Status;
+            if (!string.IsNullOrEmpty(result.Path))
+            {
+                msg += $" → {result.Path}";
+            }
+            Console.WriteLine(msg);
         }
     }
 }
