@@ -9,18 +9,21 @@
 
 ## TL;DR (30 秒)
 
-**MVP 已完成** (2026-05-27)。3 工具 + 4 PR 已 merge 到 master：
+**MVP 已完成** (2026-05-27)，**M4 add_fillet** 追加首个"编辑已有零件"工具 (PR #6)。
+4 工具：
 
 | Tool | PR | LLM-facing name | 干啥 |
 |---|---|---|---|
 | ping | #1 | `mcp__mech_pilot_sw__ping` | sanity check, 返 "pong" |
 | create_cylinder | #2 | `mcp__mech_pilot_sw__create_cylinder` | 圆柱零件 |
 | create_flange | #4 | `mcp__mech_pilot_sw__create_flange` | 法兰 / 端盖 / 周向孔板 |
+| add_fillet | #6 | `mcp__mech_pilot_sw__add_fillet` | 给已有零件全边加等半径圆角 |
 | (.mcp.json) | #3 | — | Claude Code 项目级 MCP 配置 |
 
-**L1/L2/L3 全部验证**：40/40 单元测试 + 3 个 PowerShell L2 集成全过 +
-L3 Claude Code 真客户端通过自然语言端到端验过 (含 "画 D80 法兰" /
-"造端盖" / 错误 spec 拒绝)。
+**L1/L2 全部验证**：61/61 单元测试 + 4 个 PowerShell L2 集成全过。
+create_cylinder/flange 另经 L3 Claude Code 真客户端自然语言端到端验过 (含
+"画 D80 法兰" / "造端盖" / 错误 spec 拒绝)；add_fillet 的 L3/L4 待 MCP session
+重启抽测 (代码与 flange 同构, L2 已覆盖 SW 交互全链路)。
 
 ---
 
@@ -83,6 +86,21 @@ L3 Claude Code 真客户端通过自然语言端到端验过 (含 "画 D80 法�
 - L3 验收: Claude Code 自然语言 → 我自动 LLM 决策调工具 → 真生成 93KB
   正确法兰. 其中错误 spec 我**调用工具前就识破** (PCD60 > 外径D50 几何不可能)
   比预期的 "tool throw → 转译" 更智能
+
+### M4 — add_fillet (PR #6, 2026-05-29) — 首个"编辑已有零件"工具
+
+- 前三个工具都从 `NewDocument` 凭空建模；add_fillet 是**首个打开并编辑已有
+  .sldprt** 的工具: `OpenDoc6 → 选所有边 (mark=1) → FeatureFillet3 → SaveAs →
+  CloseDoc (finally, 确保开过的 doc 不悬挂)`。
+- `Models/FilletSpec.cs`: InputPath (**必须已存在**) / RadiusMm / OutputPath (可选)
+  POCO + Validate。半径边界 [0.01, 1000] mm。OutputPath 空 = 原地覆盖, 给了 = 另存副本。
+- `Tools/AddFilletTool.cs`: `FeatureFillet3` 等半径全边圆角 (Options=UniformRadius=2,
+  Ftyp=Simple=0)。边选择走 body 导航 `GetBodies2 → GetEdges →
+  IEntity.Select2(append, mark=1)` (黄金法则 #6, 不用坐标 SelectByID2)。
+- L1: 21 个 FilletSpec 用例 (需造真临时 .sldprt, 因 Validate 查 File.Exists),
+  L2: M4-fillet.test.ps1 (5 检查: 副本 / 原地 / 缺文件 / 负半径 / 超大半径→SW 失败转非零退出)。
+- **跨 v1 反转的坑**: FeatureFillet3 尾部 7 个数组参数 C# 早绑定传 `null` 一次就成
+  (v1 Python 需专门的 `empty_variant()`)，详踩坑 #8 + SW_API_REFERENCE §2.6。
 
 ---
 
@@ -169,6 +187,19 @@ Stop-Process -Name 'mech-pilot-sw' -Force  # 另一 session 下次调工具会�
 PR #2 merge 后，我又往 `feat/m2-cylinder` 推了 `.mcp.json` commit (`73fffa8`)
 — 该 commit 是孤儿，没进 master。**修复**: 新分支 `chore/mcp-config` 从 master
 拉出 → `git cherry-pick 73fffa8` → 新 PR (#3)。
+
+### 8. C# 早绑定 `null` = VT_EMPTY，反转 v1 Python 的 fillet 坑 (M4)
+
+v1 (Python late binding) 下 `FeatureFillet3` 尾部 7 个 Variant 数组参数传
+`None` / `()` 会让 fillet **silent 返 null**，当年靠专门的 `empty_variant()`
+(VT_EMPTY) 才破。迁到 C# 早绑定后**直接传 `null` 第一次就成** —— CLR 的
+null→VARIANT 投影即 VT_EMPTY，等价 v1 的 `empty_variant()`。
+
+规律: §2 (SW_API_REFERENCE) 的 VARIANT 三件套在早绑定下大多免手动包装 ——
+`byref_long_variant()` → `ref int` (M2 SaveAs 已验)，`empty_variant()` → `null`，
+`null_dispatch_variant()` → 类型化接口形参传 `null`。**后续工具迁移
+(chamfer / hole_wizard 等遇到同类 Variant 数组参数时, 先试 `null`**。
+对应表详 SW_API_REFERENCE §2.6。
 
 ---
 
