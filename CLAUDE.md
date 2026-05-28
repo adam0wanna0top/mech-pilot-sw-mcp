@@ -25,20 +25,22 @@
 
 ## 当前阶段
 
-✅ **MVP 已完成** (2026-05-27)。3 工具全部在 master：
+✅ **MVP 已完成** (2026-05-27)，**M4 add_fillet** 追加首个"编辑已有零件"工具。4 工具：
 
 | Tool | LLM-facing name | 用途 |
 |---|---|---|
 | ping | `mcp__mech_pilot_sw__ping` | sanity check |
 | create_cylinder | `mcp__mech_pilot_sw__create_cylinder` | 圆柱零件 |
 | create_flange | `mcp__mech_pilot_sw__create_flange` | 法兰 / 端盖 / 周向孔板 |
+| add_fillet | `mcp__mech_pilot_sw__add_fillet` | 给已有零件全边加等半径圆角 |
 
-**所有 L1 / L2 / L3 验证通过** (40/40 单元测试 + 3 个 PowerShell L2 集成 +
-真客户端自然语言端到端)。
+**L1 / L2 验证通过** (61/61 单元测试 + 4 个 PowerShell L2 集成)；create_cylinder /
+create_flange 另经 L3 / L4 真客户端自然语言端到端验过 (add_fillet L3/L4 待 MCP
+session 重启抽测)。
 
-**下一步**: ARCHITECTURE.md 明确"MVP 后暂停, 根据实际体验决定"。
-候选方向 (CI 自动化 / REPL / 前 10 高频工具 / SW 任务面板 WPF / ...) 详见
-[`docs/DEV_LOG.md`](docs/DEV_LOG.md) "下一步候选" 段。
+**下一步**: 已启动「前 10 高频工具」迁移 (add_fillet 首发, 见 [`docs/DEV_LOG.md`](docs/DEV_LOG.md)
+M4)。后续候选 (chamfer / hole_wizard / pattern / CI 自动化 / SW 任务面板 WPF / ...)
+详见 DEV_LOG "下一步候选" 段。
 
 ---
 
@@ -187,7 +189,7 @@ dotnet format --verify-no-changes
 
 ## 进入新对话先做这 4 件事
 
-1. **读 [`docs/DEV_LOG.md`](docs/DEV_LOG.md)** → 5 分钟拿到 MVP 全貌 + 7 条核心
+1. **读 [`docs/DEV_LOG.md`](docs/DEV_LOG.md)** → 5 分钟拿到 MVP 全貌 + 8 条核心
    踩坑教训 + 下一步候选 (本文件是 30 秒入门, DEV_LOG 是开发上下文全貌)
 2. **跑 `gh pr list --state open`** → 看是否有未合 PR 影响本次开发
 3. **跑 `git log --oneline -10`** → 看最近 commits 状态
@@ -214,29 +216,33 @@ mech-pilot-sw-mcp/                  ← 项目根 (= GitHub repo)
 │   ├── Program.cs                  # 入口分发 (args 空 → MCP / 非空 → CLI)
 │   ├── Entrypoints/
 │   │   ├── McpServer.cs            # MCP stdio 入口
-│   │   └── CliRunner.cs            # CLI 子命令入口 (ping / create-cylinder / create-flange)
+│   │   └── CliRunner.cs            # CLI 子命令入口 (ping / create-cylinder / create-flange / add-fillet)
 │   ├── Tools/                      # 业务核心 (CLI + MCP + L1 测试共用)
 │   │   ├── PingTool.cs             # M1
 │   │   ├── CreateCylinderTool.cs   # M2
-│   │   └── CreateFlangeTool.cs     # M3
+│   │   ├── CreateFlangeTool.cs     # M3
+│   │   └── AddFilletTool.cs        # M4 (首个"编辑已有零件"工具)
 │   ├── Models/                     # POCO 数据类型
 │   │   ├── ToolResult.cs
 │   │   ├── CylinderSpec.cs         # + Validate()
-│   │   └── FlangeSpec.cs           # + Validate() (13 个几何约束)
+│   │   ├── FlangeSpec.cs           # + Validate() (13 个几何约束)
+│   │   └── FilletSpec.cs           # + Validate() (InputPath 必须已存在)
 │   ├── Interop/
 │   │   └── SwConnection.cs         # ISldWorks 单例 + lazy connect (#if HAS_SOLIDWORKS)
 │   └── Exceptions/
 │       └── McpToolException.cs     # 业务异常 → MCP isError / CLI [error]
-├── MechPilot.SwMcp.Tests/          # L1 xUnit 单元测试 (40/40 passed)
+├── MechPilot.SwMcp.Tests/          # L1 xUnit 单元测试 (61/61 passed)
 │   ├── MechPilot.SwMcp.Tests.csproj
 │   ├── PingToolTests.cs
 │   ├── CylinderSpecTests.cs        # 15 个用例
-│   └── FlangeSpecTests.cs          # 24 个用例
+│   ├── FlangeSpecTests.cs          # 24 个用例
+│   └── FilletSpecTests.cs          # 21 个用例
 ├── tests/
 │   └── integration/                # L2 PowerShell 集成测试 (需本机有 SW)
 │       ├── M1-ping.test.ps1
 │       ├── M2-cylinder.test.ps1
 │       ├── M3-flange.test.ps1
+│       ├── M4-fillet.test.ps1
 │       └── run-all.ps1
 └── docs/
     ├── DEV_LOG.md                  # **新会话先读** — MVP 全貌 + 踩坑教训 + 下一步

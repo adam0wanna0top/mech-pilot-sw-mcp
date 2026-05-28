@@ -21,6 +21,7 @@ public static class CliRunner
         root.Subcommands.Add(BuildPingCommand());
         root.Subcommands.Add(BuildCreateCylinderCommand());
         root.Subcommands.Add(BuildCreateFlangeCommand());
+        root.Subcommands.Add(BuildAddFilletCommand());
 
         var parseResult = root.Parse(args);
         return await parseResult.InvokeAsync();
@@ -178,6 +179,59 @@ public static class CliRunner
                     BoltCircleDiameterMm = parseResult.GetValue(pcdOpt),
                 };
                 var result = CreateFlangeTool.RunWithSpec(spec);
+                WriteResult(result, parseResult.GetValue(formatOpt) ?? "text");
+                return 0;
+            }
+            catch (McpToolException ex)
+            {
+                Console.Error.WriteLine($"[error] {ex.Message}");
+                return 1;
+            }
+        });
+
+        return cmd;
+    }
+
+    private static Command BuildAddFilletCommand()
+    {
+        var inputOpt = new Option<string>("--input")
+        {
+            Description = "Absolute path to an existing .sldprt to fillet.",
+            Required = true,
+        };
+        var radiusOpt = new Option<double>("--radius")
+        {
+            Description = "Constant fillet radius in mm applied to every edge, e.g. 2.",
+            Required = true,
+        };
+        var outOpt = new Option<string>("--out")
+        {
+            Description = "Optional output .sldprt path. Omit to overwrite the input in place.",
+            DefaultValueFactory = _ => string.Empty,
+        };
+        var formatOpt = new Option<string>("--output")
+        {
+            Description = "Output format: text | json",
+            DefaultValueFactory = _ => "text",
+        };
+
+        var cmd = new Command("add-fillet",
+            "Add a constant-radius fillet to every edge of an existing part.")
+        {
+            inputOpt, radiusOpt, outOpt, formatOpt,
+        };
+
+        cmd.SetAction(parseResult =>
+        {
+            try
+            {
+                var spec = new FilletSpec
+                {
+                    InputPath = parseResult.GetValue(inputOpt) ?? string.Empty,
+                    RadiusMm = parseResult.GetValue(radiusOpt),
+                    OutputPath = parseResult.GetValue(outOpt),
+                };
+                var result = AddFilletTool.RunWithSpec(spec);
                 WriteResult(result, parseResult.GetValue(formatOpt) ?? "text");
                 return 0;
             }

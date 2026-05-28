@@ -178,6 +178,47 @@ E2E runner 起初在 main thread 调 `is_available()`（内部 `GetActiveObject`
 
 ---
 
+## 2.6. C# 早绑定下的 VARIANT 对应（M4 add_fillet 实证）
+
+项目已迁到 C# .NET 8 + 官方 Interop DLL（**早绑定**）。§2 的 Python VARIANT 三件套
+在早绑定下大多**不需要手动包装** —— CLR 的 COM marshaler 自动转换。M4 `add_fillet`
+（首个"编辑已有零件"工具）实测对应关系：
+
+| Python late binding（§2） | C# 早绑定 | 实测 |
+|---|---|---|
+| `empty_variant()`（VT_EMPTY 可选数组参数） | **`null`**（object 形参直接传 null） | FeatureFillet3 尾部 7 个 Object 数组参数全传 `null`，一次成功 |
+| `byref_long_variant()`（ByRef Long out） | **`ref int`** | OpenDoc6 / SaveAs 的 Errors/Warnings：声明 `int x = 0;` 后 `ref x` 即可 |
+| `null_dispatch_variant()`（可空 IDispatch） | `null`（类型化接口形参） | （本工具未用，按 marshaler 规则应同样自动） |
+
+**关键反转**：v1 Python 下 FeatureFillet3 尾部传 `None` / `()` 会让 fillet
+**返回 None**，只有 `empty_variant()` 才工作（§2 line 87）。**C# 早绑定下传 `null`
+即是 VT_EMPTY，第一次就成** —— 不需要任何特殊工厂。CLR 的 null→VARIANT 规则比
+pywin32 的 None→VARIANT 更贴近 SW 期望。
+
+**FeatureFillet3 C# 签名**（反射 `SolidWorks.Interop.sldworks.dll` 实证，**14 参**）：
+```
+Options(int), R1(double), R2(double), Rho(double), Ftyp(int),
+OverflowType(int), ConicRhoType(int),            ← 7 个标量
+Radii, Dist2Arr, RhoArr, SetBackDistances,
+PointRadiusArray, PointDist2Array, PointRhoArray  ← 7 个 Object 数组（全传 null）
+```
+等半径全边倒角调用：`Options=swFeatureFilletUniformRadius(2)`、
+`Ftyp=swFeatureFilletType_Simple(0)`、`OverflowType=swFilletOverFlowType_Default(0)`、
+`R1=半径(米)`，其余标量 0，7 个数组传 `null`。**注意 Options=2 是 UniformRadius，
+不是 KeepFeatures(128)**（§4 表已更正）。
+
+**边选择**（遵循黄金法则 #6，不用坐标 SelectByID2）：
+`(IPartDoc).GetBodies2(swSolidBody, false) → (IBody2).GetEdges() →
+(IEntity).Select2(Append:true, Mark:1)`，逐边 append。mark=1 是 FeatureFillet3
+要求（§4）。
+
+**OpenDoc6 C# 签名**（6 参）：`FileName, Type(int=swDocPART=1),
+Options(int=swOpenDocOptions_Silent=1), Configuration(string),
+ref Errors(int), ref Warnings(int)` → 返回 `IModelDoc2`（null = 打开失败，
+读 errors/warnings 位诊断）。
+
+---
+
 ## 3. 签名漂移表（SW 2024+ 比公开文档多 args）
 
 SW 2024+ 在多个 Feature API **尾部**加了若干 Variant 占位（实测，文档没说）。
@@ -209,7 +250,7 @@ SW 2024+ 在多个 Feature API **尾部**加了若干 Variant 占位（实测，
 |---|---|---|---|
 | `FeatureExtrusion3` / `FeatureCut3` | 草图 mark=0 即可 | — | 选 sketch 时不需要 mark |
 | `FeatureRevolve2` | 草图 mark=0 + 含 centerline | — | centerline 自动作轴 |
-| `FeatureFillet3` | 边 **mark=1** | — | **Options=2** (KeepFeatures) |
+| `FeatureFillet3` | 边 **mark=1** | — | **Options=2** = swFeatureFilletUniformRadius（**非** KeepFeatures——那是 128）；C# 早绑定签名详 §2.6 |
 | `InsertFeatureChamfer` | 边 mark=0 | — | 用默认 select_edge 即可 |
 | `FeatureLinearPattern2` | 方向边 mark=1 | 阵列 seed **mark=4** | dir2 用 mark=2 |
 | `FeatureCircularPattern3` | 轴 mark=1 | seed mark=4 | **EqualSpacing=False** |
