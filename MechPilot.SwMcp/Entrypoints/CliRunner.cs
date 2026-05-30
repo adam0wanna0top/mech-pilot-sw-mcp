@@ -22,6 +22,7 @@ public static class CliRunner
         root.Subcommands.Add(BuildCreateCylinderCommand());
         root.Subcommands.Add(BuildCreateFlangeCommand());
         root.Subcommands.Add(BuildAddFilletCommand());
+        root.Subcommands.Add(BuildAddChamferCommand());
 
         var parseResult = root.Parse(args);
         return await parseResult.InvokeAsync();
@@ -232,6 +233,59 @@ public static class CliRunner
                     OutputPath = parseResult.GetValue(outOpt),
                 };
                 var result = AddFilletTool.RunWithSpec(spec);
+                WriteResult(result, parseResult.GetValue(formatOpt) ?? "text");
+                return 0;
+            }
+            catch (McpToolException ex)
+            {
+                Console.Error.WriteLine($"[error] {ex.Message}");
+                return 1;
+            }
+        });
+
+        return cmd;
+    }
+
+    private static Command BuildAddChamferCommand()
+    {
+        var inputOpt = new Option<string>("--input")
+        {
+            Description = "Absolute path to an existing .sldprt to chamfer.",
+            Required = true,
+        };
+        var distanceOpt = new Option<double>("--distance")
+        {
+            Description = "Equal-distance chamfer width in mm applied to every edge, e.g. 2.",
+            Required = true,
+        };
+        var outOpt = new Option<string>("--out")
+        {
+            Description = "Optional output .sldprt path. Omit to overwrite the input in place.",
+            DefaultValueFactory = _ => string.Empty,
+        };
+        var formatOpt = new Option<string>("--output")
+        {
+            Description = "Output format: text | json",
+            DefaultValueFactory = _ => "text",
+        };
+
+        var cmd = new Command("add-chamfer",
+            "Add an equal-distance chamfer to every edge of an existing part.")
+        {
+            inputOpt, distanceOpt, outOpt, formatOpt,
+        };
+
+        cmd.SetAction(parseResult =>
+        {
+            try
+            {
+                var spec = new ChamferSpec
+                {
+                    InputPath = parseResult.GetValue(inputOpt) ?? string.Empty,
+                    DistanceMm = parseResult.GetValue(distanceOpt),
+                    OutputPath = parseResult.GetValue(outOpt),
+                };
+                var result = ChamferTool.RunWithSpec(spec);
                 WriteResult(result, parseResult.GetValue(formatOpt) ?? "text");
                 return 0;
             }

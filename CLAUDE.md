@@ -25,7 +25,8 @@
 
 ## 当前阶段
 
-✅ **MVP 已完成** (2026-05-27)，**M4 add_fillet** 追加首个"编辑已有零件"工具。4 工具：
+✅ **MVP 已完成** (2026-05-27)，**前 10 高频工具迁移启动**: M4 add_fillet 首发,
+M5 修 in-place SaveAs bug, M6 add_chamfer 验证工具迁移模板可复用。5 工具:
 
 | Tool | LLM-facing name | 用途 |
 |---|---|---|
@@ -33,14 +34,16 @@
 | create_cylinder | `mcp__mech_pilot_sw__create_cylinder` | 圆柱零件 |
 | create_flange | `mcp__mech_pilot_sw__create_flange` | 法兰 / 端盖 / 周向孔板 |
 | add_fillet | `mcp__mech_pilot_sw__add_fillet` | 给已有零件全边加等半径圆角 |
+| add_chamfer | `mcp__mech_pilot_sw__add_chamfer` | 给已有零件全边加等距倒角 (45°) |
 
-**L1 / L2 验证通过** (61/61 单元测试 + 4 个 PowerShell L2 集成)；4 工具均经 L3
-MCP stdio 抽测。其中 add_fillet 的 L3 抽测撞出 L2 没撞到的 bug：MCP 长寿命
-server 下 in-place SaveAs 报 errors=0x1，已修 (M5, 改用 Save3)。
+**L1 / L2 验证通过** (82/82 单元测试 + 5 个 PowerShell L2 集成)；4 工具均经 L3
+MCP stdio 抽测 (add_chamfer L3 待新 session 重启)。其中 add_fillet 的 L3 抽测撞
+出 L2 没撞到的 bug：MCP 长寿命 server 下 in-place SaveAs 报 errors=0x1，已修
+(M5, 改用 Save3)。
 
-**下一步**: 已启动「前 10 高频工具」迁移 (add_fillet 首发, 见 [`docs/DEV_LOG.md`](docs/DEV_LOG.md)
-M4)。后续候选 (chamfer / hole_wizard / pattern / CI 自动化 / SW 任务面板 WPF / ...)
-详见 DEV_LOG "下一步候选" 段。
+**下一步**: 「前 10 高频工具」迁移 2/10 (fillet + chamfer)。剩 8 个候选
+(hole_wizard / pattern_* / mirror / new_assembly / add_component / save_as_step
+/ ... 详见 [`docs/DEV_LOG.md`](docs/DEV_LOG.md) "下一步候选" 段)。
 
 ---
 
