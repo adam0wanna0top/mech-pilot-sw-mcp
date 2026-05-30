@@ -23,6 +23,7 @@ public static class CliRunner
         root.Subcommands.Add(BuildCreateFlangeCommand());
         root.Subcommands.Add(BuildAddFilletCommand());
         root.Subcommands.Add(BuildAddChamferCommand());
+        root.Subcommands.Add(BuildExportPartCommand());
 
         var parseResult = root.Parse(args);
         return await parseResult.InvokeAsync();
@@ -286,6 +287,55 @@ public static class CliRunner
                     OutputPath = parseResult.GetValue(outOpt),
                 };
                 var result = ChamferTool.RunWithSpec(spec);
+                WriteResult(result, parseResult.GetValue(formatOpt) ?? "text");
+                return 0;
+            }
+            catch (McpToolException ex)
+            {
+                Console.Error.WriteLine($"[error] {ex.Message}");
+                return 1;
+            }
+        });
+
+        return cmd;
+    }
+
+    private static Command BuildExportPartCommand()
+    {
+        var inputOpt = new Option<string>("--input")
+        {
+            Description = "Absolute path to an existing .sldprt to export.",
+            Required = true,
+        };
+        var outOpt = new Option<string>("--out")
+        {
+            Description =
+                "Absolute output path; extension picks format " +
+                "(.step / .stp / .stl / .iges / .igs / .x_t / .x_b).",
+            Required = true,
+        };
+        var formatOpt = new Option<string>("--output")
+        {
+            Description = "Output format: text | json",
+            DefaultValueFactory = _ => "text",
+        };
+
+        var cmd = new Command("export-part",
+            "Export an existing part to a neutral CAD format (STEP / STL / IGES / Parasolid).")
+        {
+            inputOpt, outOpt, formatOpt,
+        };
+
+        cmd.SetAction(parseResult =>
+        {
+            try
+            {
+                var spec = new ExportSpec
+                {
+                    InputPath = parseResult.GetValue(inputOpt) ?? string.Empty,
+                    OutputPath = parseResult.GetValue(outOpt) ?? string.Empty,
+                };
+                var result = ExportPartTool.RunWithSpec(spec);
                 WriteResult(result, parseResult.GetValue(formatOpt) ?? "text");
                 return 0;
             }

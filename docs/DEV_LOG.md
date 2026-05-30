@@ -19,12 +19,13 @@
 | create_flange | #4 | `mcp__mech_pilot_sw__create_flange` | 法兰 / 端盖 / 周向孔板 |
 | add_fillet | #6 | `mcp__mech_pilot_sw__add_fillet` | 给已有零件全边加等半径圆角 |
 | add_chamfer | #8 | `mcp__mech_pilot_sw__add_chamfer` | 给已有零件全边加等距倒角 (45°) |
+| export_part | #9 | `mcp__mech_pilot_sw__export_part` | 导出 STEP / STL / IGES / Parasolid |
 | (.mcp.json) | #3 | — | Claude Code 项目级 MCP 配置 |
 
-**L1/L2 全部验证**：82/82 单元测试 + 5 个 PowerShell L2 集成全过。
+**L1/L2 全部验证**：103/103 单元测试 + 6 个 PowerShell L2 集成全过。
 create_cylinder/flange/fillet 经 L3 MCP 抽测; add_fillet 撞出 in-place SaveAs
-bug 已修 (M5/PR #7); add_chamfer 的 L3 待新 session 重启抽测 (代码与 fillet
-同构, L2 覆盖 SW 交互全链路)。
+bug 已修 (M5/PR #7); add_chamfer + export_part 的 L3 待新 session 重启抽测
+(代码同构, L2 覆盖 SW 交互全链路)。
 
 ---
 
@@ -154,6 +155,31 @@ L2 + L1 都没暴露的 bug —— **首次"L3 抽测撞到 L2 没撞到的 bug"
 **模板效用证明**: 反射 + 写 4 个文件 + 注册 CLI 子命令, 总耗时 ~1 小时 (vs
 M4 add_fillet 首个 editing 工具 ~3 小时含探索)。后续 8 个工具 (hole_wizard /
 pattern_* / mirror / new_assembly / ...) 预期每个 0.5-1 天能搞定。
+
+### M7 — export_part (PR #9, 2026-05-30) — "造型 → 出货" 闭环
+
+"前 10 高频工具" 迁移第 3 发，**首个非 modeling/editing 的工具家族 (export)**。
+让 LLM 能把 .sldprt 导出 STEP / STL / IGES / Parasolid (扩展名决定格式)，下游
+能进 CAM / CAE / 3D 打印。
+
+- **核心简化**: `Extension.SaveAs(neutralPath)` 用扩展名自动 dispatch 到 SW
+  内置 STEP/STL/IGES/Parasolid exporter，**不需要任何额外 enum 或 ExportData
+  对象**。代码比 fillet/chamfer 还少 (无 sketch / feature / select 操作)。
+- **结构上 M5-safe**: outputPath 扩展名是 neutral format (`.step` / `.stl` / ...),
+  必然 ≠ inputPath (`.sldprt`)。**SaveAs(samepath) 在路径校验层就被防呆**, 不会
+  撞 M5 in-place SaveAs bug, 故 ExportPartTool 只走 SaveAs 单分支。
+- **支持的扩展名集合**: 显式枚举在 `ExportSpec.AllowedExtensions` (字典+格式说
+  明), 让"typo `.stop`"在 spec 校验层失败并给"Supported: ..."提示, 不会冒出
+  opaque SW error。一期支持: STEP(`.step`/`.stp`) + STL(`.stl`) + IGES
+  (`.iges`/`.igs`) + Parasolid(`.x_t`/`.x_b`)。
+- **拒绝覆盖原 sldprt**: spec.Validate 显式检查 `outputPath != inputPath`,
+  即使将来加 `.sldprt` 到 AllowedExtensions 也不会误伤源文件。
+- **测试**: L1 +21 ExportSpec 用例 (= 103 total); L2 M7-export 4/4 pass
+  (STEP 11.8KB + ISO-10303 header / STL 10KB / 拒 `.obj` / 拒不存在 input)。
+  L3 待新 session 重启。
+
+**意义**: 让"造圆柱 → 加圆角 → 出 STEP" 这条 LLM 完整自然语言闭环跑通; 这是
+项目"工程实用性"的分水岭, 6 工具开始能进生产链路 (CAM/CAE/3D 打印 / 装配)。
 
 ---
 
