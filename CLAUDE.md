@@ -25,8 +25,8 @@
 
 ## 当前阶段
 
-✅ **MVP 已完成** (2026-05-27)。**前 10 高频工具迁移进行中**: M4-M12 一路推进,
-**M12 pattern_linear 让 LLM "3×5 阵列" 一句话可达 (block 提供直边)**。11 工具:
+✅ **MVP 已完成** (2026-05-27)。**前 10 高频工具迁移进行中**: M4-M13 推进顺利,
+**M13 add_threaded_hole 复刻 v1 PR #24 "魔法位"一次过 HoleWizard5**。12 工具:
 
 | Tool | LLM-facing name | 用途 |
 |---|---|---|
@@ -37,20 +37,21 @@
 | add_fillet | `mcp__mech_pilot_sw__add_fillet` | 给已有零件全边加等半径圆角 |
 | add_chamfer | `mcp__mech_pilot_sw__add_chamfer` | 给已有零件全边加等距倒角 (45°) |
 | add_axial_hole | `mcp__mech_pilot_sw__add_axial_hole` | 在 ±Z 端面加 Φ 通孔 / 盲孔 |
+| add_threaded_hole | `mcp__mech_pilot_sw__add_threaded_hole` | GB 螺纹孔 M3-M12 (真螺纹特征) |
 | mirror_feature | `mcp__mech_pilot_sw__mirror_feature` | 沿 Front / Top / Right 基准面镜像特征 |
 | pattern_linear | `mcp__mech_pilot_sw__pattern_linear` | 1D / 2D 线性阵列特征 |
 | inspect_part | `mcp__mech_pilot_sw__inspect_part` | 读取零件元数据（bbox / 特征 / 面+边数） |
 | export_part | `mcp__mech_pilot_sw__export_part` | 导出 STEP / STL / IGES / Parasolid |
 
-**L1 / L2 验证通过** (218/218 单元测试 + 11 个 PowerShell L2 集成)；
-cylinder/flange/fillet 经 L3 MCP 抽测 (后续 7 工具 L3 待新 session 重启)。M5
+**L1 / L2 验证通过** (252/252 单元测试 + 12 个 PowerShell L2 集成)；
+cylinder/flange/fillet 经 L3 MCP 抽测 (后续 8 工具 L3 待新 session 重启)。M5
 撞过 in-place SaveAs bug 已修。
 
-**下一步**: 「前 10 高频工具」迁移 8/10 (fillet / chamfer / export_part /
+**下一步**: 「前 10 高频工具」迁移 9/10 (fillet / chamfer / export_part /
 add_axial_hole / inspect_part / mirror_feature / add_rectangular_block /
-**pattern_linear**)。剩 2 个候选 (HoleWizard5 标准螺孔 /
-new_assembly+add_component / save_drawing 详见
-[`docs/DEV_LOG.md`](docs/DEV_LOG.md) "下一步候选" 段)。
+pattern_linear / **add_threaded_hole**)。剩 1 个候选 (new_assembly+
+add_component 装配工具家族 / save_drawing 工程图 / pattern_circular 圆周阵列
+/ refactor: FeatureWalker shared helper)。
 
 ---
 
