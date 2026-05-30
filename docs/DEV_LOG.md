@@ -22,11 +22,12 @@
 | export_part | #9 | `mcp__mech_pilot_sw__export_part` | 导出 STEP / STL / IGES / Parasolid |
 | add_axial_hole | #10 | `mcp__mech_pilot_sw__add_axial_hole` | 在 ±Z 端面加 Φ 通孔 / 盲孔 |
 | inspect_part | #11 | `mcp__mech_pilot_sw__inspect_part` | 读取零件元数据（bbox / 特征 / 面+边数） |
+| mirror_feature | #12 | `mcp__mech_pilot_sw__mirror_feature` | 沿 Front / Top / Right 基准面镜像特征 |
 | (.mcp.json) | #3 | — | Claude Code 项目级 MCP 配置 |
 
-**L1/L2 全部验证**：143/143 单元测试 + 8 个 PowerShell L2 集成全过。
+**L1/L2 全部验证**：163/163 单元测试 + 9 个 PowerShell L2 集成全过。
 create_cylinder/flange/fillet 经 L3 MCP 抽测; add_fillet 撞出 in-place SaveAs
-bug 已修 (M5/PR #7); add_chamfer/export_part/add_axial_hole/inspect_part 的 L3
+bug 已修 (M5/PR #7); 后续 5 工具 (chamfer/export/axial_hole/inspect/mirror) 的 L3
 待新 session 重启抽测 (代码同构, L2 覆盖 SW 交互全链路)。
 
 ---
@@ -242,6 +243,44 @@ totalFace+EdgeCount / boundingBoxMm + sizeMm / features list (name+type+suppress
 **意义**: 闭环"造-改-看-出货"四个动作; LLM 现在能"先看后改"避免盲改撞错。
 下个候选 (剩 5/10): HoleWizard5 标准螺孔 / pattern_linear / mirror /
 new_assembly + add_component / save_drawing。
+
+### M10 — mirror_feature (PR #12, 2026-05-30) — 跳过 pattern_linear 改做更高 ROI 的 mirror
+
+"前 10 高频工具" 第 6 发。**原计划做 pattern_linear, 反射 + design 阶段发现
+盲区**: `FeatureLinearPattern2` 需要 `mark=1` 的 **方向边 (direction edge)`,
+但 create_cylinder/create_flange 造的零件**全是圆形, 无直边** → pattern_linear
+在 LLM 实际场景里几乎触发不了 (除非先做 add_rectangular_block)。改做 mirror —
+跟 add_axial_hole 配对完美 ("加一个孔, 然后镜像")。
+
+- **Selection mark 表 (SW_API_REFERENCE §6, 跟 pattern 相反!)**:
+  - 镜像面 (mirror plane) → mark=2
+  - seed feature → mark=1
+  - (pattern 是: 方向边 mark=1, seed mark=4 — 顺序反着)
+- **API**: `InsertMirrorFeature2(bMirrorBody=false, bGeometryPattern=true,
+  bMerge=true, bKnit=false, ScopeOptions=0)`。SW 2026 上 5 参 (文档普遍 4,
+  +1 ScopeOptions, M0 docs 已记录)。`bGeometryPattern=true` 更稳健 (纯几何
+  copy 比参数化 mirror robust)。
+- **基准面选择 (CN/EN 双语)**: 沿用 create_cylinder 的 `FrontPlaneAliases` 模式 ──
+  `MirrorSpec.PlaneAliases` 字典: front → ["前视基准面", "Front Plane"],
+  top → ["上视基准面", "Top Plane"], right → ["右视基准面", "Right Plane"]。
+  按顺序试。
+- **Seed feature 选择**: spec.FeatureName 给了用 `SelectByID2("BODYFEATURE")`;
+  没给则**自动取最后一个 user-meaningful feature** — 同 inspect_part 的 boot
+  filter (`bootTypes ∪ EndsWith("Folder")`)。"add_axial_hole 加孔 → mirror_feature
+  立刻镜像" 一句话 LLM 用法成立, 不强迫 LLM 知道特征名。
+- **L2 几何坑**: 首次测试用 mirror across **Front Plane** 直接 SW null. 推
+  原因: cylinder 从 Front Plane (XY) 拉伸沿 +Z 30mm; 孔在 +Z 顶面切 →
+  mirror across Front (Z=0) 把孔翻到 -Z 区域, **零件不在 -Z 没法 mirror**。改
+  用 **Right Plane (X 翻转)** 在 |x| < radius 范围内有效。规律: mirror plane
+  必须跟 seed feature 的偏移方向**垂直**, 否则 SW 拒绝。
+- **测试**: L1 +20 MirrorSpec 用例 (= 163 total); L2 M10 5/5 pass
+  (right + auto-pick / top + case-insensitive in-place / 拒 'left' / 拒
+  不存在 input / 拒不存在 feature name)。L3 待新 session 重启。
+
+**意义**: 9 工具 = 造 (3) + 改 (4 含镜像) + 看 (1) + 出货 (1)。镜像让"对称零件"
+一步到位, 避免 LLM 重复加孔 N 次。下个候选 (剩 4/10): HoleWizard5 真螺纹 /
+add_rectangular_block + pattern_linear 配对 / new_assembly+add_component /
+save_drawing。
 
 ---
 

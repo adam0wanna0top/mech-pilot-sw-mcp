@@ -27,7 +27,8 @@
 
 ✅ **MVP 已完成** (2026-05-27)。**前 10 高频工具迁移进行中**: M4 fillet 首发,
 M5 修 in-place SaveAs bug, M6 chamfer 验模板, M7 export_part 闭环"造型→出货",
-M8 add_axial_hole 加孔, **M9 inspect_part 让 LLM 看懂零件**。8 工具:
+M8 add_axial_hole 加孔, M9 inspect_part 让 LLM 看懂零件, **M10 mirror_feature
+镜像特征 (跳过 pattern_linear 因当前零件都是圆形无直边)**。9 工具:
 
 | Tool | LLM-facing name | 用途 |
 |---|---|---|
@@ -39,15 +40,16 @@ M8 add_axial_hole 加孔, **M9 inspect_part 让 LLM 看懂零件**。8 工具:
 | export_part | `mcp__mech_pilot_sw__export_part` | 导出 STEP / STL / IGES / Parasolid |
 | add_axial_hole | `mcp__mech_pilot_sw__add_axial_hole` | 在 ±Z 端面加 Φ 通孔 / 盲孔 |
 | inspect_part | `mcp__mech_pilot_sw__inspect_part` | 读取零件元数据（bbox / 特征 / 面+边数） |
+| mirror_feature | `mcp__mech_pilot_sw__mirror_feature` | 沿 Front / Top / Right 基准面镜像特征 |
 
-**L1 / L2 验证通过** (143/143 单元测试 + 8 个 PowerShell L2 集成)；fillet/cylinder
-/flange 经 L3 MCP 抽测 (chamfer/export/axial_hole/inspect L3 待新 session 重启)。
-M5 撞过 in-place SaveAs bug 已修。
+**L1 / L2 验证通过** (163/163 单元测试 + 9 个 PowerShell L2 集成)；fillet/cylinder
+/flange 经 L3 MCP 抽测 (chamfer/export/axial_hole/inspect/mirror L3 待新 session
+重启)。M5 撞过 in-place SaveAs bug 已修。
 
-**下一步**: 「前 10 高频工具」迁移 5/10 (fillet / chamfer / export_part /
-add_axial_hole / inspect_part)。剩 5 个候选 (hole_wizard 标准螺孔 / pattern_linear
-/ mirror / new_assembly / add_component / ... 详见
-[`docs/DEV_LOG.md`](docs/DEV_LOG.md) "下一步候选" 段)。
+**下一步**: 「前 10 高频工具」迁移 6/10 (fillet / chamfer / export_part /
+add_axial_hole / inspect_part / mirror_feature)。剩 4 个候选 (hole_wizard
+标准螺孔 / pattern_linear 需先做 add_rectangular_block / new_assembly+add_component
+/ save_drawing 详见 [`docs/DEV_LOG.md`](docs/DEV_LOG.md) "下一步候选" 段)。
 
 ---
 
