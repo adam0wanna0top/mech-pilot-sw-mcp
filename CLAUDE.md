@@ -34,9 +34,9 @@
 | create_flange | `mcp__mech_pilot_sw__create_flange` | 法兰 / 端盖 / 周向孔板 |
 | add_fillet | `mcp__mech_pilot_sw__add_fillet` | 给已有零件全边加等半径圆角 |
 
-**L1 / L2 验证通过** (61/61 单元测试 + 4 个 PowerShell L2 集成)；create_cylinder /
-create_flange 另经 L3 / L4 真客户端自然语言端到端验过 (add_fillet L3/L4 待 MCP
-session 重启抽测)。
+**L1 / L2 验证通过** (61/61 单元测试 + 4 个 PowerShell L2 集成)；4 工具均经 L3
+MCP stdio 抽测。其中 add_fillet 的 L3 抽测撞出 L2 没撞到的 bug：MCP 长寿命
+server 下 in-place SaveAs 报 errors=0x1，已修 (M5, 改用 Save3)。
 
 **下一步**: 已启动「前 10 高频工具」迁移 (add_fillet 首发, 见 [`docs/DEV_LOG.md`](docs/DEV_LOG.md)
 M4)。后续候选 (chamfer / hole_wizard / pattern / CI 自动化 / SW 任务面板 WPF / ...)

@@ -160,32 +160,51 @@ public static class AddFilletTool
             }
 
             // ── 4. Save (in place, or to outputPath) ────────────────────────
+            //   in-place vs copy must use different APIs:
+            //     • in-place (write back to the currently-active doc's own path):
+            //       IModelDoc2.Save3. Extension.SaveAs(samepath) returns
+            //       errors=0x1 (swGenericSaveError) under a long-lived SW
+            //       instance — L3 (MCP stdio server) reproduces it every time;
+            //       L2 (fresh exe per call) never hits it because SW starts
+            //       cold each time. See docs/DEV_LOG.md M5.
+            //     • copy (write to a different path): Extension.SaveAs is the
+            //       correct API and works in both modes.
             var targetPath = string.IsNullOrWhiteSpace(spec.OutputPath)
                 ? spec.InputPath
                 : spec.OutputPath!;
+            var isInPlace = string.Equals(targetPath, spec.InputPath, StringComparison.OrdinalIgnoreCase);
 
             int saveErrors = 0;
             int saveWarnings = 0;
-            var savedOk = ext.SaveAs(
-                Name: targetPath,
-                Version: (int)swSaveAsVersion_e.swSaveAsCurrentVersion,
-                Options: (int)swSaveAsOptions_e.swSaveAsOptions_Silent,
-                ExportData: null,
-                Errors: ref saveErrors,
-                Warnings: ref saveWarnings);
+            bool savedOk;
+            if (isInPlace)
+            {
+                savedOk = model.Save3(
+                    (int)swSaveAsOptions_e.swSaveAsOptions_Silent,
+                    ref saveErrors,
+                    ref saveWarnings);
+            }
+            else
+            {
+                savedOk = ext.SaveAs(
+                    Name: targetPath,
+                    Version: (int)swSaveAsVersion_e.swSaveAsCurrentVersion,
+                    Options: (int)swSaveAsOptions_e.swSaveAsOptions_Silent,
+                    ExportData: null,
+                    Errors: ref saveErrors,
+                    Warnings: ref saveWarnings);
+            }
 
             if (!savedOk || !File.Exists(targetPath))
             {
+                var api = isInPlace ? "Save3" : "SaveAs";
                 throw new McpToolException(
-                    $"SaveAs failed for '{targetPath}'. errors=0x{saveErrors:X} " +
+                    $"{api} failed for '{targetPath}'. errors=0x{saveErrors:X} " +
                     $"warnings=0x{saveWarnings:X}.");
             }
 
-            var where = string.Equals(targetPath, spec.InputPath, StringComparison.OrdinalIgnoreCase)
-                ? "in place"
-                : "as a copy";
             return ToolResult.Ok(
-                message: $"Filleted {edgeCount} edge(s) with R{spec.RadiusMm} mm; saved {where}",
+                message: $"Filleted {edgeCount} edge(s) with R{spec.RadiusMm} mm; saved {(isInPlace ? "in place" : "as a copy")}",
                 path: targetPath);
         }
         finally
