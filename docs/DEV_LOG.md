@@ -20,12 +20,13 @@
 | add_fillet | #6 | `mcp__mech_pilot_sw__add_fillet` | 给已有零件全边加等半径圆角 |
 | add_chamfer | #8 | `mcp__mech_pilot_sw__add_chamfer` | 给已有零件全边加等距倒角 (45°) |
 | export_part | #9 | `mcp__mech_pilot_sw__export_part` | 导出 STEP / STL / IGES / Parasolid |
+| add_axial_hole | #10 | `mcp__mech_pilot_sw__add_axial_hole` | 在 ±Z 端面加 Φ 通孔 / 盲孔 |
 | (.mcp.json) | #3 | — | Claude Code 项目级 MCP 配置 |
 
-**L1/L2 全部验证**：103/103 单元测试 + 6 个 PowerShell L2 集成全过。
+**L1/L2 全部验证**：137/137 单元测试 + 7 个 PowerShell L2 集成全过。
 create_cylinder/flange/fillet 经 L3 MCP 抽测; add_fillet 撞出 in-place SaveAs
-bug 已修 (M5/PR #7); add_chamfer + export_part 的 L3 待新 session 重启抽测
-(代码同构, L2 覆盖 SW 交互全链路)。
+bug 已修 (M5/PR #7); add_chamfer/export_part/add_axial_hole 的 L3 待新 session
+重启抽测 (代码与已抽测工具同构, L2 覆盖 SW 交互全链路)。
 
 ---
 
@@ -180,6 +181,36 @@ pattern_* / mirror / new_assembly / ...) 预期每个 0.5-1 天能搞定。
 
 **意义**: 让"造圆柱 → 加圆角 → 出 STEP" 这条 LLM 完整自然语言闭环跑通; 这是
 项目"工程实用性"的分水岭, 6 工具开始能进生产链路 (CAM/CAE/3D 打印 / 装配)。
+
+### M8 — add_axial_hole (PR #10, 2026-05-30) — 加孔 (简化路径, 跳过 HoleWizard5)
+
+"前 10 高频工具" 第 4 发。**有意跳过 SW 的 `HoleWizard5` (27 参 + GB/ANSI 标
+准库 + v1 PR #21/#24/#25 啃过的"魔法位"踩坑)**, 直接做简化的 `add_axial_hole`:
+在零件 ±Z 端面圆心或 (x, y) 加一个 Φ 圆形通孔 / 盲孔。覆盖 LLM 80% 加孔请求
+(M6 → Φ6.6 通孔 / Φ5 螺纹底孔, LLM 自己换算)。HoleWizard5 标准螺孔留到下一个
+PR 单独做。
+
+- **复用模板组合**: 把 create_flange 的"FindPlanarEndFace + InsertSketch +
+  CreateCircleByRadius + FeatureCut2"和 add_fillet 的"OpenDoc6 → CloseDoc
+  + isInPlace 二分 (Save3 vs SaveAs)"组合起来 — 这是首个**组合两个已验工具
+  脚手架的新工具**, 印证"前 10 工具"模板复用价值。
+- **FeatureCut2 调用直接复刻 M3**: 反射验过 23 参签名;
+  `NormalCut=false`, `AssemblyFeatureScope/AutoSelectComponents/PropagateFeatureToParts`
+  三 false (M3 / SW_API_REFERENCE §8.3 教训复用)。EndCond:
+  null DepthMm → swEndCondThroughAll (1); 正 DepthMm → swEndCondBlind (0) +
+  D1 = depth_m。
+- **`FindPlanarEndFace` 第二次复用**: 跟 CreateFlangeTool 同一份 logic 私有
+  复制 (rule of three 还没到, 等第 3 次出现再 extract 到 shared helper)。
+- **xUnit InlineData(int) 不能转 double? 的坑**: `[InlineData(10)]` 让 xUnit
+  把字面量当 int, 转不到 `double?` 形参; 必须写 `[InlineData(10.0)]`。
+  L1 初次跑 137/137 实际 135/137 因这个挂, 改 1 行通过。
+- **测试**: L1 +34 AxialHoleSpec 用例 (= 137 total); L2 M8 5/5 pass
+  (Φ6.6 通孔 copy / Φ5×10 盲孔 in-place / Φ4 偏心通孔 in-place / 拒不
+  存在 / 拒负直径)。L3 待新 session 重启。
+
+**意义**: 7 工具开始覆盖 LLM "造圆柱 → 加孔 → 倒边 → 出 STEP" 完整零件加工
+流程。下个 PR 候选: HoleWizard5 标准螺孔 (M5/M6 等 GB tap 录宏破)、
+pattern_linear (线性阵列)、inspect_part (LLM 读懂已有零件)。
 
 ---
 

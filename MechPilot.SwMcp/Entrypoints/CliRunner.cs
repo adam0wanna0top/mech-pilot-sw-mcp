@@ -24,6 +24,7 @@ public static class CliRunner
         root.Subcommands.Add(BuildAddFilletCommand());
         root.Subcommands.Add(BuildAddChamferCommand());
         root.Subcommands.Add(BuildExportPartCommand());
+        root.Subcommands.Add(BuildAddAxialHoleCommand());
 
         var parseResult = root.Parse(args);
         return await parseResult.InvokeAsync();
@@ -336,6 +337,77 @@ public static class CliRunner
                     OutputPath = parseResult.GetValue(outOpt) ?? string.Empty,
                 };
                 var result = ExportPartTool.RunWithSpec(spec);
+                WriteResult(result, parseResult.GetValue(formatOpt) ?? "text");
+                return 0;
+            }
+            catch (McpToolException ex)
+            {
+                Console.Error.WriteLine($"[error] {ex.Message}");
+                return 1;
+            }
+        });
+
+        return cmd;
+    }
+
+    private static Command BuildAddAxialHoleCommand()
+    {
+        var inputOpt = new Option<string>("--input")
+        {
+            Description = "Absolute path to an existing .sldprt to drill.",
+            Required = true,
+        };
+        var diameterOpt = new Option<double>("--diameter")
+        {
+            Description = "Hole diameter in mm, e.g. 6.6 for an M6 clearance hole.",
+            Required = true,
+        };
+        var depthOpt = new Option<double?>("--depth")
+        {
+            Description = "Blind depth in mm; omit for through-all.",
+            DefaultValueFactory = _ => null,
+        };
+        var posXOpt = new Option<double>("--position-x")
+        {
+            Description = "Hole-center X on the end face in mm. Default 0 (centroid).",
+            DefaultValueFactory = _ => 0.0,
+        };
+        var posYOpt = new Option<double>("--position-y")
+        {
+            Description = "Hole-center Y on the end face in mm. Default 0 (centroid).",
+            DefaultValueFactory = _ => 0.0,
+        };
+        var outOpt = new Option<string>("--out")
+        {
+            Description = "Optional output .sldprt path. Omit to overwrite the input in place.",
+            DefaultValueFactory = _ => string.Empty,
+        };
+        var formatOpt = new Option<string>("--output")
+        {
+            Description = "Output format: text | json",
+            DefaultValueFactory = _ => "text",
+        };
+
+        var cmd = new Command("add-axial-hole",
+            "Drill a single axial (±Z) cylindrical hole (through-all or blind) into an existing part.")
+        {
+            inputOpt, diameterOpt, depthOpt, posXOpt, posYOpt, outOpt, formatOpt,
+        };
+
+        cmd.SetAction(parseResult =>
+        {
+            try
+            {
+                var spec = new AxialHoleSpec
+                {
+                    InputPath = parseResult.GetValue(inputOpt) ?? string.Empty,
+                    DiameterMm = parseResult.GetValue(diameterOpt),
+                    DepthMm = parseResult.GetValue(depthOpt),
+                    PositionXMm = parseResult.GetValue(posXOpt),
+                    PositionYMm = parseResult.GetValue(posYOpt),
+                    OutputPath = parseResult.GetValue(outOpt),
+                };
+                var result = AddAxialHoleTool.RunWithSpec(spec);
                 WriteResult(result, parseResult.GetValue(formatOpt) ?? "text");
                 return 0;
             }
