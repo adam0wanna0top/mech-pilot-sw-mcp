@@ -18,12 +18,13 @@
 | create_cylinder | #2 | `mcp__mech_pilot_sw__create_cylinder` | 圆柱零件 |
 | create_flange | #4 | `mcp__mech_pilot_sw__create_flange` | 法兰 / 端盖 / 周向孔板 |
 | add_fillet | #6 | `mcp__mech_pilot_sw__add_fillet` | 给已有零件全边加等半径圆角 |
+| add_chamfer | #8 | `mcp__mech_pilot_sw__add_chamfer` | 给已有零件全边加等距倒角 (45°) |
 | (.mcp.json) | #3 | — | Claude Code 项目级 MCP 配置 |
 
-**L1/L2 全部验证**：61/61 单元测试 + 4 个 PowerShell L2 集成全过。
-create_cylinder/flange 另经 L3 Claude Code 真客户端自然语言端到端验过 (含
-"画 D80 法兰" / "造端盖" / 错误 spec 拒绝)；add_fillet 的 L3/L4 待 MCP session
-重启抽测 (代码与 flange 同构, L2 已覆盖 SW 交互全链路)。
+**L1/L2 全部验证**：82/82 单元测试 + 5 个 PowerShell L2 集成全过。
+create_cylinder/flange/fillet 经 L3 MCP 抽测; add_fillet 撞出 in-place SaveAs
+bug 已修 (M5/PR #7); add_chamfer 的 L3 待新 session 重启抽测 (代码与 fillet
+同构, L2 覆盖 SW 交互全链路)。
 
 ---
 
@@ -126,6 +127,33 @@ L2 + L1 都没暴露的 bug —— **首次"L3 抽测撞到 L2 没撞到的 bug"
 
 **规律 (后续编辑零件工具沿用)**: 长寿命 SW 状态下的 in-place 写入必须用
 `Save/Save3`, 不能用 `SaveAs(samepath)`。
+
+### M6 — add_chamfer (PR #8, 2026-05-30) — 工具迁移模板首试
+
+"前 10 高频工具" 迁移第二发 (fillet 首发)。复刻 add_fillet 脚手架验证模板可
+重用 + M5 in-place Save3 教训在新工具上沿用。
+
+- **共用模式**: `ChamferTool` 几乎 1:1 复刻 `AddFilletTool` (open → select
+  edges mark=1 → 特征 → save 分支 isInPlace 二分 → CloseDoc), 唯一变量是
+  `FeatureFillet3` → `InsertFeatureChamfer`。反射拿真签名:
+  `Feature InsertFeatureChamfer(int Options, int ChamferType, double Width,
+  double Angle, double OtherDist, double VertexChamDist1/2/3)`; 用
+  `swChamferEqualDistance` (=16) 取等距倒角 (Width=OtherDist=distance 作 safety
+  belt 防 SW cross-validate, Angle / Vertex* = 0)。
+- **Spec 字段**: `RadiusMm` → `DistanceMm` (chamfer 是"边距", 不是"半径"), 边界
+  和 path 校验 1:1 复用。
+- **意外发现 #1**: SW chamfer 对 distance 容忍度极高 — D=1000 mm 在 D30 L50
+  圆柱上仍 silent 接受 (产生退化 chamfer); 二次 chamfer 同零件也成功 (chamfer
+  新出的内圈边)。所以 fillet 那种"超大半径 → SW null return"的 L2 negative
+  case **chamfer 上无法人工触发**。`M6-chamfer.test.ps1` 只保留 4 case
+  (copy / in-place / 不存在 / 负距离); `InsertFeatureChamfer null` 路径在
+  代码里作为防御性留存, L2 不覆盖。
+- **测试**: L1 +21 ChamferSpec 用例 (= 82 total); L2 4/4 pass; L3 待新 session
+  重启 (代码与 fillet 同构, 风险极低)。
+
+**模板效用证明**: 反射 + 写 4 个文件 + 注册 CLI 子命令, 总耗时 ~1 小时 (vs
+M4 add_fillet 首个 editing 工具 ~3 小时含探索)。后续 8 个工具 (hole_wizard /
+pattern_* / mirror / new_assembly / ...) 预期每个 0.5-1 天能搞定。
 
 ---
 
