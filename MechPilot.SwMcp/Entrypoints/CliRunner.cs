@@ -26,6 +26,7 @@ public static class CliRunner
         root.Subcommands.Add(BuildExportPartCommand());
         root.Subcommands.Add(BuildAddAxialHoleCommand());
         root.Subcommands.Add(BuildInspectPartCommand());
+        root.Subcommands.Add(BuildMirrorFeatureCommand());
 
         var parseResult = root.Parse(args);
         return await parseResult.InvokeAsync();
@@ -450,6 +451,65 @@ public static class CliRunner
                     InputPath = parseResult.GetValue(inputOpt) ?? string.Empty,
                 };
                 var result = InspectPartTool.RunWithSpec(spec);
+                WriteResult(result, parseResult.GetValue(formatOpt) ?? "text");
+                return 0;
+            }
+            catch (McpToolException ex)
+            {
+                Console.Error.WriteLine($"[error] {ex.Message}");
+                return 1;
+            }
+        });
+
+        return cmd;
+    }
+
+    private static Command BuildMirrorFeatureCommand()
+    {
+        var inputOpt = new Option<string>("--input")
+        {
+            Description = "Absolute path to an existing .sldprt to edit.",
+            Required = true,
+        };
+        var planeOpt = new Option<string>("--plane")
+        {
+            Description = "Mirror plane: 'front' / 'top' / 'right' (case-insensitive).",
+            Required = true,
+        };
+        var featureOpt = new Option<string>("--feature")
+        {
+            Description = "Optional exact feature name to mirror; omit for last user feature.",
+            DefaultValueFactory = _ => string.Empty,
+        };
+        var outOpt = new Option<string>("--out")
+        {
+            Description = "Optional output .sldprt path. Omit to overwrite the input in place.",
+            DefaultValueFactory = _ => string.Empty,
+        };
+        var formatOpt = new Option<string>("--output")
+        {
+            Description = "Output format: text | json",
+            DefaultValueFactory = _ => "text",
+        };
+
+        var cmd = new Command("mirror-feature",
+            "Mirror a feature of an existing part across Front / Top / Right reference plane.")
+        {
+            inputOpt, planeOpt, featureOpt, outOpt, formatOpt,
+        };
+
+        cmd.SetAction(parseResult =>
+        {
+            try
+            {
+                var spec = new MirrorSpec
+                {
+                    InputPath = parseResult.GetValue(inputOpt) ?? string.Empty,
+                    MirrorPlane = parseResult.GetValue(planeOpt) ?? string.Empty,
+                    FeatureName = parseResult.GetValue(featureOpt),
+                    OutputPath = parseResult.GetValue(outOpt),
+                };
+                var result = MirrorFeatureTool.RunWithSpec(spec);
                 WriteResult(result, parseResult.GetValue(formatOpt) ?? "text");
                 return 0;
             }
