@@ -21,6 +21,7 @@ public static class CliRunner
         root.Subcommands.Add(BuildPingCommand());
         root.Subcommands.Add(BuildCreateCylinderCommand());
         root.Subcommands.Add(BuildCreateFlangeCommand());
+        root.Subcommands.Add(BuildCreateRectangularBlockCommand());
         root.Subcommands.Add(BuildAddFilletCommand());
         root.Subcommands.Add(BuildAddChamferCommand());
         root.Subcommands.Add(BuildExportPartCommand());
@@ -510,6 +511,65 @@ public static class CliRunner
                     OutputPath = parseResult.GetValue(outOpt),
                 };
                 var result = MirrorFeatureTool.RunWithSpec(spec);
+                WriteResult(result, parseResult.GetValue(formatOpt) ?? "text");
+                return 0;
+            }
+            catch (McpToolException ex)
+            {
+                Console.Error.WriteLine($"[error] {ex.Message}");
+                return 1;
+            }
+        });
+
+        return cmd;
+    }
+
+    private static Command BuildCreateRectangularBlockCommand()
+    {
+        var lengthOpt = new Option<double>("--length")
+        {
+            Description = "Block length (X extent) in mm, e.g. 100.",
+            Required = true,
+        };
+        var widthOpt = new Option<double>("--width")
+        {
+            Description = "Block width (Y extent) in mm, e.g. 50.",
+            Required = true,
+        };
+        var heightOpt = new Option<double>("--height")
+        {
+            Description = "Block height (Z extrusion depth) in mm, e.g. 20.",
+            Required = true,
+        };
+        var outOpt = new Option<string>("--out")
+        {
+            Description = "Absolute output path ending in .sldprt.",
+            Required = true,
+        };
+        var formatOpt = new Option<string>("--output")
+        {
+            Description = "Output format: text | json",
+            DefaultValueFactory = _ => "text",
+        };
+
+        var cmd = new Command("create-rectangular-block",
+            "Create a parametric rectangular block (cuboid) part.")
+        {
+            lengthOpt, widthOpt, heightOpt, outOpt, formatOpt,
+        };
+
+        cmd.SetAction(parseResult =>
+        {
+            try
+            {
+                var spec = new RectangularBlockSpec
+                {
+                    LengthMm = parseResult.GetValue(lengthOpt),
+                    WidthMm = parseResult.GetValue(widthOpt),
+                    HeightMm = parseResult.GetValue(heightOpt),
+                    SavePath = parseResult.GetValue(outOpt) ?? string.Empty,
+                };
+                var result = CreateRectangularBlockTool.RunWithSpec(spec);
                 WriteResult(result, parseResult.GetValue(formatOpt) ?? "text");
                 return 0;
             }
