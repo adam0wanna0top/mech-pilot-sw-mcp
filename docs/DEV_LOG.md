@@ -21,12 +21,13 @@
 | add_chamfer | #8 | `mcp__mech_pilot_sw__add_chamfer` | 给已有零件全边加等距倒角 (45°) |
 | export_part | #9 | `mcp__mech_pilot_sw__export_part` | 导出 STEP / STL / IGES / Parasolid |
 | add_axial_hole | #10 | `mcp__mech_pilot_sw__add_axial_hole` | 在 ±Z 端面加 Φ 通孔 / 盲孔 |
+| inspect_part | #11 | `mcp__mech_pilot_sw__inspect_part` | 读取零件元数据（bbox / 特征 / 面+边数） |
 | (.mcp.json) | #3 | — | Claude Code 项目级 MCP 配置 |
 
-**L1/L2 全部验证**：137/137 单元测试 + 7 个 PowerShell L2 集成全过。
+**L1/L2 全部验证**：143/143 单元测试 + 8 个 PowerShell L2 集成全过。
 create_cylinder/flange/fillet 经 L3 MCP 抽测; add_fillet 撞出 in-place SaveAs
-bug 已修 (M5/PR #7); add_chamfer/export_part/add_axial_hole 的 L3 待新 session
-重启抽测 (代码与已抽测工具同构, L2 覆盖 SW 交互全链路)。
+bug 已修 (M5/PR #7); add_chamfer/export_part/add_axial_hole/inspect_part 的 L3
+待新 session 重启抽测 (代码同构, L2 覆盖 SW 交互全链路)。
 
 ---
 
@@ -211,6 +212,36 @@ PR 单独做。
 **意义**: 7 工具开始覆盖 LLM "造圆柱 → 加孔 → 倒边 → 出 STEP" 完整零件加工
 流程。下个 PR 候选: HoleWizard5 标准螺孔 (M5/M6 等 GB tap 录宏破)、
 pattern_linear (线性阵列)、inspect_part (LLM 读懂已有零件)。
+
+### M9 — inspect_part (PR #11, 2026-05-30) — LLM 看懂零件 + 首个只读工具
+
+"前 10 高频工具" 第 5 发。**首个只读工具**（之前 7 个都是写: create_* / add_*
+/ export_*）。让 LLM 读懂 .sldprt 元数据: title / featureCount / bodyCount /
+totalFace+EdgeCount / boundingBoxMm + sizeMm / features list (name+type+suppressed)。
+是后续所有"编辑已有零件"工具的视觉前置 — LLM 给一个未知零件先 inspect 再决定
+能不能"加 R30 fillet"等。
+
+- **ToolResult 加 Data 字段**: 之前工具只返 Status/Path/Message; inspect 需要
+  返结构化数据 → `IReadOnlyDictionary<string, object>? Data` (默认 null,
+  CLI `--output json` 自动序列化)。其他 7 个工具不影响。
+- **Read-only 模式**: `OpenDoc6(Silent | ReadOnly)`, CloseDoc 不需 Save/Save3
+  (M5 trap 结构上不可能 — read-only doc 没 dirty state)。
+- **BBox**: `IPartDoc.GetPartBox(NoConversion=true)` 返 SI meters 的 6 元数组
+  [minX, minY, minZ, maxX, maxY, maxZ], 工具内部 × 1000 转 mm。空 part (无 body)
+  返全 0 → 当 null 处理。
+- **Feature 过滤策略 (L2 probe 发现 SW 2026 的 *Folder 容器系列)**:
+  初版 bootTypes hardcoded `Comments` / `FavoriteFolder` 等没覆盖 SW 2026 实
+  际类型 (`CommentsFolder` / `SelectionSetFolder` / `InkMarkupFolder` /
+  `EnvFolder` / `ConfigTableFolder`)。改成 **"显式名单 + EndsWith(`Folder`)
+  兜底"**。L2 验证: create_cylinder 输出严格 2 features (ProfileFeature 草图
+  + Extrusion 凸台), 跟用户认知一致。
+- **测试**: L1 +6 InspectSpec 用例 (= 143 total, 只读所以 spec 最小);
+  L2 M9 4/4 pass (D40 L30 圆柱 bbox 40×40×30 / D80 t10 法兰 bbox 10×80×80 /
+  拒不存在 / 拒非 .sldprt)。L3 待新 session 重启。
+
+**意义**: 闭环"造-改-看-出货"四个动作; LLM 现在能"先看后改"避免盲改撞错。
+下个候选 (剩 5/10): HoleWizard5 标准螺孔 / pattern_linear / mirror /
+new_assembly + add_component / save_drawing。
 
 ---
 
