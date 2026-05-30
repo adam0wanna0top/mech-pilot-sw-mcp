@@ -25,6 +25,7 @@ public static class CliRunner
         root.Subcommands.Add(BuildAddChamferCommand());
         root.Subcommands.Add(BuildExportPartCommand());
         root.Subcommands.Add(BuildAddAxialHoleCommand());
+        root.Subcommands.Add(BuildInspectPartCommand());
 
         var parseResult = root.Parse(args);
         return await parseResult.InvokeAsync();
@@ -408,6 +409,47 @@ public static class CliRunner
                     OutputPath = parseResult.GetValue(outOpt),
                 };
                 var result = AddAxialHoleTool.RunWithSpec(spec);
+                WriteResult(result, parseResult.GetValue(formatOpt) ?? "text");
+                return 0;
+            }
+            catch (McpToolException ex)
+            {
+                Console.Error.WriteLine($"[error] {ex.Message}");
+                return 1;
+            }
+        });
+
+        return cmd;
+    }
+
+    private static Command BuildInspectPartCommand()
+    {
+        var inputOpt = new Option<string>("--input")
+        {
+            Description = "Absolute path to an existing .sldprt to inspect.",
+            Required = true,
+        };
+        var formatOpt = new Option<string>("--output")
+        {
+            Description = "Output format: text | json",
+            DefaultValueFactory = _ => "text",
+        };
+
+        var cmd = new Command("inspect-part",
+            "Read metadata (bbox / features / face+edge counts) from an existing part. Read-only.")
+        {
+            inputOpt, formatOpt,
+        };
+
+        cmd.SetAction(parseResult =>
+        {
+            try
+            {
+                var spec = new InspectSpec
+                {
+                    InputPath = parseResult.GetValue(inputOpt) ?? string.Empty,
+                };
+                var result = InspectPartTool.RunWithSpec(spec);
                 WriteResult(result, parseResult.GetValue(formatOpt) ?? "text");
                 return 0;
             }
