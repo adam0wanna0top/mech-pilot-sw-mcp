@@ -28,6 +28,7 @@ public static class CliRunner
         root.Subcommands.Add(BuildAddAxialHoleCommand());
         root.Subcommands.Add(BuildInspectPartCommand());
         root.Subcommands.Add(BuildMirrorFeatureCommand());
+        root.Subcommands.Add(BuildPatternLinearCommand());
 
         var parseResult = root.Parse(args);
         return await parseResult.InvokeAsync();
@@ -570,6 +571,97 @@ public static class CliRunner
                     SavePath = parseResult.GetValue(outOpt) ?? string.Empty,
                 };
                 var result = CreateRectangularBlockTool.RunWithSpec(spec);
+                WriteResult(result, parseResult.GetValue(formatOpt) ?? "text");
+                return 0;
+            }
+            catch (McpToolException ex)
+            {
+                Console.Error.WriteLine($"[error] {ex.Message}");
+                return 1;
+            }
+        });
+
+        return cmd;
+    }
+
+    private static Command BuildPatternLinearCommand()
+    {
+        var inputOpt = new Option<string>("--input")
+        {
+            Description = "Absolute path to an existing .sldprt to edit.",
+            Required = true,
+        };
+        var axis1Opt = new Option<string>("--axis1")
+        {
+            Description = "Direction-1 axis: 'x', 'y', or 'z' (case-insensitive).",
+            Required = true,
+        };
+        var count1Opt = new Option<int>("--count1")
+        {
+            Description = "Total instances along direction 1 (including seed), e.g. 3.",
+            Required = true,
+        };
+        var spacing1Opt = new Option<double>("--spacing1")
+        {
+            Description = "Center-to-center spacing along direction 1 in mm, e.g. 20.",
+            Required = true,
+        };
+        var axis2Opt = new Option<string>("--axis2")
+        {
+            Description = "Optional direction-2 axis (different from --axis1).",
+            DefaultValueFactory = _ => string.Empty,
+        };
+        var count2Opt = new Option<int>("--count2")
+        {
+            Description = "Total instances along direction 2 (with seed). Default 1.",
+            DefaultValueFactory = _ => 1,
+        };
+        var spacing2Opt = new Option<double>("--spacing2")
+        {
+            Description = "Spacing along direction 2 in mm; required when --axis2 is set.",
+            DefaultValueFactory = _ => 0.0,
+        };
+        var featureOpt = new Option<string>("--feature")
+        {
+            Description = "Optional exact seed feature name; omit for last user feature.",
+            DefaultValueFactory = _ => string.Empty,
+        };
+        var outOpt = new Option<string>("--out")
+        {
+            Description = "Optional output .sldprt path. Omit to overwrite the input in place.",
+            DefaultValueFactory = _ => string.Empty,
+        };
+        var formatOpt = new Option<string>("--output")
+        {
+            Description = "Output format: text | json",
+            DefaultValueFactory = _ => "text",
+        };
+
+        var cmd = new Command("pattern-linear",
+            "Linear pattern (1D or 2D) of a single seed feature in an existing part.")
+        {
+            inputOpt, axis1Opt, count1Opt, spacing1Opt,
+            axis2Opt, count2Opt, spacing2Opt,
+            featureOpt, outOpt, formatOpt,
+        };
+
+        cmd.SetAction(parseResult =>
+        {
+            try
+            {
+                var spec = new LinearPatternSpec
+                {
+                    InputPath = parseResult.GetValue(inputOpt) ?? string.Empty,
+                    Direction1Axis = parseResult.GetValue(axis1Opt) ?? string.Empty,
+                    CountDir1 = parseResult.GetValue(count1Opt),
+                    SpacingDir1Mm = parseResult.GetValue(spacing1Opt),
+                    Direction2Axis = parseResult.GetValue(axis2Opt),
+                    CountDir2 = parseResult.GetValue(count2Opt),
+                    SpacingDir2Mm = parseResult.GetValue(spacing2Opt),
+                    FeatureName = parseResult.GetValue(featureOpt),
+                    OutputPath = parseResult.GetValue(outOpt),
+                };
+                var result = PatternLinearTool.RunWithSpec(spec);
                 WriteResult(result, parseResult.GetValue(formatOpt) ?? "text");
                 return 0;
             }
