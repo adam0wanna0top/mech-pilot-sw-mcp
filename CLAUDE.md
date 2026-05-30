@@ -25,16 +25,17 @@
 
 ## 当前阶段
 
-✅ **MVP 已完成** (2026-05-27)。**前 10 高频工具迁移进行中**: M4 fillet 首发,
-M5 修 in-place SaveAs bug, M6 chamfer 验模板, M7 export_part 闭环"造型→出货",
-M8 add_axial_hole 加孔, M9 inspect_part 让 LLM 看懂零件, **M10 mirror_feature
-镜像特征 (跳过 pattern_linear 因当前零件都是圆形无直边)**。9 工具:
+✅ **MVP 已完成** (2026-05-27)。**前 10 高频工具迁移进行中**: M4 fillet, M5 fix,
+M6 chamfer, M7 export_part, M8 axial_hole, M9 inspect_part, M10 mirror_feature,
+**M11 add_rectangular_block 补长方体造型（解锁 pattern_linear 的直边前置）**。
+10 工具:
 
 | Tool | LLM-facing name | 用途 |
 |---|---|---|
 | ping | `mcp__mech_pilot_sw__ping` | sanity check |
 | create_cylinder | `mcp__mech_pilot_sw__create_cylinder` | 圆柱零件 |
 | create_flange | `mcp__mech_pilot_sw__create_flange` | 法兰 / 端盖 / 周向孔板 |
+| create_rectangular_block | `mcp__mech_pilot_sw__create_rectangular_block` | 长方体零件 (L×W×H 居中) |
 | add_fillet | `mcp__mech_pilot_sw__add_fillet` | 给已有零件全边加等半径圆角 |
 | add_chamfer | `mcp__mech_pilot_sw__add_chamfer` | 给已有零件全边加等距倒角 (45°) |
 | export_part | `mcp__mech_pilot_sw__export_part` | 导出 STEP / STL / IGES / Parasolid |
@@ -42,14 +43,15 @@ M8 add_axial_hole 加孔, M9 inspect_part 让 LLM 看懂零件, **M10 mirror_fea
 | inspect_part | `mcp__mech_pilot_sw__inspect_part` | 读取零件元数据（bbox / 特征 / 面+边数） |
 | mirror_feature | `mcp__mech_pilot_sw__mirror_feature` | 沿 Front / Top / Right 基准面镜像特征 |
 
-**L1 / L2 验证通过** (163/163 单元测试 + 9 个 PowerShell L2 集成)；fillet/cylinder
-/flange 经 L3 MCP 抽测 (chamfer/export/axial_hole/inspect/mirror L3 待新 session
-重启)。M5 撞过 in-place SaveAs bug 已修。
+**L1 / L2 验证通过** (187/187 单元测试 + 10 个 PowerShell L2 集成)；
+cylinder/flange/fillet 经 L3 MCP 抽测 (后续 6 工具 L3 待新 session 重启)。M5
+撞过 in-place SaveAs bug 已修。
 
-**下一步**: 「前 10 高频工具」迁移 6/10 (fillet / chamfer / export_part /
-add_axial_hole / inspect_part / mirror_feature)。剩 4 个候选 (hole_wizard
-标准螺孔 / pattern_linear 需先做 add_rectangular_block / new_assembly+add_component
-/ save_drawing 详见 [`docs/DEV_LOG.md`](docs/DEV_LOG.md) "下一步候选" 段)。
+**下一步**: 「前 10 高频工具」迁移 7/10 (fillet / chamfer / export_part /
+add_axial_hole / inspect_part / mirror_feature / **add_rectangular_block**)。
+剩 3 个候选 (pattern_linear（现在 block 有直边了可以做）/ HoleWizard5
+标准螺孔 / new_assembly+add_component / save_drawing 详见
+[`docs/DEV_LOG.md`](docs/DEV_LOG.md) "下一步候选" 段)。
 
 ---
 

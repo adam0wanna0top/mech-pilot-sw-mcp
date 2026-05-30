@@ -23,12 +23,13 @@
 | add_axial_hole | #10 | `mcp__mech_pilot_sw__add_axial_hole` | 在 ±Z 端面加 Φ 通孔 / 盲孔 |
 | inspect_part | #11 | `mcp__mech_pilot_sw__inspect_part` | 读取零件元数据（bbox / 特征 / 面+边数） |
 | mirror_feature | #12 | `mcp__mech_pilot_sw__mirror_feature` | 沿 Front / Top / Right 基准面镜像特征 |
+| create_rectangular_block | #13 | `mcp__mech_pilot_sw__create_rectangular_block` | 长方体零件 (L×W×H 居中) |
 | (.mcp.json) | #3 | — | Claude Code 项目级 MCP 配置 |
 
-**L1/L2 全部验证**：163/163 单元测试 + 9 个 PowerShell L2 集成全过。
+**L1/L2 全部验证**：187/187 单元测试 + 10 个 PowerShell L2 集成全过。
 create_cylinder/flange/fillet 经 L3 MCP 抽测; add_fillet 撞出 in-place SaveAs
-bug 已修 (M5/PR #7); 后续 5 工具 (chamfer/export/axial_hole/inspect/mirror) 的 L3
-待新 session 重启抽测 (代码同构, L2 覆盖 SW 交互全链路)。
+bug 已修 (M5/PR #7); 后续 6 工具 (chamfer/export/axial_hole/inspect/mirror
+/block) 的 L3 待新 session 重启抽测 (代码同构, L2 覆盖 SW 交互全链路)。
 
 ---
 
@@ -281,6 +282,37 @@ new_assembly + add_component / save_drawing。
 一步到位, 避免 LLM 重复加孔 N 次。下个候选 (剩 4/10): HoleWizard5 真螺纹 /
 add_rectangular_block + pattern_linear 配对 / new_assembly+add_component /
 save_drawing。
+
+### M11 — add_rectangular_block (PR #13, 2026-05-31) — 长方体造型 + pattern_linear 前置
+
+"前 10 高频工具" 第 7 发。**为 pattern_linear 铺路** — M10 design 阶段发现
+cylinder/flange 全是圆形无直边, FeatureLinearPattern2 的 mark=1 方向边没东西
+选。**先造长方体补全直边**, 然后 M12 pattern_linear 才有 seed。
+
+- **复刻 cylinder 模板, 唯一差异是 sketch 原语**:
+  `CreateCenterRectangle(x1,y1,z1, x2,y2,z2)` (6 args), 中心 + 一角的语义。
+  Center 在原点 (0,0,0); 角点 (L/2, W/2, 0) 米。pipeline 跟 cylinder 完全一样:
+  NewDocument → SelectFrontPlane → InsertSketch → CreateCenterRectangle →
+  ExitSketch → SelectSketch → FeatureExtrusion3 → SaveAs → CloseDoc。
+- **三维独立**: LengthMm (X) / WidthMm (Y) / HeightMm (Z 拉伸深度), 每个独立
+  bound `[0.1, 10000]`, 同 CylinderSpec sanity。
+- **测试反向验证**: M11-block L2 跑完 create-rectangular-block 之后**立刻调
+  inspect-part** 验 bbox sorted = (20, 50, 100), 即"造完真长这么大"——
+  inspect_part 作为基础设施开始发挥跨工具回归价值。
+- **测试**: L1 +24 RectangularBlockSpec 用例 (= 187 total); L2 M11 4/4 pass
+  (bracket 100×50×20 / cube 30³ / 拒负 length / 拒过大 width)。L3 待新 session
+  重启。
+
+**模板成熟度沉淀**: 这是第 4 个 "modeling from-scratch" 工具 (cylinder /
+flange / 现在的 block)。脚手架已经稳到 1:1 复刻 cylinder ~30 分钟出工具,
+唯一变量是 sketch 原语 (Circle / 多 circle + cut / CenterRectangle)。后续如果
+做 hexagonal block / triangular block 等都是这个模板。
+
+**意义**: 10 工具 = 造 (4: 圆柱/法兰/方块/球未来) + 改 (4) + 看 (1) +
+出货 (1)。10 工具里程碑达成 (虽然不是原计划的"前 10 高频", 但覆盖度更高 —
+跳过 pattern_linear 改做 mirror + block 反而更贴 LLM 实际场景)。下个候选
+(剩 3/10): **pattern_linear (现在 block 有直边)** / HoleWizard5 真螺纹 /
+new_assembly+add_component / save_drawing。
 
 ---
 
