@@ -24,12 +24,14 @@
 | inspect_part | #11 | `mcp__mech_pilot_sw__inspect_part` | 读取零件元数据（bbox / 特征 / 面+边数） |
 | mirror_feature | #12 | `mcp__mech_pilot_sw__mirror_feature` | 沿 Front / Top / Right 基准面镜像特征 |
 | create_rectangular_block | #13 | `mcp__mech_pilot_sw__create_rectangular_block` | 长方体零件 (L×W×H 居中) |
+| pattern_linear | #14 | `mcp__mech_pilot_sw__pattern_linear` | 1D / 2D 线性阵列特征 |
 | (.mcp.json) | #3 | — | Claude Code 项目级 MCP 配置 |
 
-**L1/L2 全部验证**：187/187 单元测试 + 10 个 PowerShell L2 集成全过。
+**L1/L2 全部验证**：218/218 单元测试 + 11 个 PowerShell L2 集成全过。
 create_cylinder/flange/fillet 经 L3 MCP 抽测; add_fillet 撞出 in-place SaveAs
-bug 已修 (M5/PR #7); 后续 6 工具 (chamfer/export/axial_hole/inspect/mirror
-/block) 的 L3 待新 session 重启抽测 (代码同构, L2 覆盖 SW 交互全链路)。
+bug 已修 (M5/PR #7); 后续 7 工具 (chamfer/export/axial_hole/inspect/mirror
+/block/pattern_linear) 的 L3 待新 session 重启抽测 (代码同构, L2 覆盖 SW 交互
+全链路)。
 
 ---
 
@@ -313,6 +315,44 @@ flange / 现在的 block)。脚手架已经稳到 1:1 复刻 cylinder ~30 分钟
 跳过 pattern_linear 改做 mirror + block 反而更贴 LLM 实际场景)。下个候选
 (剩 3/10): **pattern_linear (现在 block 有直边)** / HoleWizard5 真螺纹 /
 new_assembly+add_component / save_drawing。
+
+### M12 — pattern_linear (PR #14, 2026-05-31) — 1D/2D 线性阵列 + axis 关键字策略
+
+"前 10 高频工具" 第 8 发。**M11 block 铺好直边后, 立刻做 M10 跳过的
+pattern_linear**。LLM "3×5 阵列" 一句话可达。
+
+- **`FeatureLinearPattern2` (9 args 最简版)**: Num1, Spacing1, Num2, Spacing2,
+  FlipDir1=false, FlipDir2=false, DName1="", DName2="", GeometryPattern=true。
+  GeometryPattern=true 是稳健默认 (纯几何 copy, 避免参数化阵列在 multi-cut
+  场景挂, 跟 v1 PR #32 pattern_circular silent fail 经验呼应)。
+- **关键 LLM 设计: axis 关键字 (x/y/z) 而非 edge name**:
+  LLM 不可能知道 SW 内部 edge name; 工具内部用 **body 导航 + IsLine +
+  vertex 差值** 找第一条沿 ±axis 的直边 (cos similarity > 0.99)。具体:
+  `IPartDoc.GetBodies2 → IBody2.GetEdges → IEdge.GetCurve.IsLine →
+  endVertex.GetPoint - startVertex.GetPoint → normalize → 检查 axis 分量`。
+  比 ICurve.get_LineParams 内部布局更可靠 (M2 教训: 不要猜 Variant 布局)。
+- **Selection mark 三件套 (SW_API_REFERENCE §6)**:
+  - direction edge 1 → mark=1
+  - direction edge 2 → mark=2 (可选, 仅 CountDir2 > 1)
+  - seed feature → mark=4
+- **Seed feature 选择**: 同 mirror_feature 模式 — FeatureName 给了用
+  SelectByID2("BODYFEATURE"); 没给则自动取最后一个 user feature
+  (boot filter 现在第 3 次复用 — `bootTypes ∪ EndsWith("Folder")`, **下次出现
+  应该 extract 到 shared helper, rule of three 已满**)。
+- **Cylinder rejection 是 feature 不是 bug**: cylinder/flange 没直边, 工具检测
+  到给清晰错误 "use create_rectangular_block as seed part" 而不是 silent fail。
+  这是 M10 design 阶段发现的盲区**在工具里固化为 LLM 友好的引导**。
+- **PowerShell 5.x × 编码坑 (L2)**: tool 输出 message "3×2 grid", PowerShell 5.x
+  捕获 stdout 时 × (U+00D7) 渲染成 "?" 乱码, 导致正则 `'3×2'` match 失败。
+  L2 case 改用 ASCII 关键字 `'grid'` 匹配, 添加 comment 说明。tool 本身输出
+  没问题, 只是 L2 测试编码问题。
+- **测试**: L1 +31 LinearPatternSpec 用例 (= 218 total); L2 M12 5/5 pass
+  (1D x×3 spacing 20 / 2D 3×2 (x:25, y:15) / cylinder 拒 (无直边) / 拒
+  axis 'w' / 拒 count=1)。L3 待新 session 重启。
+
+**意义**: 11 工具 = 造 (4) + 改 (4) + **阵列 (1)** + 看 (1) + 出货 (1)。
+LLM 业务 80%+ 模式覆盖到位 (造任意形 → 改 → 阵列 → 镜像 → 看 → 出货)。
+下个候选 (剩 2): HoleWizard5 真螺纹 / new_assembly+add_component / save_drawing。
 
 ---
 
