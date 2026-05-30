@@ -102,6 +102,31 @@ create_cylinder/flange 另经 L3 Claude Code 真客户端自然语言端到端�
 - **跨 v1 反转的坑**: FeatureFillet3 尾部 7 个数组参数 C# 早绑定传 `null` 一次就成
   (v1 Python 需专门的 `empty_variant()`)，详踩坑 #8 + SW_API_REFERENCE §2.6。
 
+### M5 — add_fillet in-place SaveAs 修 (PR #7, 2026-05-30) — L3 抽测撞 bug
+
+新会话里我替用户走 add_fillet 的 L3 抽测 (4 个工具 MCP 协议层抽样)，撞到一个
+L2 + L1 都没暴露的 bug —— **首次"L3 抽测撞到 L2 没撞到的 bug"案例**，给 4 层
+金字塔的必要性补上了一个具体证据。
+
+- **症状**: MCP 长寿命 server 下连续调 add_fillet, 不传 outputPath (= in-place
+  覆盖) 时 `Extension.SaveAs(samepath)` 返 `errors=0x1` (swGenericSaveError);
+  同样输入加 outputPath (= copy 模式) 正常; L2 fresh exe 跑 in-place 也正常。
+- **根因**: SW 对 "SaveAs 到当前活跃 doc 自身路径" 在热 SW 实例下有严格检查;
+  L2 每次新进程 SW 冷启动 state 干净所以绕过。`~$xxx.SLDPRT` 锁文件在 CloseDoc
+  之后残留是另一个佐证 —— SW 没干净释放 doc handle。
+- **修法**: `AddFilletTool` 的 save 分支按 isInPlace 二分:
+  - in-place → `IModelDoc2.Save3(options, ref err, ref warn)` (SW API 专为
+    "覆盖当前活跃 doc" 设计的接口)
+  - copy → 继续用 `Extension.SaveAs(..., ref err, ref warn)`
+  反射读 `Save3` 真签名 `bool Save3(int, ref int, ref int)`, 确认 `[out]`
+  COM marshaling 投 `ref` (M2 SaveAs 教训复用, 黄金法则 #5)。
+- **测试**: L1 21 个 FilletSpec 不动 (spec 没变); L2 现有 in-place case 走
+  Save3 分支天然回归; L3 复跑 in-place case 由 fresh MCP server 验证 (Save3 在
+  热 SW 实例下不再报错)。
+
+**规律 (后续编辑零件工具沿用)**: 长寿命 SW 状态下的 in-place 写入必须用
+`Save/Save3`, 不能用 `SaveAs(samepath)`。
+
 ---
 
 ## MVP 核心踩坑教训 (新 PR 前必看)
@@ -200,6 +225,22 @@ null→VARIANT 投影即 VT_EMPTY，等价 v1 的 `empty_variant()`。
 `null_dispatch_variant()` → 类型化接口形参传 `null`。**后续工具迁移
 (chamfer / hole_wizard 等遇到同类 Variant 数组参数时, 先试 `null`**。
 对应表详 SW_API_REFERENCE §2.6。
+
+### 9. L3 vs L2 偏差：热 SW 实例下 SaveAs(samepath) 不可靠 (M5)
+
+`Extension.SaveAs(targetPath)` 当 `targetPath == 当前活跃 doc 自身路径` 时,
+在长寿命 SW 实例 (MCP server) 下会返 `errors=0x1` (swGenericSaveError);
+L2 (fresh exe per call) 因 SW 冷启动而绕过 —— **L2 通过 + L3 撞墙的首例**。
+
+修法: in-place 改 `IModelDoc2.Save3(options, ref err, ref warn)`, copy 保留
+`Extension.SaveAs`。详 M5 段。
+
+**规律**:
+- 长寿命 SW 状态下的 in-place 写入必须用 `Save/Save3`, 不能 `SaveAs(samepath)`。
+- 新工具的 4 层验收**不能省 L3**: L2 fresh exe 永远撞不到热 SW state 的 bug。
+  以后每个新工具都至少做一次 L3 MCP 抽测 (本会话里我直接调 4 工具就行)。
+- 副作用: `~$xxx.SLDPRT` 锁文件在 CloseDoc 后残留 (SW 没干净释放 doc handle)
+  暂不阻塞功能, 后续如果导致目录污染问题再单独修。
 
 ---
 
