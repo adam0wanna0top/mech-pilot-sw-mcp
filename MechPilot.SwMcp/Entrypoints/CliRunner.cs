@@ -29,6 +29,7 @@ public static class CliRunner
         root.Subcommands.Add(BuildInspectPartCommand());
         root.Subcommands.Add(BuildMirrorFeatureCommand());
         root.Subcommands.Add(BuildPatternLinearCommand());
+        root.Subcommands.Add(BuildAddThreadedHoleCommand());
 
         var parseResult = root.Parse(args);
         return await parseResult.InvokeAsync();
@@ -662,6 +663,65 @@ public static class CliRunner
                     OutputPath = parseResult.GetValue(outOpt),
                 };
                 var result = PatternLinearTool.RunWithSpec(spec);
+                WriteResult(result, parseResult.GetValue(formatOpt) ?? "text");
+                return 0;
+            }
+            catch (McpToolException ex)
+            {
+                Console.Error.WriteLine($"[error] {ex.Message}");
+                return 1;
+            }
+        });
+
+        return cmd;
+    }
+
+    private static Command BuildAddThreadedHoleCommand()
+    {
+        var inputOpt = new Option<string>("--input")
+        {
+            Description = "Absolute path to an existing .sldprt to drill.",
+            Required = true,
+        };
+        var threadOpt = new Option<string>("--thread")
+        {
+            Description = "GB metric-coarse thread size: M3/M4/M5/M6/M8/M10/M12.",
+            Required = true,
+        };
+        var depthOpt = new Option<double?>("--depth")
+        {
+            Description = "Blind tap depth in mm; omit for through-all.",
+            DefaultValueFactory = _ => null,
+        };
+        var outOpt = new Option<string>("--out")
+        {
+            Description = "Optional output .sldprt path. Omit to overwrite the input in place.",
+            DefaultValueFactory = _ => string.Empty,
+        };
+        var formatOpt = new Option<string>("--output")
+        {
+            Description = "Output format: text | json",
+            DefaultValueFactory = _ => "text",
+        };
+
+        var cmd = new Command("add-threaded-hole",
+            "Drill one GB metric-coarse tap (M3..M12) at the end-face centroid.")
+        {
+            inputOpt, threadOpt, depthOpt, outOpt, formatOpt,
+        };
+
+        cmd.SetAction(parseResult =>
+        {
+            try
+            {
+                var spec = new ThreadedHoleSpec
+                {
+                    InputPath = parseResult.GetValue(inputOpt) ?? string.Empty,
+                    ThreadSize = parseResult.GetValue(threadOpt) ?? string.Empty,
+                    DepthMm = parseResult.GetValue(depthOpt),
+                    OutputPath = parseResult.GetValue(outOpt),
+                };
+                var result = AddThreadedHoleTool.RunWithSpec(spec);
                 WriteResult(result, parseResult.GetValue(formatOpt) ?? "text");
                 return 0;
             }

@@ -25,13 +25,14 @@
 | mirror_feature | #12 | `mcp__mech_pilot_sw__mirror_feature` | 沿 Front / Top / Right 基准面镜像特征 |
 | create_rectangular_block | #13 | `mcp__mech_pilot_sw__create_rectangular_block` | 长方体零件 (L×W×H 居中) |
 | pattern_linear | #14 | `mcp__mech_pilot_sw__pattern_linear` | 1D / 2D 线性阵列特征 |
+| add_threaded_hole | #15 | `mcp__mech_pilot_sw__add_threaded_hole` | GB 螺纹孔 M3-M12 (真螺纹特征) |
 | (.mcp.json) | #3 | — | Claude Code 项目级 MCP 配置 |
 
-**L1/L2 全部验证**：218/218 单元测试 + 11 个 PowerShell L2 集成全过。
+**L1/L2 全部验证**：252/252 单元测试 + 12 个 PowerShell L2 集成全过。
 create_cylinder/flange/fillet 经 L3 MCP 抽测; add_fillet 撞出 in-place SaveAs
-bug 已修 (M5/PR #7); 后续 7 工具 (chamfer/export/axial_hole/inspect/mirror
-/block/pattern_linear) 的 L3 待新 session 重启抽测 (代码同构, L2 覆盖 SW 交互
-全链路)。
+bug 已修 (M5/PR #7); 后续 8 工具 (chamfer/export/axial_hole/inspect/mirror
+/block/pattern_linear/threaded_hole) 的 L3 待新 session 重启抽测 (代码同构, L2
+覆盖 SW 交互全链路)。
 
 ---
 
@@ -353,6 +354,43 @@ pattern_linear**。LLM "3×5 阵列" 一句话可达。
 **意义**: 11 工具 = 造 (4) + 改 (4) + **阵列 (1)** + 看 (1) + 出货 (1)。
 LLM 业务 80%+ 模式覆盖到位 (造任意形 → 改 → 阵列 → 镜像 → 看 → 出货)。
 下个候选 (剩 2): HoleWizard5 真螺纹 / new_assembly+add_component / save_drawing。
+
+### M13 — add_threaded_hole (PR #15, 2026-05-31) — v1 PR #24 "魔法位"一次过
+
+"前 10 高频工具" 第 9 发。**HoleWizard5 GB 螺纹孔 — v1 PR #24 啃过的最硬骨头,
+踩坑沉淀的最强证据**: 1:1 复刻 v1 录宏破得的 27 参 + 4 个魔法位, C# 早绑定
+**一次跑通 L2 5/5 pass**, 没有 silent fail 探测阶段。
+
+- **HoleWizard5 27 参 (反射确认)**: GenericHoleType / StandardIndex /
+  FastenerTypeIndex / SSize / EndType / Diameter / Depth / Length / Value1-12
+  / ThreadClass / 6 个 bool。
+- **GB tap 4 大魔法常量 (v1 PR #24 录宏破)**:
+  - FastenerType = **359** (CHM 不公开, swStandardGBFastenerTypes_e 枚举 int 值未文档化)
+  - Value7 = Value8 = **1.0** (feature enable flag)
+  - Value11 = Value12 = **-1.0** (SW 默认占位 sentinel)
+  - Value3 = **π/1.8 ≈ 1.7453** (沉头角默认 100°; tap 没沉但 SW 内部仍要)
+- **GB_TAP_TABLE 7 规格 (GB/T 196-2003)**: M3 (drill 2.5, pitch 0.5), M4 (3.3,
+  0.7), M5 (4.2, 0.8), M6 (5.0, 1.0), M8 (6.8, 1.25), M10 (8.5, 1.5),
+  M12 (10.2, 1.75)。tap drill 直径 ≠ 螺纹标称直径。
+- **Position 简化**: 跟 v1 一致, **固定 face 中心**, 不接受 (x, y)。多孔需求
+  用 pattern_linear 组合 (single 螺纹孔 + pattern), 或 create_flange (PCD 圆周
+  孔, 但那是 clearance 不是 thread)。Off-center HoleWizard 是 future PR。
+- **复用 +Z 面选择 helper**: `FindPlanarEndFace` 第 3 次出现 (create_flange,
+  add_axial_hole 已用)。**Rule of three 已满, 跟 boot filter 一起标记为下次新
+  工具的 refactor 起点**。
+- **测试**: L1 +34 ThreadedHoleSpec 用例 (= 252 total, GbTapTable 7 entry +
+  thread/depth/path); L2 M13 5/5 pass (M6 through copy / M4 blind 5mm in-place /
+  inspect 确认特征加上 / 拒 M7 / 拒不存在)。L3 待新 session 重启。
+
+**踩坑沉淀价值证明**: 这是项目首个**完全靠 docs 知识库一次过**的工具 — 没有
+反射多个版本签名探测, 没有"v1 fail → v2 试试 → v3 终于成"的迭代, 没有
+silent fail 调试。直接 1:1 复刻 SW_API_REFERENCE §6 + v1-history PR #24 段
+落里写好的模板, 跑通。**v1 35 PR 教训库的 ROI 在这次最高**。
+
+**意义**: 12 工具 = 造 (4) + 改 (4 含螺纹孔) + 阵列 (1) + 看 (1) + 出货 (1)。
+LLM 现在能"加 GB M6 螺纹孔"真螺纹特征 (不再用 add_axial_hole + LLM 自算 Φ5
+螺纹底孔的间接路径)。进度 9/10, 剩 1: new_assembly+add_component (装配家族) /
+save_drawing (工程图) / pattern_circular (圆周阵列)。
 
 ---
 
