@@ -171,11 +171,11 @@ public static class CreateFlangeTool
         }
 
         // ── 7. Select a planar end face of the disk for the holes sketch ──
-        //   Navigate body → faces → find planar face with normal along ±Z.
-        //   More reliable than coordinate-based SelectByID2 (which is flaky
-        //   without an active view direction in headless / API mode).
+        //   Shared helper (Tools/Internal/PartGeometryHelpers) does the body →
+        //   faces → ±Z-normal walk. More reliable than coordinate SelectByID2
+        //   (golden rule #6 — coord ray-cast is flaky in API mode).
         model.ClearSelection2(true);
-        var endFace = FindPlanarEndFace(model)
+        var endFace = Internal.PartGeometryHelpers.FindPlanarEndFace(model)
             ?? throw new McpToolException(
                 "Could not find a planar end face on the disk body after boss-extrude. " +
                 "Body may have unexpected topology.");
@@ -286,49 +286,6 @@ public static class CreateFlangeTool
 
         swApp.CloseDoc(model.GetTitle());
         return ToolResult.Ok(message: message, path: spec.SavePath);
-    }
-
-    /// <summary>
-    /// Returns the first planar face on the part's first solid body whose
-    /// normal is aligned with the Z axis (within 0.99 cos similarity).
-    /// For a disk extruded from the Front Plane (XY) along ±Z this picks one
-    /// of the two end faces; both are equivalent for a through-all cut.
-    /// </summary>
-    private static IFace2? FindPlanarEndFace(IModelDoc2 model)
-    {
-        var part = (IPartDoc)model;
-        var bodiesObj = part.GetBodies2((int)swBodyType_e.swSolidBody, false);
-        if (bodiesObj is not object[] bodies || bodies.Length == 0)
-        {
-            return null;
-        }
-        var body = (IBody2)bodies[0];
-
-        var facesObj = body.GetFaces();
-        if (facesObj is not object[] faces)
-        {
-            return null;
-        }
-
-        foreach (var faceObj in faces)
-        {
-            var face = (IFace2)faceObj;
-            var surface = (ISurface)face.GetSurface();
-            if (!surface.IsPlane())
-            {
-                continue;
-            }
-            // IFace2.Normal returns a Variant SAFEARRAY of 3 doubles (nx, ny, nz).
-            if (face.Normal is not double[] normal || normal.Length < 3)
-            {
-                continue;
-            }
-            if (Math.Abs(normal[2]) > 0.99)
-            {
-                return face;
-            }
-        }
-        return null;
     }
 
     private static bool SelectFirstMatch(

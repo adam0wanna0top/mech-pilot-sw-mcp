@@ -243,29 +243,8 @@ public static class MirrorFeatureTool
             return featureName;
         }
 
-        // Auto-pick: walk features, keep the most-recent user-meaningful one.
-        // Same boot filter as InspectPartTool (explicit list + EndsWith("Folder")).
-        var bootTypes = new HashSet<string>(StringComparer.Ordinal)
-        {
-            "RefPlane", "OriginProfileFeature", "CoordSys",
-            "Lights, Cameras and Scene", "MateReferences", "DimXpertManager",
-            "DesignBinder", "DetailCabinet",
-        };
-
-        IFeature? lastUserFeature = null;
-        var feature = model.FirstFeature() as IFeature;
-        while (feature != null)
-        {
-            var typeName = feature.GetTypeName2() ?? feature.GetTypeName() ?? "";
-            var isBoot = bootTypes.Contains(typeName)
-                || typeName.EndsWith("Folder", StringComparison.Ordinal);
-            if (!isBoot)
-            {
-                lastUserFeature = feature;
-            }
-            feature = feature.GetNextFeature() as IFeature;
-        }
-
+        // Auto-pick via shared helper (Tools/Internal/PartGeometryHelpers).
+        var lastUserFeature = Internal.PartGeometryHelpers.FindLastUserFeature(model);
         if (lastUserFeature == null)
         {
             throw new McpToolException(

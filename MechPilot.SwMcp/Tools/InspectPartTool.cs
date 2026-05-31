@@ -220,37 +220,19 @@ public static class InspectPartTool
     /// <summary>
     /// Walks the top-level feature linked list via IFeature.GetNextFeature
     /// and returns only the user-meaningful features (no SW-internal boot
-    /// nodes like reference planes, comment folders, configuration tables).
-    /// Filter strategy: explicit boot-name set + any TypeName ending in
-    /// "Folder" (SW 2026 container convention — `CommentsFolder`,
-    /// `SelectionSetFolder`, `InkMarkupFolder`, `EnvFolder`,
-    /// `ConfigTableFolder`, `SolidBodyFolder`, ... probed by L2).
+    /// nodes). Boot filter lives in
+    /// <see cref="Internal.PartGeometryHelpers.IsBootFeature"/> — single
+    /// source of truth shared with mirror_feature / pattern_linear's
+    /// auto-pick of the seed feature.
     /// </summary>
     private static List<Dictionary<string, object>> ReadTopLevelFeatures(IModelDoc2 model)
     {
         var features = new List<Dictionary<string, object>>();
-
-        // Explicit non-Folder boot types (Folder-suffix ones caught by the
-        // EndsWith check below).
-        var bootTypes = new HashSet<string>(StringComparer.Ordinal)
-        {
-            "RefPlane",                    // Front / Top / Right
-            "OriginProfileFeature",        // origin point
-            "CoordSys",                    // default coordinate system
-            "Lights, Cameras and Scene",
-            "MateReferences",
-            "DimXpertManager",
-            "DesignBinder",
-            "DetailCabinet",
-        };
-
         var feature = model.FirstFeature() as IFeature;
         while (feature != null)
         {
             var typeName = feature.GetTypeName2() ?? feature.GetTypeName() ?? "";
-            var isBoot = bootTypes.Contains(typeName)
-                || typeName.EndsWith("Folder", StringComparison.Ordinal);
-            if (!isBoot)
+            if (!Internal.PartGeometryHelpers.IsBootFeature(typeName))
             {
                 features.Add(new Dictionary<string, object>
                 {
