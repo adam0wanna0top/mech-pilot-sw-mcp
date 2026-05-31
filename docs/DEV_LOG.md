@@ -28,6 +28,8 @@
 | add_threaded_hole | #15 | `mcp__mech_pilot_sw__add_threaded_hole` | GB 螺纹孔 M3-M12 (真螺纹特征) |
 | add_counterbore | #16 | `mcp__mech_pilot_sw__add_counterbore` | GB/T 152.3 柱形沉头孔 M3-M12 |
 | add_countersink | #16 | `mcp__mech_pilot_sw__add_countersink` | GB/T 152.2 锥形沉头孔 M6-M12 |
+| new_assembly | #18 | `mcp__mech_pilot_sw__new_assembly` | 创建空装配体 (.sldasm) |
+| add_component | #18 | `mcp__mech_pilot_sw__add_component` | 把零件/子装配体插入装配体 |
 | (.mcp.json) | #3 | — | Claude Code 项目级 MCP 配置 |
 
 **L1/L2/L3 全部验证**：298/298 单元测试 + 13 个 PowerShell L2 集成 +
@@ -479,6 +481,43 @@ CI self-hosted runner。
 
 下个候选: new_assembly+add_component (装配家族) / save_drawing (工程图) /
 pattern_circular / CI self-hosted runner。
+
+### M16 — new_assembly + add_component (PR #18, 2026-05-31) — 装配家族开张
+
+**项目从"单零件建模"扩到"装配体组装"** — 14 工具 → 16 工具, 新增装配工具家族
+(2 个工具)。v1 PR #9 经验复刻 zero-试错 L2 一次过。
+
+- **NewAssemblyTool**: NewDocument(asmdot, ...) → SaveAs(.sldasm) → CloseDoc。
+  跟 CreateCylinderTool 同模板, 只差模板路径 (`swDefaultTemplateAssembly = 8`
+  vs `swDefaultTemplatePart = 9`)。
+- **AddComponentTool** — **v1 PR #9 关键教训**: `IAssemblyDoc.AddComponent5`
+  **不会自动加载组件文件**, 直接调返回 null。**Workaround**: 先 `OpenDoc6`
+  预加载零件到 SW 内存, 再 AddComponent5。Pipeline:
+  1. OpenDoc6 assembly (Silent, R/W)
+  2. **OpenDoc6 component 预加载** (Silent; .sldprt → swDocPART, .sldasm → swDocASSEMBLY)
+  3. `swApp.ActivateDoc3(asm.GetTitle(), ...)` 重新激活装配 (component
+     OpenDoc6 会切到 component 当 active)
+  4. `asmDoc.AddComponent5(componentPath, 0, "", false, "", x_m, y_m, z_m)`
+  5. `asmModel.Save3(...)` (M5 lesson: in-place 用 Save3)
+  6. CloseDoc(component) + CloseDoc(asm) 在 finally
+- **`AddComponent5` 签名 (反射确认)**:
+  `Component2 AddComponent5(string CompName, int ConfigOption, string NewConfigName,
+   bool UseConfigForPartReferences, string ExistingConfigName, double X, double Y, double Z)`
+  ConfigOption=0 = "use default config", 其他 string + bool 留默认。
+- **L2 .sldasm 文件大小非线性观察**: empty asm 35KB, 加 cyl 后 72KB (+37KB),
+  加 block 后 67KB (-5KB)。**SW 的 .sldasm 是内部二进制压缩格式, 加组件后
+  整体可能重新打包**。L2 断言改成 "stays > empty" 而非 "strict growth"。
+- **测试**:
+  - L1 +25 (= 323 total): NewAssemblySpec 5, AddComponentSpec 20
+  - L2 M16-assembly 5/5 pass: empty → +cyl → +block @ (50,0,0) → 拒不存在 asm
+    → 拒 .sldprt save-as-assembly
+  - L3 待新 session 抽测 (黄金法则 #13)
+
+**意义**: 16 工具 = 造 (4) + 改 (6) + 阵列 (1) + 看 (1) + 出货 (1) + **装配 (2)**
++ ping。LLM 现在能 "造零件 → 加孔 → 组装到装配体" 完整链路。装配家族开张, 下个 PR
+候选: add_mate (距离/同轴/重合配合) / save_drawing (工程图) / pattern_circular。
+v1 PR #20 在 mate 上有 "distance mate 经 AddMate5 而非 CreateMate" 的精确经验,
+可继续复用 zero-试错复刻策略。
 
 ---
 

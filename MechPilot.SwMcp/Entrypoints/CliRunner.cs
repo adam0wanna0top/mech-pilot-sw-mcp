@@ -32,6 +32,8 @@ public static class CliRunner
         root.Subcommands.Add(BuildAddThreadedHoleCommand());
         root.Subcommands.Add(BuildAddCounterboreCommand());
         root.Subcommands.Add(BuildAddCountersinkCommand());
+        root.Subcommands.Add(BuildNewAssemblyCommand());
+        root.Subcommands.Add(BuildAddComponentCommand());
 
         var parseResult = root.Parse(args);
         return await parseResult.InvokeAsync();
@@ -842,6 +844,112 @@ public static class CliRunner
                     OutputPath = parseResult.GetValue(outOpt),
                 };
                 var result = AddCountersinkTool.RunWithSpec(spec);
+                WriteResult(result, parseResult.GetValue(formatOpt) ?? "text");
+                return 0;
+            }
+            catch (McpToolException ex)
+            {
+                Console.Error.WriteLine($"[error] {ex.Message}");
+                return 1;
+            }
+        });
+
+        return cmd;
+    }
+
+    private static Command BuildNewAssemblyCommand()
+    {
+        var outOpt = new Option<string>("--out")
+        {
+            Description = "Absolute output path with .sldasm extension.",
+            Required = true,
+        };
+        var formatOpt = new Option<string>("--output")
+        {
+            Description = "Output format: text | json",
+            DefaultValueFactory = _ => "text",
+        };
+
+        var cmd = new Command("new-assembly",
+            "Create an empty SolidWorks assembly (.sldasm).")
+        {
+            outOpt, formatOpt,
+        };
+
+        cmd.SetAction(parseResult =>
+        {
+            try
+            {
+                var spec = new NewAssemblySpec
+                {
+                    SavePath = parseResult.GetValue(outOpt) ?? string.Empty,
+                };
+                var result = NewAssemblyTool.RunWithSpec(spec);
+                WriteResult(result, parseResult.GetValue(formatOpt) ?? "text");
+                return 0;
+            }
+            catch (McpToolException ex)
+            {
+                Console.Error.WriteLine($"[error] {ex.Message}");
+                return 1;
+            }
+        });
+
+        return cmd;
+    }
+
+    private static Command BuildAddComponentCommand()
+    {
+        var asmOpt = new Option<string>("--assembly")
+        {
+            Description = "Absolute path to an existing .sldasm to insert into.",
+            Required = true,
+        };
+        var compOpt = new Option<string>("--component")
+        {
+            Description = "Absolute path to the .sldprt or .sldasm component to insert.",
+            Required = true,
+        };
+        var posXOpt = new Option<double>("--position-x")
+        {
+            Description = "Component origin X in the assembly in mm. Default 0.",
+            DefaultValueFactory = _ => 0.0,
+        };
+        var posYOpt = new Option<double>("--position-y")
+        {
+            Description = "Component origin Y in the assembly in mm. Default 0.",
+            DefaultValueFactory = _ => 0.0,
+        };
+        var posZOpt = new Option<double>("--position-z")
+        {
+            Description = "Component origin Z in the assembly in mm. Default 0.",
+            DefaultValueFactory = _ => 0.0,
+        };
+        var formatOpt = new Option<string>("--output")
+        {
+            Description = "Output format: text | json",
+            DefaultValueFactory = _ => "text",
+        };
+
+        var cmd = new Command("add-component",
+            "Insert one component (.sldprt or sub-.sldasm) into an existing assembly.")
+        {
+            asmOpt, compOpt, posXOpt, posYOpt, posZOpt, formatOpt,
+        };
+
+        cmd.SetAction(parseResult =>
+        {
+            try
+            {
+                var spec = new AddComponentSpec
+                {
+                    AssemblyPath = parseResult.GetValue(asmOpt) ?? string.Empty,
+                    ComponentPath = parseResult.GetValue(compOpt) ?? string.Empty,
+                    PositionXMm = parseResult.GetValue(posXOpt),
+                    PositionYMm = parseResult.GetValue(posYOpt),
+                    PositionZMm = parseResult.GetValue(posZOpt),
+                };
+                var result = AddComponentTool.RunWithSpec(spec);
                 WriteResult(result, parseResult.GetValue(formatOpt) ?? "text");
                 return 0;
             }
