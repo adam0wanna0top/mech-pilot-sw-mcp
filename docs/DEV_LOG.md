@@ -30,6 +30,7 @@
 | add_countersink | #16 | `mcp__mech_pilot_sw__add_countersink` | GB/T 152.2 锥形沉头孔 M6-M12 |
 | new_assembly | #18 | `mcp__mech_pilot_sw__new_assembly` | 创建空装配体 (.sldasm) |
 | add_component | #18 | `mcp__mech_pilot_sw__add_component` | 把零件/子装配体插入装配体 |
+| inspect_assembly | #19 | `mcp__mech_pilot_sw__inspect_assembly` | 读取装配体组件列表（实例名 / 位置） |
 | (.mcp.json) | #3 | — | Claude Code 项目级 MCP 配置 |
 
 **L1/L2/L3 全部验证**：298/298 单元测试 + 13 个 PowerShell L2 集成 +
@@ -518,6 +519,50 @@ pattern_circular / CI self-hosted runner。
 候选: add_mate (距离/同轴/重合配合) / save_drawing (工程图) / pattern_circular。
 v1 PR #20 在 mate 上有 "distance mate 经 AddMate5 而非 CreateMate" 的精确经验,
 可继续复用 zero-试错复刻策略。
+
+### M17 — inspect_assembly (PR #19, 2026-05-31) — 给 LLM 加 mate 前的"眼睛"
+
+**Design pivot 跟 M10 pattern_linear 同款** — 原计划做 add_mate, 反射 + design 阶段
+发现 LLM 盲区:
+
+- `IAssemblyDoc.CreateMate` / `AddMate5` 需要 select 两个组件的 face/edge/plane
+  作为 mate references。LLM 不知道 SW 内部 face name (跟 cylinder/flange 没直边
+  导致 pattern_linear 用不上是同样盲区)。
+- v1 PR #19 在 PR #20 add_mate **之前**先做了 `inspect_assembly`, 这是有意为之的
+  顺序: 先让 LLM 看见组件实例名 (`hub-1` / `pin-2`) 和位置, 再 add_mate 用 LLM
+  拿到的名字做 mate。**跳过 inspect_assembly 直接做 add_mate 会撞 M10 同样盲区**。
+- 改做 M17 = inspect_assembly (只读, 复用 inspect_part 模式), M18 再做 add_mate。
+
+实现 (复用 inspect_part 的 Open(ReadOnly) → walk → Close + ToolResult.Data 模式):
+- `IAssemblyDoc.GetComponents(true)` 拿 top-level components (Component2[])
+- 每个 `IComponent2`:
+  - `get_Name2()` → 实例名 (e.g. "asm_cyl_1937631041-1", 带 SW 自动加的 -1 后缀)
+  - `GetPathName()` → 源 .sldprt/.sldasm 绝对路径
+  - `GetXform()` → 4×4 transform 矩阵 (16 doubles); [9..11] 是 translation X/Y/Z
+    (米, × 1000 转 mm)
+  - `IsSuppressed()` → bool
+
+**关键发现 (positionMm 是 frame origin, 不是 centroid)**:
+M17 L2 跑 `add_component(asm, cyl_L30, 0, 0, 0)` 后 inspect 看到 `positionMm.z = -15`
+(不是 0)。**SW 的 AddComponent5 把组件几何中心 anchor 到指定位置**, 而组件 **frame
+origin** 是零件的 sketch 原点 (Front Plane / z=0 端面), 跟几何中心差 height/2。
+所以:
+- cyl L30 → frame origin z = -15 (centroid 在 z=0)
+- block H10 → frame origin z = -5
+
+X / Y 直接匹配 add_component 输入 (SW placement 直接), 只有 Z (拉伸方向) 有这个偏移。
+LLM 应理解 positionMm 是 frame origin, 不是 centroid。tool docstring 写清这个细节。
+
+- **测试**: L1 +8 InspectAssemblySpec (= 331 total); L2 M17 5/5 pass:
+  - 空 asm → 0 components ✓
+  - 2-comp asm → 2 components, 含实例名 + sourcePath + positionMm ✓
+  - 拒不存在
+  - 拒 .sldprt + 提示 LLM 用 inspect_part
+- L3 待新 session 抽测 (黄金法则 #13)
+
+**意义**: 17 工具 = 造 (4) + 改 (6) + 阵列 (1) + 看 (**2**: inspect_part + inspect_assembly)
++ 出货 (1) + 装配 (2) + ping。M18 add_mate 现在有了"前置眼睛", LLM 可以 inspect_assembly
+拿组件实例名 → add_mate 用这些名字 mate components。
 
 ---
 

@@ -46,12 +46,13 @@
 | export_part | `mcp__mech_pilot_sw__export_part` | 导出 STEP / STL / IGES / Parasolid |
 | new_assembly | `mcp__mech_pilot_sw__new_assembly` | 创建空装配体 (.sldasm) |
 | add_component | `mcp__mech_pilot_sw__add_component` | 把零件/子装配体插入装配体 (x,y,z) 位置 |
+| inspect_assembly | `mcp__mech_pilot_sw__inspect_assembly` | 读取装配体组件列表（实例名 / 源路径 / 位置） |
 
-**L1 / L2 验证通过** (323/323 单元测试 + 14 个 PowerShell L2 集成); 后 10 工具
-+ create_flange L3 抽测 zero bug (M15); **M16 装配家族 (new_assembly +
-add_component) L3 待新 session 抽测** (黄金法则 #13)。M5 撞过 in-place SaveAs
-bug 已修。**`Tools/Internal/PartGeometryHelpers`** 抽出共用
-`FindPlanarEndFace` + `FindLastUserFeature` + `IsBootFeature` 给 8 工具用。
+**L1 / L2 验证通过** (331/331 单元测试 + 15 个 PowerShell L2 集成); 后 10 工具
++ create_flange L3 抽测 zero bug (M15); **M16 装配家族 + M17 inspect_assembly
+L3 待新 session 抽测** (黄金法则 #13)。M5 撞过 in-place SaveAs bug 已修。
+**`Tools/Internal/PartGeometryHelpers`** 抽出共用 `FindPlanarEndFace` +
+`FindLastUserFeature` + `IsBootFeature` 给 8 工具用。
 
 **下一步候选**: new_assembly+add_component 装配工具家族 / save_drawing 工程图
 / pattern_circular 圆周阵列 / L3 全工具抽测 / CI self-hosted runner。详见
