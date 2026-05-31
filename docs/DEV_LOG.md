@@ -30,11 +30,10 @@
 | add_countersink | #16 | `mcp__mech_pilot_sw__add_countersink` | GB/T 152.2 锥形沉头孔 M6-M12 |
 | (.mcp.json) | #3 | — | Claude Code 项目级 MCP 配置 |
 
-**L1/L2 全部验证**：298/298 单元测试 + 13 个 PowerShell L2 集成全过。
-create_cylinder/flange/fillet 经 L3 MCP 抽测; add_fillet 撞出 in-place SaveAs
-bug 已修 (M5/PR #7); 后续 10 工具的 L3 待新 session 重启抽测 (代码同构, L2 覆
-盖 SW 交互全链路)。**M14 抽出 `Tools/Internal/PartGeometryHelpers`** 给 8 工具
-共用 (`FindPlanarEndFace` + `FindLastUserFeature` + `IsBootFeature`)。
+**L1/L2/L3 全部验证**：298/298 单元测试 + 13 个 PowerShell L2 集成 +
+**L3 全 13 工具抽测 zero bug** (M15/PR #17 沉淀)。add_fillet 撞出 in-place
+SaveAs bug 已修 (M5/PR #7)。**M14 抽出 `Tools/Internal/PartGeometryHelpers`**
+给 8 工具共用 (`FindPlanarEndFace` + `FindLastUserFeature` + `IsBootFeature`)。
 
 ---
 
@@ -435,6 +434,51 @@ save_drawing (工程图) / pattern_circular (圆周阵列)。
 下一步候选: new_assembly + add_component (装配家族) / save_drawing (工程图 PDF) /
 pattern_circular (圆周阵列, v1 PR #32 修过 silent fail) / L3 全 10 工具抽测 /
 CI self-hosted runner。
+
+### M15 — L3 全 13 工具抽测 zero bug (PR #17, 2026-05-31) — 工具链质量曲线验证
+
+**PR #16 合入后 (10 工具 L3 积压验证), 新会话一次性抽测 13 工具 zero bug。**
+对应 M5 那次 L3 撞 in-place SaveAs bug 之后, 工具链质量首次"完整链路通过"的
+节点性事件。
+
+- **抽测覆盖**: 13 次 MCP 工具调用, 涵盖 14 工具中除 create_flange (M3 已 L3
+  验过) 之外的全集:
+  - ping, create_cylinder, create_rectangular_block (×5: 5 个独立 block 避
+    hole 冲突), add_chamfer, add_axial_hole (×3), add_threaded_hole,
+    add_counterbore, add_countersink, mirror_feature, pattern_linear,
+    inspect_part (×3 跨工具回归), export_part
+- **关键观察 (vs M5 撞 bug 那次)**:
+  | | M5 L3 抽测 (PR #7 前) | M15 L3 全 10 工具 |
+  |---|---|---|
+  | 调用次数 | 6 | **13** |
+  | 撞到 bug | 1 (in-place SaveAs 0x1) | **0** |
+  | `~$xxx.SLDPRT` 锁文件残留 | 2 | **0** |
+  | SW 进程内存 (终态) | n/a | **680MB** (健康) |
+  | M9/M10/M14 refactor 后回归 | n/a | **L2 + L3 都不破** |
+- **HoleWizard5 三兄弟 (M13/M14) L3 验证**: GB Tap M5 / GB CB M6 / GB CSK M8
+  全过, 真特征出 (drill+pitch / clearance+CB / clearance+CSK 数值符合 GB 表)。
+  **v1 PR #24/#25 模板的 zero-试错复刻在 L3 长寿命 server 上也成立** (不只是
+  L2 fresh exe)。
+- **M14 refactor 不破 helper 调用方**: 8 工具调用
+  `PartGeometryHelpers.FindPlanarEndFace` / `FindLastUserFeature` /
+  `IsBootFeature` 后, L3 行为跟 refactor 前一致。inspect featureCount /
+  feature typeName / bbox 全准。
+- **锁文件残留消失**: M5 段记录的 "CloseDoc 后 `~$xxx.SLDPRT` 残留" 现象本次
+  **未复现**。原因推测: M14 helper 抽取后调用更紧凑 / SW 工具间隔合理 /
+  finally CloseDoc 全工具覆盖。该现象暂时降级为 "偶发不阻塞"。
+
+**启示**:
+1. **L3 不是"可选"而是"质量收口"**: M5 撞到的 in-place SaveAs bug 在 L2 fresh
+   exe 永远撞不到, 必须 L3 长寿命 server 验。本次 zero bug 是工具链质量曲线
+   显著提升的硬证据。
+2. **v1 知识库 ROI 持续**: M13/M14 三个 HoleWizard5 路径 zero-试错复刻 → L3
+   也 zero-bug 通过, 验证 docs 沉淀的复利效应。
+3. **新工具 L3 抽测应进 CLAUDE.md 黄金法则**: 工作流第 4 步 "MCP 抽测" 应该
+   从 "L3/L4 待抽测 (代码同构略过)" 升级为 "每个新工具 L3 必抽 1 次"。本 PR
+   附带把这条规律写进 CLAUDE.md。
+
+下个候选: new_assembly+add_component (装配家族) / save_drawing (工程图) /
+pattern_circular / CI self-hosted runner。
 
 ---
 

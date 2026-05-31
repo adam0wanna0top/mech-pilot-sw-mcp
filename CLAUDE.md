@@ -45,10 +45,10 @@
 | inspect_part | `mcp__mech_pilot_sw__inspect_part` | 读取零件元数据（bbox / 特征 / 面+边数） |
 | export_part | `mcp__mech_pilot_sw__export_part` | 导出 STEP / STL / IGES / Parasolid |
 
-**L1 / L2 验证通过** (298/298 单元测试 + 13 个 PowerShell L2 集成)；
-cylinder/flange/fillet 经 L3 MCP 抽测 (后续 10 工具 L3 待新 session 重启)。M5
-撞过 in-place SaveAs bug 已修。**`Tools/Internal/PartGeometryHelpers`** 抽出
-共用 `FindPlanarEndFace` + `FindLastUserFeature` + `IsBootFeature` 给 8 工具用。
+**L1 / L2 / L3 全部验证通过** (298/298 单元测试 + 13 个 PowerShell L2 集成 +
+**L3 全 13 工具抽测 zero bug**, M15 沉淀)。M5 撞过 in-place SaveAs bug 已修。
+**`Tools/Internal/PartGeometryHelpers`** 抽出共用 `FindPlanarEndFace` +
+`FindLastUserFeature` + `IsBootFeature` 给 8 工具用。
 
 **下一步候选**: new_assembly+add_component 装配工具家族 / save_drawing 工程图
 / pattern_circular 圆周阵列 / L3 全工具抽测 / CI self-hosted runner。详见
@@ -168,6 +168,16 @@ CI 通过 + (本人 / 协作者) review → merge。**不能直接 push master**
     - `feat(scope): subject` — 新功能
     - `fix(scope): subject` — bug 修复
     - `docs:` / `chore:` / `test:` / `refactor:`
+
+13. **新工具 L3 必抽 1 次** (M15 教训): L2 fresh exe 永远撞不到 MCP 长寿命
+    server 上的热 SW 状态 bug (典型如 M5 in-place SaveAs `errors=0x1`)。新
+    工具 PR 合入后必须在**当前 / 新 session 用 MCP 协议层调用 1 次**, 验证:
+    - 工具确实出现在 server 工具列表里 (注解注册成功)
+    - 长寿命 server 调用不挂 (vs fresh exe)
+    - 与既有工具组合调用不挂 (跨工具状态污染)
+
+    沉淀方式: PR description 加 "L3: 待新 session 重启抽测", 后续 session 跑
+    至少一次, 撞 bug 单独 PR 修 (M5 模式), 不撞就在 DEV_LOG 记 zero-bug。
 
 ---
 
