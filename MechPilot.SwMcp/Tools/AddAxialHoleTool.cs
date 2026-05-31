@@ -128,9 +128,9 @@ public static class AddAxialHoleTool
             var skMgr = model.SketchManager;
             var fm = model.FeatureManager;
 
-            // ── 2. Pick a planar ±Z end face (same heuristic as create_flange) ──
+            // ── 2. Pick a planar ±Z end face (shared helper) ────────────────
             model.ClearSelection2(true);
-            var endFace = FindPlanarEndFace(model)
+            var endFace = Internal.PartGeometryHelpers.FindPlanarEndFace(model)
                 ?? throw new McpToolException(
                     "Could not find a planar end face whose normal is along ±Z. " +
                     "add_axial_hole expects a part extruded from the Front Plane " +
@@ -240,47 +240,5 @@ public static class AddAxialHoleTool
         }
     }
 
-    /// <summary>
-    /// Returns the first planar face on the part's first solid body whose
-    /// normal is aligned with the Z axis (cos similarity > 0.99). Same
-    /// heuristic as CreateFlangeTool.FindPlanarEndFace — kept private here
-    /// (rather than extracted to a shared helper) so each tool can read top
-    /// to bottom; we'll extract on the rule of three.
-    /// </summary>
-    private static IFace2? FindPlanarEndFace(IModelDoc2 model)
-    {
-        var part = (IPartDoc)model;
-        var bodiesObj = part.GetBodies2((int)swBodyType_e.swSolidBody, false);
-        if (bodiesObj is not object[] bodies || bodies.Length == 0)
-        {
-            return null;
-        }
-        var body = (IBody2)bodies[0];
-
-        var facesObj = body.GetFaces();
-        if (facesObj is not object[] faces)
-        {
-            return null;
-        }
-
-        foreach (var faceObj in faces)
-        {
-            var face = (IFace2)faceObj;
-            var surface = (ISurface)face.GetSurface();
-            if (!surface.IsPlane())
-            {
-                continue;
-            }
-            if (face.Normal is not double[] normal || normal.Length < 3)
-            {
-                continue;
-            }
-            if (Math.Abs(normal[2]) > 0.99)
-            {
-                return face;
-            }
-        }
-        return null;
-    }
 #endif
 }

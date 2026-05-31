@@ -26,13 +26,15 @@
 | create_rectangular_block | #13 | `mcp__mech_pilot_sw__create_rectangular_block` | 长方体零件 (L×W×H 居中) |
 | pattern_linear | #14 | `mcp__mech_pilot_sw__pattern_linear` | 1D / 2D 线性阵列特征 |
 | add_threaded_hole | #15 | `mcp__mech_pilot_sw__add_threaded_hole` | GB 螺纹孔 M3-M12 (真螺纹特征) |
+| add_counterbore | #16 | `mcp__mech_pilot_sw__add_counterbore` | GB/T 152.3 柱形沉头孔 M3-M12 |
+| add_countersink | #16 | `mcp__mech_pilot_sw__add_countersink` | GB/T 152.2 锥形沉头孔 M6-M12 |
 | (.mcp.json) | #3 | — | Claude Code 项目级 MCP 配置 |
 
-**L1/L2 全部验证**：252/252 单元测试 + 12 个 PowerShell L2 集成全过。
+**L1/L2 全部验证**：298/298 单元测试 + 13 个 PowerShell L2 集成全过。
 create_cylinder/flange/fillet 经 L3 MCP 抽测; add_fillet 撞出 in-place SaveAs
-bug 已修 (M5/PR #7); 后续 8 工具 (chamfer/export/axial_hole/inspect/mirror
-/block/pattern_linear/threaded_hole) 的 L3 待新 session 重启抽测 (代码同构, L2
-覆盖 SW 交互全链路)。
+bug 已修 (M5/PR #7); 后续 10 工具的 L3 待新 session 重启抽测 (代码同构, L2 覆
+盖 SW 交互全链路)。**M14 抽出 `Tools/Internal/PartGeometryHelpers`** 给 8 工具
+共用 (`FindPlanarEndFace` + `FindLastUserFeature` + `IsBootFeature`)。
 
 ---
 
@@ -391,6 +393,48 @@ silent fail 调试。直接 1:1 复刻 SW_API_REFERENCE §6 + v1-history PR #24 
 LLM 现在能"加 GB M6 螺纹孔"真螺纹特征 (不再用 add_axial_hole + LLM 自算 Φ5
 螺纹底孔的间接路径)。进度 9/10, 剩 1: new_assembly+add_component (装配家族) /
 save_drawing (工程图) / pattern_circular (圆周阵列)。
+
+### M14 — refactor + add_counterbore + add_countersink (PR #16, 2026-05-31) — **10/10 完成**
+
+"前 10 高频工具" **第 10 发, 项目原计划闭环达成**。三件套 PR:
+1. **Refactor**: 抽 `Tools/Internal/PartGeometryHelpers` 给 8 工具共用
+   - `FindPlanarEndFace(model)` — 之前 CreateFlange / AddAxialHole /
+     AddThreadedHole 三处重复 (rule of three 已满)
+   - `FindLastUserFeature(model)` — 之前 MirrorFeature / PatternLinear 两处
+     +InspectPart 内联一份, 合并到 helper
+   - `IsBootFeature(typeName)` — boot filter (`bootTypes ∪ EndsWith("Folder")`)
+     的判别函数, InspectPart 也复用
+2. **add_counterbore** (M3-M12) - GB/T 152.3 柱形沉头孔, 内六角圆柱头螺钉用
+3. **add_countersink** (M6-M12) - GB/T 152.2 锥形沉头孔, 沉头螺钉 90° 角用
+   (M3/M4/M5 SW 内部 DB 缺失, spec 拒绝)
+
+**HoleWizard5 三兄弟 Value 模板对比 (per-hole-type, 不通用!)**:
+| Hole type | FastenerType | 关键 Value 位 |
+|---|---|---|
+| GB Tap (M13) | 359 | Value3=π/1.8, Value7=Value8=1.0, Value11=Value12=-1.0; Value1=depth, Value2=pitch |
+| GB CounterBore (M14) | 361 | Value1=cb_dia, Value2=cb_depth, Value4=1.0, Value6=cb_dia+0.05mm, Value7=π/1.8 |
+| GB CounterSink (M14) | 363 | Value1=cs_dia, Value2=π/2 (90°), Value4=1.0, Value10=Value11=Value12=-1.0 |
+
+**v1 PR #25 模板复刻 zero-试错** (跟 M13 一样): L2 5/5 pass 一次过。
+**v1 35 PR 教训库的累计 ROI 再次验证** — 3 个 HoleWizard5 路径全用 docs 一次复
+刻成功, 项目首次出现 "工具 N+1 比工具 N 还快"的反向递增曲线。
+
+- **测试**:
+  - L1 +46 (= 298 total): CounterboreSpec 18, CountersinkSpec 23, refactor 不
+    影响既有 252。
+  - L2 M14-sinks 5/5 pass: M6 CB through copy / M4 CB blind in-place / M8 CSK
+    through in-place / 拒 M3 CSK (SW DB 缺) / 拒 M7 CB。
+  - L2 M9 inspect + M10 mirror 回归 pass (验证 refactor 不破 helper 调用方)。
+  - L3 待新 session 重启。
+
+**意义**: 14 工具 = 造 (4) + 改 (6 含 3 路径 HoleWizard5) + 阵列 (1) + 看 (1) +
+出货 (1)。LLM 现在能全套表达 "M6 内六角沉头螺钉孔" / "M8 沉头螺钉孔" 真特征,
+不再用 add_axial_hole + LLM 自算的间接路径。**10/10 高频工具完成**, 项目从
+"建模工具集"完整过渡到 "LLM-friendly SW 操作链路"。
+
+下一步候选: new_assembly + add_component (装配家族) / save_drawing (工程图 PDF) /
+pattern_circular (圆周阵列, v1 PR #32 修过 silent fail) / L3 全 10 工具抽测 /
+CI self-hosted runner。
 
 ---
 

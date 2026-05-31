@@ -30,6 +30,8 @@ public static class CliRunner
         root.Subcommands.Add(BuildMirrorFeatureCommand());
         root.Subcommands.Add(BuildPatternLinearCommand());
         root.Subcommands.Add(BuildAddThreadedHoleCommand());
+        root.Subcommands.Add(BuildAddCounterboreCommand());
+        root.Subcommands.Add(BuildAddCountersinkCommand());
 
         var parseResult = root.Parse(args);
         return await parseResult.InvokeAsync();
@@ -722,6 +724,124 @@ public static class CliRunner
                     OutputPath = parseResult.GetValue(outOpt),
                 };
                 var result = AddThreadedHoleTool.RunWithSpec(spec);
+                WriteResult(result, parseResult.GetValue(formatOpt) ?? "text");
+                return 0;
+            }
+            catch (McpToolException ex)
+            {
+                Console.Error.WriteLine($"[error] {ex.Message}");
+                return 1;
+            }
+        });
+
+        return cmd;
+    }
+
+    private static Command BuildAddCounterboreCommand()
+    {
+        var inputOpt = new Option<string>("--input")
+        {
+            Description = "Absolute path to an existing .sldprt to drill.",
+            Required = true,
+        };
+        var threadOpt = new Option<string>("--thread")
+        {
+            Description = "GB thread size: M3/M4/M5/M6/M8/M10/M12.",
+            Required = true,
+        };
+        var depthOpt = new Option<double?>("--depth")
+        {
+            Description = "Blind clearance depth in mm; omit for through-all.",
+            DefaultValueFactory = _ => null,
+        };
+        var outOpt = new Option<string>("--out")
+        {
+            Description = "Optional output .sldprt path. Omit to overwrite in place.",
+            DefaultValueFactory = _ => string.Empty,
+        };
+        var formatOpt = new Option<string>("--output")
+        {
+            Description = "Output format: text | json",
+            DefaultValueFactory = _ => "text",
+        };
+
+        var cmd = new Command("add-counterbore",
+            "Drill one GB/T 152.3 counterbore (M3-M12) at the end-face centroid.")
+        {
+            inputOpt, threadOpt, depthOpt, outOpt, formatOpt,
+        };
+
+        cmd.SetAction(parseResult =>
+        {
+            try
+            {
+                var spec = new CounterboreSpec
+                {
+                    InputPath = parseResult.GetValue(inputOpt) ?? string.Empty,
+                    ThreadSize = parseResult.GetValue(threadOpt) ?? string.Empty,
+                    DepthMm = parseResult.GetValue(depthOpt),
+                    OutputPath = parseResult.GetValue(outOpt),
+                };
+                var result = AddCounterboreTool.RunWithSpec(spec);
+                WriteResult(result, parseResult.GetValue(formatOpt) ?? "text");
+                return 0;
+            }
+            catch (McpToolException ex)
+            {
+                Console.Error.WriteLine($"[error] {ex.Message}");
+                return 1;
+            }
+        });
+
+        return cmd;
+    }
+
+    private static Command BuildAddCountersinkCommand()
+    {
+        var inputOpt = new Option<string>("--input")
+        {
+            Description = "Absolute path to an existing .sldprt to drill.",
+            Required = true,
+        };
+        var threadOpt = new Option<string>("--thread")
+        {
+            Description = "GB thread size: M6/M8/M10/M12 (M3-M5 not supported by SW GB DB).",
+            Required = true,
+        };
+        var depthOpt = new Option<double?>("--depth")
+        {
+            Description = "Blind clearance depth in mm; omit for through-all.",
+            DefaultValueFactory = _ => null,
+        };
+        var outOpt = new Option<string>("--out")
+        {
+            Description = "Optional output .sldprt path. Omit to overwrite in place.",
+            DefaultValueFactory = _ => string.Empty,
+        };
+        var formatOpt = new Option<string>("--output")
+        {
+            Description = "Output format: text | json",
+            DefaultValueFactory = _ => "text",
+        };
+
+        var cmd = new Command("add-countersink",
+            "Drill one GB/T 152.2 countersink (M6-M12, 90°) at the end-face centroid.")
+        {
+            inputOpt, threadOpt, depthOpt, outOpt, formatOpt,
+        };
+
+        cmd.SetAction(parseResult =>
+        {
+            try
+            {
+                var spec = new CountersinkSpec
+                {
+                    InputPath = parseResult.GetValue(inputOpt) ?? string.Empty,
+                    ThreadSize = parseResult.GetValue(threadOpt) ?? string.Empty,
+                    DepthMm = parseResult.GetValue(depthOpt),
+                    OutputPath = parseResult.GetValue(outOpt),
+                };
+                var result = AddCountersinkTool.RunWithSpec(spec);
                 WriteResult(result, parseResult.GetValue(formatOpt) ?? "text");
                 return 0;
             }
