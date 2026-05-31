@@ -34,6 +34,7 @@ public static class CliRunner
         root.Subcommands.Add(BuildAddCountersinkCommand());
         root.Subcommands.Add(BuildNewAssemblyCommand());
         root.Subcommands.Add(BuildAddComponentCommand());
+        root.Subcommands.Add(BuildInspectAssemblyCommand());
 
         var parseResult = root.Parse(args);
         return await parseResult.InvokeAsync();
@@ -950,6 +951,47 @@ public static class CliRunner
                     PositionZMm = parseResult.GetValue(posZOpt),
                 };
                 var result = AddComponentTool.RunWithSpec(spec);
+                WriteResult(result, parseResult.GetValue(formatOpt) ?? "text");
+                return 0;
+            }
+            catch (McpToolException ex)
+            {
+                Console.Error.WriteLine($"[error] {ex.Message}");
+                return 1;
+            }
+        });
+
+        return cmd;
+    }
+
+    private static Command BuildInspectAssemblyCommand()
+    {
+        var inputOpt = new Option<string>("--input")
+        {
+            Description = "Absolute path to an existing .sldasm to inspect.",
+            Required = true,
+        };
+        var formatOpt = new Option<string>("--output")
+        {
+            Description = "Output format: text | json",
+            DefaultValueFactory = _ => "text",
+        };
+
+        var cmd = new Command("inspect-assembly",
+            "Read metadata (component list / positions) from an existing assembly. Read-only.")
+        {
+            inputOpt, formatOpt,
+        };
+
+        cmd.SetAction(parseResult =>
+        {
+            try
+            {
+                var spec = new InspectAssemblySpec
+                {
+                    InputPath = parseResult.GetValue(inputOpt) ?? string.Empty,
+                };
+                var result = InspectAssemblyTool.RunWithSpec(spec);
                 WriteResult(result, parseResult.GetValue(formatOpt) ?? "text");
                 return 0;
             }
