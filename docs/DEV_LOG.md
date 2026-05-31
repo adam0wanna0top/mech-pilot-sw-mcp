@@ -31,6 +31,7 @@
 | new_assembly | #18 | `mcp__mech_pilot_sw__new_assembly` | 创建空装配体 (.sldasm) |
 | add_component | #18 | `mcp__mech_pilot_sw__add_component` | 把零件/子装配体插入装配体 |
 | inspect_assembly | #19 | `mcp__mech_pilot_sw__inspect_assembly` | 读取装配体组件列表（实例名 / 位置） |
+| add_mate_coincident | #20 | `mcp__mech_pilot_sw__add_mate_coincident` | 两组件 reference plane 重合配合 |
 | (.mcp.json) | #3 | — | Claude Code 项目级 MCP 配置 |
 
 **L1/L2/L3 全部验证**：298/298 单元测试 + 13 个 PowerShell L2 集成 +
@@ -563,6 +564,44 @@ LLM 应理解 positionMm 是 frame origin, 不是 centroid。tool docstring 写�
 **意义**: 17 工具 = 造 (4) + 改 (6) + 阵列 (1) + 看 (**2**: inspect_part + inspect_assembly)
 + 出货 (1) + 装配 (2) + ping。M18 add_mate 现在有了"前置眼睛", LLM 可以 inspect_assembly
 拿组件实例名 → add_mate 用这些名字 mate components。
+
+### M18 — add_mate_coincident (PR #20, 2026-05-31) — 装配核心约束能力
+
+**v1 PR #20 模板 zero-试错 L2 一次过 — 4 大魔法位规律继续验证**。组件间真正约束
+起来 (不只摆位置), LLM "底面贴合 / 端面对齐" 一句话可达。
+
+- **Scope 简化**: 只做 coincident-of-reference-planes (最简、最高频, 覆盖 ~80%
+  LLM 装配请求)。concentric / distance / parallel 下个 PR 扩展。
+- **v1 PR #20 模板 (AddMate5 路径)**:
+  - `IAssemblyDoc.AddMate5` 15 args (反射确认)
+  - 4 大魔法位 — 全设 0 会让 AddMate5 silent fail (v1 PR #20 录宏破得):
+    - `GearRatioNumerator = GearRatioDenominator = 0.001` (非零)
+    - `AngleAbsUpperLimit = AngleAbsLowerLimit = π/6` (≈30°, 非零)
+  - Reference plane selection: mark=0 (v1: "distance / AddMate5 路径用 mark=0,
+    CreateMate 路径用 mark=1")
+  - Plane selection name 格式: `"{PlaneAlias}@{ComponentInstance}@{AsmTitle}"` —
+    e.g. `"Front Plane@cyl-1@asm_42"` (asm title 须 strip ".SLDASM" ext)
+- **新 micro-lesson: AddMate5.ErrorStatus 用 `out` (不是 `ref`)**:
+  Build error CS1620 直接强制告诉我。规律 (vs M2 SaveAs 教训):
+  - COM `[in, out]` 参数 (如 SaveAs.Errors) → C# `ref`
+  - COM `[out]` only 参数 (如 AddMate5.ErrorStatus) → C# `out`
+  以前所有 SW Interop ref 都是 [in,out] (SaveAs/Save3/FeatureCut2 末位
+  errors/warnings 都是)。AddMate5 是首个 `out` only 的。**新工具反射看到
+  Int32& 后 build 让 compiler 报错确认 ref/out**。
+- **Plane 重合 + alignment 三选 (alignmnet = aligned/anti-aligned/closest)**:
+  swMateAlign_e 枚举映射。LLM 用 keyword 不用 enum 数值。
+- **拒 self-mate (同组件做 mate)**: spec.Validate 显式检查
+  `component1Name != component2Name`, 防 LLM 误传。
+- **测试**: L1 +26 CoincidentMateSpec 用例 (= 357 total); L2 M18 5/5 pass
+  (front@cyl ↔ top@block aligned in-place / 拒 self-mate / SW 层拒不存在组件 /
+  拒 'bottom' 关键字)。L3 待新 session 抽测。
+
+**意义**: 18 工具 = 造 (4) + 改 (6) + 阵列 (1) + 看 (2) + 出货 (1) + **装配 (3:
+new_assembly + add_component + add_mate_coincident)** + ping。LLM 现在能完整
+表达 "造零件 → 加孔 → 组装 → mate 约束", 装配能力闭环达成。
+
+下个候选: add_mate_concentric / add_mate_distance (扩展 mate 家族) /
+save_drawing (工程图 PDF) / pattern_circular。
 
 ---
 
