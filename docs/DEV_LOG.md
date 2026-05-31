@@ -32,6 +32,7 @@
 | add_component | #18 | `mcp__mech_pilot_sw__add_component` | 把零件/子装配体插入装配体 |
 | inspect_assembly | #19 | `mcp__mech_pilot_sw__inspect_assembly` | 读取装配体组件列表（实例名 / 位置） |
 | add_mate_coincident | #20 | `mcp__mech_pilot_sw__add_mate_coincident` | 两组件 reference plane 重合配合 |
+| add_mate_distance | #21 | `mcp__mech_pilot_sw__add_mate_distance` | 两组件 reference plane 间距 N mm 配合 |
 | (.mcp.json) | #3 | — | Claude Code 项目级 MCP 配置 |
 
 **L1/L2/L3 全部验证**：298/298 单元测试 + 13 个 PowerShell L2 集成 +
@@ -602,6 +603,39 @@ new_assembly + add_component + add_mate_coincident)** + ping。LLM 现在能完�
 
 下个候选: add_mate_concentric / add_mate_distance (扩展 mate 家族) /
 save_drawing (工程图 PDF) / pattern_circular。
+
+### M19 — add_mate_distance (PR #21, 2026-05-31) — mate 家族扩展 (距离配合)
+
+**复刻 M18 模板 zero-试错 L2 一次过**。新增第 2 类 mate, mate 家族开始覆盖
+LLM 装配高频场景。**v1 PR #20 的 AddMate5 + 4 大魔法位经验在本 PR 第 2 次
+复利验证** (M18 是首次)。
+
+- **跟 M18 唯一差异**: spec 加 `DistanceMm` 字段; tool 把
+  `MateTypeFromEnum=COINCIDENT` 改成 `DISTANCE`, Distance / Upper / Lower
+  Limit 三个字段都设为 distance_m (锁定单值, 不留范围 — LLM 用单一距离)。
+- **共享 helpers**: PlaneAliases + AlignmentKeywords 直接用 CoincidentMateSpec 的
+  静态字典 (rule of three 还没满 — 等 M20 concentric 出来如果也要用 plane 关键字
+  就 extract; 否则 mate 家族 plane keyword 表只有 coincident + distance 2 处)。
+- **alignment = 'closest' 在 L2 用**: 对已经放好位置的组件做 distance mate,
+  'aligned' 可能让 SW 想把组件翻过来导致冲突; 'closest' 让 SW 选不需要翻转的
+  那侧, 鲁棒性最好。Tool docstring 写明这条对 LLM 的引导。
+- **测试**: L1 +16 DistanceMateSpec (= 373 total); L2 M19 5/5 pass:
+  - 25mm distance top@cyl ↔ top@block (closest) in-place ✓
+  - 拒 distance ≤ 0
+  - 拒 self-mate
+  - 拒 'bottom' plane 关键字
+  - 1 sanity
+- L3 待新 session 抽测 (黄金法则 #13)
+
+**意义**: 19 工具 = 造 (4) + 改 (6) + 阵列 (1) + 看 (2) + 出货 (1) + **装配 (4:
+new_assembly + add_component + add_mate_coincident + add_mate_distance)** + ping。
+LLM "底面贴合" + "距离 25mm" 两种最常 mate 类型全覆盖。
+
+**v1 PR #20 经验复利 — 6 个连续 PR zero-试错** (M13/M14×2/M16/M18/M19), 项目首
+次 mate 家族出现 "复刻成本极低" 的递增曲线。
+
+下个候选: add_mate_concentric (需要 cylindrical face selection, 不再是 plane,
+设计上有新难点) / save_drawing / pattern_circular。
 
 ---
 
