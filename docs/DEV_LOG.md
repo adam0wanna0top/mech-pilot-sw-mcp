@@ -637,6 +637,50 @@ LLM "底面贴合" + "距离 25mm" 两种最常 mate 类型全覆盖。
 下个候选: add_mate_concentric (需要 cylindrical face selection, 不再是 plane,
 设计上有新难点) / save_drawing / pattern_circular。
 
+### M20 — add_component path-separator fix (PR #22, 2026-06-03) — **L3 抽测撞 bug**
+
+**M16 add_component 第二次撞 bug 修复** — 跟 M5 模式同款 (L3 长寿命 server 撞,
+L2 fresh exe 用 PowerShell Join-Path 路径过)。本次新增 path separator 维度,
+是项目首个 "OS-canonical path normalization" 类教训。
+
+- **撞 bug 现场**: L3 抽测装配家族, 用 forward-slash 路径调
+  `add_component(asm=".../asm.sldasm", component=".../cyl.sldprt")`,
+  MCP 返 "An error occurred", CLI 复现 `AddComponent5 returned null`。
+- **诊断路径**:
+  1. 怀疑 ActivateDoc3 hot SW 失效, 颠倒 OpenDoc6 顺序 — 没修好
+  2. 用 PowerShell Join-Path 生成 backslash 路径再试 — **成功**
+  3. forward-slash + 同 sequence → 失败
+  → 锁定 path separator 是真因
+- **根因**: `AddComponent5(CompName)` 第 1 参对 SW 内部 doc-table key **字符串
+  精确比较**。SW 内部把 OpenDoc6 加载的 doc path **标准化成 OS-canonical 形式
+  (Windows = `\`) 后 store**。LLM/MCP 自然用 `/` 路径 → OpenDoc6 成功 (SW
+  接受) → 但 SW 内部 store 成 `\` → AddComponent5 找 `/` 字符串找不到 → 返 null。
+- **修法**: tool 入口 `Path.GetFullPath(path)` 一次性 normalize 到
+  OS-canonical 形式 (Windows 上把 mixed slashes → 全部 `\`, 不碰 filesystem)。
+  传给 OpenDoc6 + AddComponent5 + Save3 + 错误消息 都用 normalized path。
+- **L2 为啥 5/5 全过**: `M16-assembly.test.ps1` 用 `Join-Path $tmpDir "asm_xxx"`,
+  PowerShell `Join-Path` 在 Windows 上**自动产 backslash 路径**。所以 L2 永远
+  跑 backslash 测试, 永远撞不到 forward-slash 的 bug。**这是 v2 项目首次出现
+  "L2 测试代码用法跟 LLM 用法不一致导致测试漏洞" 的教训**。
+- **L3 抽测同步验证 (forward-slash 路径, 本分支从 PR #20 拉, M19 add_mate_distance
+  在 rebase 后才进 master, 留下次 session 抽测)**:
+  - new_assembly ✓
+  - add_component ✓ 修后通过
+  - inspect_assembly ✓
+  - add_mate_coincident ✓ (复用 plane qualified name, 不受 path 分隔符影响)
+  - add_mate_distance — rebase 后留下次抽测 (装配 5 工具中唯一未 L3 验过的)
+- **测试**:
+  - L1: 357/357 pass (spec 没动, normalize 在 tool 内部); rebase 后含 PR #21
+    的 16 个 DistanceMateSpec 用例 = 373/373。
+  - L2: M16-assembly 6/6 pass (回归不破 + **+1 forward-slash 回归 case 防退化**)
+  - L3: 4 个装配工具实测通过 (用 forward-slash 路径)
+  - dotnet format clean
+
+**新规律 (黄金法则 #14)**: SW Interop API 若涉及"通过 path 字符串匹配已加载
+doc" (典型如 AddComponent5 / AddComponents4 / 其他 path-based lookup), 工具
+内部必须 `Path.GetFullPath()` normalize 输入路径。L2 应补一个 forward-slash 路
+径的测试 case 防回归。
+
 ---
 
 ## MVP 核心踩坑教训 (新 PR 前必看)

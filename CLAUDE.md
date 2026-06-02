@@ -185,6 +185,14 @@ CI 通过 + (本人 / 协作者) review → merge。**不能直接 push master**
     沉淀方式: PR description 加 "L3: 待新 session 重启抽测", 后续 session 跑
     至少一次, 撞 bug 单独 PR 修 (M5 模式), 不撞就在 DEV_LOG 记 zero-bug。
 
+14. **path 分隔符 normalize** (M20 教训): SW Interop API 若涉及"通过 path
+    字符串匹配已加载 doc" (典型如 `AddComponent5(CompName)` / 其他 path-based
+    lookup), 工具内部必须 `Path.GetFullPath()` normalize 输入路径到
+    OS-canonical 形式 (Windows = `\`)。不然 LLM / MCP 用 `/` 路径 → OpenDoc6
+    成功但 SW 内部 store 成 `\` → 后续 path 比对找不到 → silent null。
+    **L2 PowerShell `Join-Path` 自动产 `\`, 撞不到此 bug — 必须显式加一个
+    forward-slash 路径的 L2 case 防回归。**
+
 ---
 
 ## 关键命令速查
