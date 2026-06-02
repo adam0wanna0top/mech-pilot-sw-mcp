@@ -72,6 +72,20 @@ try {
     }
     Write-Host ("[ok] add_component block at (50,0,0) -> asm now {0:N0} bytes" -f $twoCompSize)
 
+    # ── M20 regression: forward-slash paths must work (LLM / MCP convention) ─
+    #   PowerShell Join-Path produces backslash paths, so L2 tests above always
+    #   exercised backslash. M20 bug: AddComponent5 silent-returned null on
+    #   forward-slash paths because SW stores its doc-table key in OS-canonical
+    #   form. Tool now Path.GetFullPath()-normalizes both paths internally —
+    #   this case forces forward-slash and asserts add_component still works.
+    $cylFwd = $cyl.Replace('\', '/')
+    $asmFwd = $asm.Replace('\', '/')
+    & $exe add-component --assembly $asmFwd --component $cylFwd --position-y 25 2>$errFile | Out-Null
+    if ($LASTEXITCODE -ne 0) {
+        throw "M20 regression: forward-slash add-component exited $LASTEXITCODE. stderr: $(Get-Content $errFile -Raw)"
+    }
+    Write-Host "[ok] M20 regression: forward-slash paths work (Path.GetFullPath normalize)"
+
     # ── validation: add_component to nonexistent assembly ───────────────────
     & $exe add-component --assembly $missing --component $cyl 2>$errFile | Out-Null
     if ($LASTEXITCODE -eq 0)        { throw "expected non-zero exit for nonexistent assembly" }

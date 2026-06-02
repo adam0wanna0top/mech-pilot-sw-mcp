@@ -94,68 +94,78 @@ public static class AddComponentTool
     {
         var swApp = SwConnection.Instance.GetApp();
 
-        // ── 1. Open the assembly ────────────────────────────────────────────
-        int openErrors = 0;
-        int openWarnings = 0;
-        var asmModel = swApp.OpenDoc6(
-            FileName: spec.AssemblyPath,
-            Type: (int)swDocumentTypes_e.swDocASSEMBLY,
+        // ── 0. Normalize paths to OS-canonical form (Windows backslashes) ───
+        //   **M20 critical lesson**: `AddComponent5` compares the component
+        //   path string against SW's internal doc-table key, which is stored
+        //   in OS-canonical form (Windows = backslash). If we pass a
+        //   forward-slash path (which OpenDoc6 happily accepts), the doc gets
+        //   loaded but AddComponent5 can't find it → silently returns null.
+        //   L2 M16-assembly never hit this because PowerShell's Join-Path
+        //   produces backslash paths; LLMs and bash typically pass slash
+        //   paths and trigger the bug.
+        //   Path.GetFullPath canonicalizes (mixed slashes → all backslash on
+        //   Windows) without touching the filesystem.
+        var asmPathNorm = Path.GetFullPath(spec.AssemblyPath);
+        var compPathNorm = Path.GetFullPath(spec.ComponentPath);
+
+        // ── 1. Open the component FIRST (v1 PR #9: AddComponent5 doesn't
+        //   auto-load files — silently returns null otherwise. OpenDoc6
+        //   preloads into SW memory). Opening component first then assembly
+        //   makes the assembly naturally the active doc (SW activates the
+        //   most-recently-opened doc), so no ActivateDoc3 dance needed. ──
+        var compTypeIsAsm = compPathNorm.EndsWith(
+            ".sldasm", StringComparison.OrdinalIgnoreCase);
+        int compErrors = 0;
+        int compWarnings = 0;
+        var compModel = swApp.OpenDoc6(
+            FileName: compPathNorm,
+            Type: compTypeIsAsm
+                ? (int)swDocumentTypes_e.swDocASSEMBLY
+                : (int)swDocumentTypes_e.swDocPART,
             Options: (int)swOpenDocOptions_e.swOpenDocOptions_Silent,
             Configuration: string.Empty,
-            Errors: ref openErrors,
-            Warnings: ref openWarnings) as IModelDoc2;
+            Errors: ref compErrors,
+            Warnings: ref compWarnings) as IModelDoc2;
 
-        if (asmModel == null)
+        if (compModel == null)
         {
             throw new McpToolException(
-                $"OpenDoc6 returned null for assembly '{spec.AssemblyPath}'. " +
-                $"errors=0x{openErrors:X} warnings=0x{openWarnings:X}.");
+                $"OpenDoc6 returned null for component '{compPathNorm}'. " +
+                $"errors=0x{compErrors:X} warnings=0x{compWarnings:X}.");
         }
 
-        IModelDoc2? compModel = null;
+        IModelDoc2? asmModel = null;
         try
         {
-            // ── 2. Preload the component (v1 PR #9 critical: AddComponent5
-            //   doesn't auto-load files — silently returns null otherwise) ──
-            var compTypeIsAsm = spec.ComponentPath.EndsWith(
-                ".sldasm", StringComparison.OrdinalIgnoreCase);
-            int compErrors = 0;
-            int compWarnings = 0;
-            compModel = swApp.OpenDoc6(
-                FileName: spec.ComponentPath,
-                Type: compTypeIsAsm
-                    ? (int)swDocumentTypes_e.swDocASSEMBLY
-                    : (int)swDocumentTypes_e.swDocPART,
+            // ── 2. Open the assembly SECOND so it becomes the active doc ───
+            int openErrors = 0;
+            int openWarnings = 0;
+            asmModel = swApp.OpenDoc6(
+                FileName: asmPathNorm,
+                Type: (int)swDocumentTypes_e.swDocASSEMBLY,
                 Options: (int)swOpenDocOptions_e.swOpenDocOptions_Silent,
                 Configuration: string.Empty,
-                Errors: ref compErrors,
-                Warnings: ref compWarnings) as IModelDoc2;
+                Errors: ref openErrors,
+                Warnings: ref openWarnings) as IModelDoc2;
 
-            if (compModel == null)
+            if (asmModel == null)
             {
                 throw new McpToolException(
-                    $"OpenDoc6 returned null for component '{spec.ComponentPath}'. " +
-                    $"errors=0x{compErrors:X} warnings=0x{compWarnings:X}.");
+                    $"OpenDoc6 returned null for assembly '{asmPathNorm}'. " +
+                    $"errors=0x{openErrors:X} warnings=0x{openWarnings:X}.");
             }
-
-            // ── 3. Re-activate the assembly so AddComponent5 targets it ─────
-            swApp.ActivateDoc3(
-                Name: asmModel.GetTitle(),
-                UseUserPreferences: false,
-                Option: (int)swRebuildOnActivation_e.swDontRebuildActiveDoc,
-                Errors: ref openErrors);
 
             var asmDoc = (IAssemblyDoc)asmModel;
             var xM = spec.PositionXMm / 1000.0;
             var yM = spec.PositionYMm / 1000.0;
             var zM = spec.PositionZMm / 1000.0;
 
-            // ── 4. AddComponent5 ────────────────────────────────────────────
+            // ── 4. AddComponent5 — use normalized path so SW's internal
+            //   doc-table key match succeeds (M20 lesson) ─────────────────────
             //   ConfigOption = 0: use default config; NewConfigName / Existing
-            //   left empty. UseConfigForPartReferences = false (we're not
-            //   referencing a specific config tree).
+            //   left empty. UseConfigForPartReferences = false.
             var component = asmDoc.AddComponent5(
-                CompName: spec.ComponentPath,
+                CompName: compPathNorm,
                 ConfigOption: 0,
                 NewConfigName: string.Empty,
                 UseConfigForPartReferences: false,
@@ -165,7 +175,7 @@ public static class AddComponentTool
             if (component == null)
             {
                 throw new McpToolException(
-                    $"AddComponent5 returned null for '{spec.ComponentPath}'. " +
+                    $"AddComponent5 returned null for '{compPathNorm}'. " +
                     "Common causes: the component was not preloaded (we did " +
                     "preload it — check SW console for permission / version " +
                     "errors), or the assembly was not the active doc when called.");
@@ -179,14 +189,14 @@ public static class AddComponentTool
                 ref saveErrors,
                 ref saveWarnings);
 
-            if (!savedOk || !File.Exists(spec.AssemblyPath))
+            if (!savedOk || !File.Exists(asmPathNorm))
             {
                 throw new McpToolException(
-                    $"Save3 failed for assembly '{spec.AssemblyPath}'. " +
+                    $"Save3 failed for assembly '{asmPathNorm}'. " +
                     $"errors=0x{saveErrors:X} warnings=0x{saveWarnings:X}.");
             }
 
-            var compName = Path.GetFileNameWithoutExtension(spec.ComponentPath);
+            var compName = Path.GetFileNameWithoutExtension(compPathNorm);
             return ToolResult.Ok(
                 message:
                     $"Inserted '{compName}' at ({spec.PositionXMm}, {spec.PositionYMm}, " +
@@ -195,11 +205,12 @@ public static class AddComponentTool
         }
         finally
         {
-            if (compModel != null)
+            // Close in reverse open order (asm opened last → close first).
+            if (asmModel != null)
             {
-                swApp.CloseDoc(compModel.GetTitle());
+                swApp.CloseDoc(asmModel.GetTitle());
             }
-            swApp.CloseDoc(asmModel.GetTitle());
+            swApp.CloseDoc(compModel.GetTitle());
         }
     }
 #endif
