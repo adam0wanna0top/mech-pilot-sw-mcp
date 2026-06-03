@@ -731,6 +731,39 @@ business case 覆盖 (剩 parallel / tangent / lock 等小众类型)。
 refactor (SelectFirstPlane / MapAlignment / StripSldasmExt 在 M18+M19+M21 三处
 复用 — rule of three 已满)。
 
+### M21 收尾 — 装配 mate 家族 L3 抽测 zero bug (2026-06-04)
+
+**PR #23 (add_mate_concentric) merge 后, 新 session L3 抽测 distance + concentric
+两个 mate, zero bug + 几何验证生效。** 一次性收口 M19/M20/M21 三处遗留的
+"L3 待新 session 抽测" (黄金法则 #13)。
+
+- **为啥是两个 mate**: M20 段记录 add_mate_distance 在那次 L3 session 因本分支
+  rebase 时序"留下次抽测"(装配 5 工具中唯一未 L3 验过的); M21 concentric 本身也
+  待抽。本 session 一并收口。
+- **抽测序列 (全程 forward-slash 路径, 顺带第 3 次验 M20 path-normalize fix)**:
+  - create_cylinder ×2 (cyl_a D30×L40, cyl_b D20×L50)
+  - new_assembly ×2 (asm_conc / asm_dist)
+  - add_component ×4 (forward-slash assembly + component 双路径,
+    **M20 fix 在热 server 上确认: 不再 silent null**; inspect 返回的 sourcePath
+    显示为 `\` = SW 内部 canonical, 正是 M20 根因, 工具已正确 normalize)
+  - inspect_assembly ×4 (frame-origin Z = -height/2 复验 M17: cyl_a z=-20 /
+    cyl_b z=-25)
+  - **add_mate_concentric** (cyl_a-1 ↔ cyl_b-1, closest, in-place) — 几何验证:
+    cyl_b x 50→0, 两圆柱轴真共线
+  - **add_mate_distance** (top@cyl_a-1 ↔ top@cyl_b-1, 25 mm, closest, in-place) —
+    几何验证: cyl_b y 0→25
+- **几何验证 (不只 "API 返 ok")**: 每个 mate 后 re-inspect 确认组件真被约束移动,
+  排除 "AddMate5 返 ok 但 mate 没生效" 的 silent 假成功。这是 mate 类工具
+  L3 抽测应固化的额外一步 (vs 建模工具只看 status=ok)。
+- **装配 5 工具完整 zero-bug 闭环达成**: new_assembly + add_component +
+  add_mate_coincident (M20 session ✓) + add_mate_distance (本 session ✓) +
+  add_mate_concentric (本 session ✓); inspect_assembly ×4 跨工具回归。
+- **v1 PR #20 复刻 7 连击在 L3 长寿命 server 上也成立** (不只 L2 fresh exe),
+  跟 M15 (后 10 工具 L3 zero-bug) 同款质量收口节点。
+
+**意义**: 20 工具全部至少 L3 抽测 1 次, 装配家族质量曲线收口。下一步进入 M22
+功能开发 (save_drawing / pattern_circular / mate helpers refactor 三选一)。
+
 ---
 
 ## MVP 核心踩坑教训 (新 PR 前必看)
