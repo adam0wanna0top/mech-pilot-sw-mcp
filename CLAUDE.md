@@ -52,9 +52,10 @@
 | add_mate_concentric | `mcp__mech_pilot_sw__add_mate_concentric` | 两组件轴向 ±Z 圆柱面同轴配合 |
 
 **L1 / L2 验证通过** (388/388 单元测试 + 18 个 PowerShell L2 集成); 后 10 工具
-+ create_flange L3 抽测 zero bug (M15); **装配家族 5 工具 (new_assembly +
-add_component + inspect_assembly + add_mate_coincident + add_mate_distance)
-L3 全过 zero bug**; M21 add_mate_concentric L3 待下次抽测。
++ create_flange L3 抽测 zero bug (M15); **装配家族全 6 工具 (new_assembly +
+add_component + inspect_assembly + add_mate_coincident + add_mate_distance +
+add_mate_concentric) L3 全过 zero bug** (distance + concentric 于 2026-06-04
+session 收口, 几何验证生效)。
 M5 in-place SaveAs / M20 path-separator bug 都已修。
 **`Tools/Internal/PartGeometryHelpers`** 抽出共用 `FindPlanarEndFace` +
 `FindLastUserFeature` + `IsBootFeature` 给 8 工具用。
