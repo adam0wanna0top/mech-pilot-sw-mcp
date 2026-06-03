@@ -26,7 +26,8 @@
 ## 当前阶段
 
 ✅ **MVP 已完成** (2026-05-27)。**「前 10 高频工具」迁移 10/10 完成** (M14 提前
-做完, 因 PR #25 沉头/锥头沉孔与同 helper refactor 一起做)。**14 工具**:
+做完, 因 PR #25 沉头/锥头沉孔与同 helper refactor 一起做)。M22 起进入"几何能力
+拓展"阶段 (revolve / pattern_circular / angle mate / shell 等)。**21 工具**:
 
 | Tool | LLM-facing name | 用途 |
 |---|---|---|
@@ -42,6 +43,7 @@
 | add_countersink | `mcp__mech_pilot_sw__add_countersink` | GB/T 152.2 锥形沉头孔 (沉头螺钉, 90°) M6-M12 |
 | mirror_feature | `mcp__mech_pilot_sw__mirror_feature` | 沿 Front / Top / Right 基准面镜像特征 |
 | pattern_linear | `mcp__mech_pilot_sw__pattern_linear` | 1D / 2D 线性阵列特征 |
+| pattern_circular | `mcp__mech_pilot_sw__pattern_circular` | 绕 ±Z 轴圆周阵列特征 (PCD 孔环等) |
 | inspect_part | `mcp__mech_pilot_sw__inspect_part` | 读取零件元数据（bbox / 特征 / 面+边数） |
 | export_part | `mcp__mech_pilot_sw__export_part` | 导出 STEP / STL / IGES / Parasolid |
 | new_assembly | `mcp__mech_pilot_sw__new_assembly` | 创建空装配体 (.sldasm) |
@@ -51,17 +53,18 @@
 | add_mate_distance | `mcp__mech_pilot_sw__add_mate_distance` | 两组件 reference plane 间距 N mm 配合 |
 | add_mate_concentric | `mcp__mech_pilot_sw__add_mate_concentric` | 两组件轴向 ±Z 圆柱面同轴配合 |
 
-**L1 / L2 验证通过** (388/388 单元测试 + 18 个 PowerShell L2 集成); 后 10 工具
+**L1 / L2 验证通过** (421/421 单元测试 + 19 个 PowerShell L2 集成); 后 10 工具
 + create_flange L3 抽测 zero bug (M15); **装配家族全 6 工具 (new_assembly +
 add_component + inspect_assembly + add_mate_coincident + add_mate_distance +
 add_mate_concentric) L3 全过 zero bug** (distance + concentric 于 2026-06-04
 session 收口, 几何验证生效)。
-M5 in-place SaveAs / M20 path-separator bug 都已修。
+M5 in-place SaveAs / M20 path-separator bug 都已修。v1 PR #32 真根因 (FCP3 spacing
+公式) 在 M22 pattern_circular 复刻一次过 (**8 连击 zero-试错**)。
 **`Tools/Internal/PartGeometryHelpers`** 抽出共用 `FindPlanarEndFace` +
 `FindLastUserFeature` + `IsBootFeature` 给 8 工具用。
 
-**下一步候选**: new_assembly+add_component 装配工具家族 / save_drawing 工程图
-/ pattern_circular 圆周阵列 / L3 全工具抽测 / CI self-hosted runner。详见
+**下一步候选**: revolve (球壳/锥/旋转件) / add_mate_angle (机械臂关节摆角) /
+shell (薄壁壳) / save_drawing 工程图 / pattern_circular L3 抽测。详见
 [`docs/DEV_LOG.md`](docs/DEV_LOG.md) "下一步候选" 段。
 
 ---

@@ -731,6 +731,56 @@ business case 覆盖 (剩 parallel / tangent / lock 等小众类型)。
 refactor (SelectFirstPlane / MapAlignment / StripSldasmExt 在 M18+M19+M21 三处
 复用 — rule of three 已满)。
 
+### M22 — pattern_circular (PR #?, 2026-06-04) — v1 PR #32 真根因复刻 + 几何能力扩展开张
+
+**继 PR #24 L3 收口后用户决策跳过 save_drawing, 优先做几何工具拓展** (用户问
+"能不能画机械臂/电风扇" → 评估发现 90% 瓶颈在 MCP 工具层非 LLM 模型 → 选
+pattern_circular / revolve 先做)。**复刻 v1 PR #32 真根因, 8 连击 zero-试错**
+(M13/14×2/16/18/19/20/21/22)。
+
+- **v1 PR #32 真根因 (回顾)**: `FeatureCircularPattern3.Spacing` 在
+  `EqualSpacing=false` 时是**每 instance 间距**(不是总角度)。**正确公式**:
+  `spacingRad = totalAngleRad / count`。v1 老代码传 `math.radians(360)`
+  → 4 instance 全重叠原位置 → silent fail (老 L2 只验文件存在没数孔数所以一直
+  误 PASS, 直到 trace 暴露)。`EqualSpacing=true` 让 feat 返 null, 必须 false。
+- **Tool 设计 (LLM-friendly 简化)**:
+  - Spec 极简: inputPath + count + totalAngleDeg(默认 360) + featureName? + outputPath?
+    无 axis 关键字 — 所有 mech-pilot 拉伸件轴沿 ±Z, 工具自动找
+  - Axis 自动选: 复用 M21 add_mate_concentric 的 `FindFirstAxialCylinderFace`
+    模式 (CylinderParams[5] = axis.Z, |axis.Z| > 0.99) — **inline 一份, 第 2 次
+    出现, 等第 3 次 (可能是 revolve / 角度 mate) 抽到 PartGeometryHelpers**
+  - PR #35 multi-cut limitation 在 LLM-facing description 明确写: "若零件已
+    有多个 cut features stacked → silent fail → 用 create_flange 代替"
+- **API 路径 (反射验过)**:
+  `FeatureCircularPattern3(Number, Spacing, FlipDirection, DName, GeometryPattern, EqualSpacing)`
+  6 参; 用 mark=1 (axis face) + mark=4 (seed) 选择
+- **L2 意外发现 (block + axial_hole 行为)**: 长方体钻孔后**有 axis-Z cylindrical
+  face = 孔内壁**。`FindFirstAxialCylinderFace` 找到它, 选作 axis → SW 拿
+  "孔自己作 axis pattern 孔自己" → silent fail (退化)。L2 case 4 改成**纯长方体
+  (无孔)** 才能真测 "FindFirstAxialCylinderFace null-return" 路径。**LLM 用法**:
+  block + 单孔的 pattern_circular 会失败, 但这是 SW 退化行为, 工具 best-effort
+  给体面错误消息即可。
+- **测试**:
+  - L1: +33 CircularPatternSpec 用例 (= 421 total)
+  - L2: M22 5/5 pass
+    - full-circle 6× D40 cyl + Φ5@(10,0) (in-place) ✓
+    - 180° arc 3× D40 cyl + Φ4@(8,0) (copy) ✓
+    - empty cylinder (无 seed) 拒绝 ✓
+    - pure block (无 cylindrical face) 拒绝 ✓
+    - count=1 spec validation ✓
+  - L3 待新 session 抽测 (黄金法则 #13)
+- **dotnet format clean, build 0 warnings 0 errors**
+
+**意义**: 21 工具 = 造 (4) + 改 (6) + **阵列 (2: linear + circular)** + 看 (2) +
+出货 (1) + 装配 (5) + ping。LLM 现在能"飞轮 / 车轮 / 散热环 / 多孔法兰盘"
+(PCD bolt circle 一句话) — 但 multi-cut 场景 (cyl + 中心孔 + 偏心孔) 仍走
+create_flange 一次包死的路径。**几何能力扩展开张**, 下个候选 M23 revolve
+(球/锥/旋转件) 解锁电风扇底座 / 喇叭口 / 漏斗等"非 prismatic" 几何。
+
+**v1 经验复利 8 连击曲线**: M13 ~3h → M14 ~3h → M16 ~2h → M18 ~1h →
+M19 ~40min → M21 ~50min → M22 ~1h (含 L2 block 发现)。**v1 35 PR 教训库
+ROI 持续放大**。
+
 ### M21 收尾 — 装配 mate 家族 L3 抽测 zero bug (2026-06-04)
 
 **PR #23 (add_mate_concentric) merge 后, 新 session L3 抽测 distance + concentric

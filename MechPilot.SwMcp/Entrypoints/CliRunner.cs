@@ -29,6 +29,7 @@ public static class CliRunner
         root.Subcommands.Add(BuildInspectPartCommand());
         root.Subcommands.Add(BuildMirrorFeatureCommand());
         root.Subcommands.Add(BuildPatternLinearCommand());
+        root.Subcommands.Add(BuildPatternCircularCommand());
         root.Subcommands.Add(BuildAddThreadedHoleCommand());
         root.Subcommands.Add(BuildAddCounterboreCommand());
         root.Subcommands.Add(BuildAddCountersinkCommand());
@@ -671,6 +672,71 @@ public static class CliRunner
                     OutputPath = parseResult.GetValue(outOpt),
                 };
                 var result = PatternLinearTool.RunWithSpec(spec);
+                WriteResult(result, parseResult.GetValue(formatOpt) ?? "text");
+                return 0;
+            }
+            catch (McpToolException ex)
+            {
+                Console.Error.WriteLine($"[error] {ex.Message}");
+                return 1;
+            }
+        });
+
+        return cmd;
+    }
+
+    private static Command BuildPatternCircularCommand()
+    {
+        var inputOpt = new Option<string>("--input")
+        {
+            Description = "Absolute path to an existing .sldprt to edit.",
+            Required = true,
+        };
+        var countOpt = new Option<int>("--count")
+        {
+            Description = "Total instances around the axis (including seed), e.g. 6.",
+            Required = true,
+        };
+        var angleOpt = new Option<double>("--angle")
+        {
+            Description = "Total sweep angle in degrees. Default 360 (full circle).",
+            DefaultValueFactory = _ => 360.0,
+        };
+        var featureOpt = new Option<string>("--feature")
+        {
+            Description = "Optional exact seed feature name; omit for last user feature.",
+            DefaultValueFactory = _ => string.Empty,
+        };
+        var outOpt = new Option<string>("--out")
+        {
+            Description = "Optional output .sldprt path. Omit to overwrite the input in place.",
+            DefaultValueFactory = _ => string.Empty,
+        };
+        var formatOpt = new Option<string>("--output")
+        {
+            Description = "Output format: text | json",
+            DefaultValueFactory = _ => "text",
+        };
+
+        var cmd = new Command("pattern-circular",
+            "Circular (rotational) pattern of a single seed feature around the part's ±Z axis.")
+        {
+            inputOpt, countOpt, angleOpt, featureOpt, outOpt, formatOpt,
+        };
+
+        cmd.SetAction(parseResult =>
+        {
+            try
+            {
+                var spec = new CircularPatternSpec
+                {
+                    InputPath = parseResult.GetValue(inputOpt) ?? string.Empty,
+                    Count = parseResult.GetValue(countOpt),
+                    TotalAngleDeg = parseResult.GetValue(angleOpt),
+                    FeatureName = parseResult.GetValue(featureOpt),
+                    OutputPath = parseResult.GetValue(outOpt),
+                };
+                var result = PatternCircularTool.RunWithSpec(spec);
                 WriteResult(result, parseResult.GetValue(formatOpt) ?? "text");
                 return 0;
             }
