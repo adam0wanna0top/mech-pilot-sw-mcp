@@ -49,10 +49,13 @@
 | inspect_assembly | `mcp__mech_pilot_sw__inspect_assembly` | 读取装配体组件列表（实例名 / 源路径 / 位置） |
 | add_mate_coincident | `mcp__mech_pilot_sw__add_mate_coincident` | 两组件 reference plane 重合配合 |
 | add_mate_distance | `mcp__mech_pilot_sw__add_mate_distance` | 两组件 reference plane 间距 N mm 配合 |
+| add_mate_concentric | `mcp__mech_pilot_sw__add_mate_concentric` | 两组件轴向 ±Z 圆柱面同轴配合 |
 
-**L1 / L2 验证通过** (373/373 单元测试 + 17 个 PowerShell L2 集成); 后 10 工具
-+ create_flange L3 抽测 zero bug (M15); **M16-M19 装配家族 L3 待新 session
-抽测** (黄金法则 #13)。M5 撞过 in-place SaveAs bug 已修。
+**L1 / L2 验证通过** (388/388 单元测试 + 18 个 PowerShell L2 集成); 后 10 工具
++ create_flange L3 抽测 zero bug (M15); **装配家族 5 工具 (new_assembly +
+add_component + inspect_assembly + add_mate_coincident + add_mate_distance)
+L3 全过 zero bug**; M21 add_mate_concentric L3 待下次抽测。
+M5 in-place SaveAs / M20 path-separator bug 都已修。
 **`Tools/Internal/PartGeometryHelpers`** 抽出共用 `FindPlanarEndFace` +
 `FindLastUserFeature` + `IsBootFeature` 给 8 工具用。
 

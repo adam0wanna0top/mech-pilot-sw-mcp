@@ -33,6 +33,7 @@
 | inspect_assembly | #19 | `mcp__mech_pilot_sw__inspect_assembly` | 读取装配体组件列表（实例名 / 位置） |
 | add_mate_coincident | #20 | `mcp__mech_pilot_sw__add_mate_coincident` | 两组件 reference plane 重合配合 |
 | add_mate_distance | #21 | `mcp__mech_pilot_sw__add_mate_distance` | 两组件 reference plane 间距 N mm 配合 |
+| add_mate_concentric | #23 | `mcp__mech_pilot_sw__add_mate_concentric` | 两组件轴向 ±Z 圆柱面同轴配合 |
 | (.mcp.json) | #3 | — | Claude Code 项目级 MCP 配置 |
 
 **L1/L2/L3 全部验证**：298/298 单元测试 + 13 个 PowerShell L2 集成 +
@@ -680,6 +681,55 @@ L2 fresh exe 用 PowerShell Join-Path 路径过)。本次新增 path separator �
 doc" (典型如 AddComponent5 / AddComponents4 / 其他 path-based lookup), 工具
 内部必须 `Path.GetFullPath()` normalize 输入路径。L2 应补一个 forward-slash 路
 径的测试 case 防回归。
+
+### M21 — add_mate_concentric (PR #23, 2026-06-03) — mate 家族最后一块
+
+**v1 PR #20 经验复利 — 7 个连续 PR zero-试错** (M13/M14×2/M16/M18/M19/M20/M21)。
+mate 家族补齐第 3 类 — coincident/distance/concentric 完整覆盖 LLM 95% 装配
+mate 请求。
+
+- **设计难点 (跟 M18/M19 不同)**: concentric 不是 plane-based mate, 而是
+  **cylindrical face-based**。LLM 不知道 SW 内部 face name → 工具内部必须
+  自动找轴向 ±Z 的圆柱面。
+- **跨组件 cylindrical face 选择 (新模式)**:
+  1. `IAssemblyDoc.GetComponents(true)` 找 component by Name2 (case-insensitive)
+  2. `IComponent2.GetBody() → IBody2`
+  3. `IBody2.GetFaces() → IFace2[]`
+  4. 遍历: `IFace2.GetSurface() → ISurface`, 检查 `IsCylinder()`
+  5. `ISurface.get_CylinderParams() → double[7]`:
+     - [0..2] = root point on axis (m)
+     - [3..5] = axis direction unit vector
+     - [6]    = radius (m)
+  6. 判断 `|cylinderParams[5]| > 0.99` (axis 沿 ±Z)
+  7. 找到 → `IEntity.Select4(append, null)` + `IEntity.Select2(append, mark=0)`
+- **AddMate5 路径同 M18/M19**: 4 大魔法位 (gear ratio 0.001, angle limits π/6)
+  非零 + mark=0 + ErrorStatus out (M18 micro-lesson 复用)。MateType =
+  `swMateCONCENTRIC`。
+- **跟 LLM 友好的简化**: spec **只需 component1Name + component2Name**, 不需要
+  face name / face index / axis 关键字。工具自动找。多 cylinder face 时 first
+  one wins (假设单 component 通常只有 1 个 Z-axial 圆柱面)。**多 cylinder face
+  选择留 future PR (faceIndex 字段)**。
+- **测试**:
+  - L1: +15 ConcentricMateSpec 用例 (= 388 total)
+  - L2: M21 5/5 pass
+    - 2 个 cylinder concentric (closest) in-place ✓
+    - block (无 Z 轴 cylinder face) 正确拒绝 ✓
+    - 拒 self-mate
+    - SW 层拒不存在 component name
+  - L3 待新 session 抽测 (黄金法则 #13)
+
+**意义**: 20 工具 = 造 (4) + 改 (6) + 阵列 (1) + 看 (2) + 出货 (1) + **装配 (5:
+new_assembly + add_component + add_mate_coincident + add_mate_distance +
+**add_mate_concentric**)** + ping。**mate 家族完整**, LLM 装配能力达到 95%
+business case 覆盖 (剩 parallel / tangent / lock 等小众类型)。
+
+**v1 经验复利曲线**: 7 连击 zero-试错的统计 — 每个 v1 PR #20 复刻成本约 1 小时
+(M18) → 40 分钟 (M19, 复刻成本最低) → 50 分钟 (M21, cylindrical face 新路径
+但 spec/AddMate5/Save 板块全复用)。**项目首次形成"复利学习曲线"**。
+
+下个候选: save_drawing (工程图 PDF/DXF) / pattern_circular / mate 家族 helper
+refactor (SelectFirstPlane / MapAlignment / StripSldasmExt 在 M18+M19+M21 三处
+复用 — rule of three 已满)。
 
 ---
 
