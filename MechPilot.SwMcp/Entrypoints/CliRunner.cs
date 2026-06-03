@@ -37,6 +37,7 @@ public static class CliRunner
         root.Subcommands.Add(BuildInspectAssemblyCommand());
         root.Subcommands.Add(BuildAddCoincidentMateCommand());
         root.Subcommands.Add(BuildAddDistanceMateCommand());
+        root.Subcommands.Add(BuildAddConcentricMateCommand());
 
         var parseResult = root.Parse(args);
         return await parseResult.InvokeAsync();
@@ -1154,6 +1155,71 @@ public static class CliRunner
                     OutputPath = parseResult.GetValue(outOpt),
                 };
                 var result = AddDistanceMateTool.RunWithSpec(spec);
+                WriteResult(result, parseResult.GetValue(formatOpt) ?? "text");
+                return 0;
+            }
+            catch (McpToolException ex)
+            {
+                Console.Error.WriteLine($"[error] {ex.Message}");
+                return 1;
+            }
+        });
+
+        return cmd;
+    }
+
+    private static Command BuildAddConcentricMateCommand()
+    {
+        var asmOpt = new Option<string>("--assembly")
+        {
+            Description = "Absolute path to an existing .sldasm.",
+            Required = true,
+        };
+        var comp1Opt = new Option<string>("--component1")
+        {
+            Description = "First component's instance name (from inspect_assembly).",
+            Required = true,
+        };
+        var comp2Opt = new Option<string>("--component2")
+        {
+            Description = "Second component's instance name.",
+            Required = true,
+        };
+        var alignOpt = new Option<string>("--alignment")
+        {
+            Description = "Alignment: 'aligned' (default), 'anti-aligned', or 'closest'.",
+            DefaultValueFactory = _ => "aligned",
+        };
+        var outOpt = new Option<string>("--out")
+        {
+            Description = "Optional output .sldasm path. Omit to overwrite in place.",
+            DefaultValueFactory = _ => string.Empty,
+        };
+        var formatOpt = new Option<string>("--output")
+        {
+            Description = "Output format: text | json",
+            DefaultValueFactory = _ => "text",
+        };
+
+        var cmd = new Command("add-mate-concentric",
+            "Add a concentric mate between two components' first axial-Z cylindrical faces.")
+        {
+            asmOpt, comp1Opt, comp2Opt, alignOpt, outOpt, formatOpt,
+        };
+
+        cmd.SetAction(parseResult =>
+        {
+            try
+            {
+                var spec = new ConcentricMateSpec
+                {
+                    AssemblyPath = parseResult.GetValue(asmOpt) ?? string.Empty,
+                    Component1Name = parseResult.GetValue(comp1Opt) ?? string.Empty,
+                    Component2Name = parseResult.GetValue(comp2Opt) ?? string.Empty,
+                    Alignment = parseResult.GetValue(alignOpt) ?? "aligned",
+                    OutputPath = parseResult.GetValue(outOpt),
+                };
+                var result = AddConcentricMateTool.RunWithSpec(spec);
                 WriteResult(result, parseResult.GetValue(formatOpt) ?? "text");
                 return 0;
             }
