@@ -20,6 +20,7 @@ public static class CliRunner
 
         root.Subcommands.Add(BuildPingCommand());
         root.Subcommands.Add(BuildCreateCylinderCommand());
+        root.Subcommands.Add(BuildCreateHemisphereCommand());
         root.Subcommands.Add(BuildCreateFlangeCommand());
         root.Subcommands.Add(BuildCreateRectangularBlockCommand());
         root.Subcommands.Add(BuildAddFilletCommand());
@@ -117,6 +118,55 @@ public static class CliRunner
                     SavePath = parseResult.GetValue(outOpt) ?? string.Empty,
                 };
                 var result = CreateCylinderTool.RunWithSpec(spec);
+                WriteResult(result, parseResult.GetValue(formatOpt) ?? "text");
+                return 0;
+            }
+            catch (McpToolException ex)
+            {
+                Console.Error.WriteLine($"[error] {ex.Message}");
+                return 1;
+            }
+        });
+
+        return cmd;
+    }
+
+    private static Command BuildCreateHemisphereCommand()
+    {
+        var diameterOpt = new Option<double>("--diameter")
+        {
+            Description = "Hemisphere diameter in mm (full sphere diameter), e.g. 60.",
+            Required = true,
+        };
+        var outOpt = new Option<string>("--out")
+        {
+            Description = "Absolute output path ending in .sldprt (e.g. C:/tmp/hemi.sldprt).",
+            Required = true,
+        };
+        var formatOpt = new Option<string>("--output")
+        {
+            Description = "Output format: text | json",
+            DefaultValueFactory = _ => "text",
+        };
+
+        var cmd = new Command("create-hemisphere",
+            "Create a parametric solid hemisphere part (axis +Y, base on Y=0 plane).")
+        {
+            diameterOpt,
+            outOpt,
+            formatOpt,
+        };
+
+        cmd.SetAction(parseResult =>
+        {
+            try
+            {
+                var spec = new HemisphereSpec
+                {
+                    DiameterMm = parseResult.GetValue(diameterOpt),
+                    SavePath = parseResult.GetValue(outOpt) ?? string.Empty,
+                };
+                var result = CreateHemisphereTool.RunWithSpec(spec);
                 WriteResult(result, parseResult.GetValue(formatOpt) ?? "text");
                 return 0;
             }
