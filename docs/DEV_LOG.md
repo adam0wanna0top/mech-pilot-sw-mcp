@@ -891,6 +891,57 @@ profile 代替 1 line + arc + 1 line 四分之一圆)。**10 连击 zero-试错*
 最快迭代)。**几何工具系列"模板化"**: cylinder/flange/block (prismatic 模板) +
 hemisphere/frustum (revolve 模板) — 后续相同类零件 0.5-1h 可加新工具。
 
+### M25 — add_mate_angle (PR #?, 2026-06-05) — 第 4 类 mate + 机械臂关节摆角解锁
+
+**装配 mate 家族第 4 类, 让机械臂"能摆动"** (M18/M19/M21 之后第 4 类 mate)。
+1:1 复刻 M19 distance mate 模板, 只换 `swMateType_e = swMateANGLE (6)` 和
+角度字段填充策略。**11 连击 zero-试错** (M13/14×2/16/18/19/20/21/22/23/24/25),
+**v1 没做过的 mate 类型也 zero-bug**。
+
+- **解锁 LLM 用法**:
+  - "机械臂关节 link2 相对 link1 摆 30°"
+  - "摇头风扇电机壳偏转 45°"
+  - "L 型支架夹角 90°"
+  - **这是装配能从"静态拼装"过渡到"运动机构"的关键 mate** (虽然不能动画播放,
+    但能定义关节角度供后续 motion study)
+- **AddMate5 angle mate 字段填充策略 (vs distance mate)**:
+  - Distance mate: `Distance / DistanceAbsUpper / DistanceAbsLower` 填 distance_m,
+    `Angle / AngleAbsUpper / AngleAbsLower` 用 magic π/6 占位
+  - **Angle mate (新)**: `Angle / AngleAbsUpper / AngleAbsLower` 填 angle_rad
+    (锁定单值), **Distance 字段全 0** (angle mate 无距离语义)
+  - **4 大魔法位** (GearRatioNumerator/Denominator=0.001) 保持非零 (v1 PR #20
+    教训, M18/M19/M21 都验过, M25 也得遵守)
+- **MateType 反射拿真值**: swMateANGLE = 6 (枚举顺序: COINCIDENT=0, CONCENTRIC=1,
+  PERPENDICULAR=2, PARALLEL=3, TANGENT=4, DISTANCE=5, **ANGLE=6**)
+- **Rule of three 早过 (mate helpers inline copy 4 次)**:
+  - `SelectFirstPlane` / `MapAlignment` / `StripSldasmExt` / `FormatAttempts`
+    在 M18/M19/M21/M25 四处 inline 复制
+  - **本次 PR 不 refactor** (保护 zero-试错 streak), 单独 PR 抽到
+    `Tools/Internal/MateHelpers.cs` (后续可能跟 perpendicular / parallel mate
+    一起做)
+- **L2 撞 1 个 CLI option 名字错** (`--x` vs `--position-x`), 修后 5/5 过:
+  - 90° right-angle mate front@link1 ↔ front@link2 (closest, in-place) ✓
+  - 0° / 180° / self-mate / invalid plane 4 个 validation
+- **测试**:
+  - L1: +41 AngleMateSpec 用例 (= 509 total): 角度 (0, 180) bound + 平面/对齐
+    + path + self-mate + cross-field
+  - L2: M25 5/5 pass (修 1 个 CLI option 名字)
+  - L3: 待批量收口 M23+M24+M25 (M21 收尾模式扩大版, 3 个工具一次抽)
+- **build 0 warnings 0 errors, dotnet format clean**
+
+**意义**: 24 工具 = 造 (6) + 改 (6) + 阵列 (2) + 看 (2) + 出货 (1) + 装配
+(**6**: + add_mate_angle) + ping。**mate 家族 4 类齐**, 装配能力从"静态拼装"
+跨到"运动机构定义"。**接下来候选 (按用户机械臂/电风扇目标 ROI)**:
+- **mate helpers refactor** (rule of three 早过, 半天技术债清理)
+- **shell** (薄壁电机壳, 1 天)
+- **create_sphere** (整球, 0.5 天 hemisphere mirror)
+- **save_drawing** (工程图 PDF, 1-2 天)
+- **L3 批量收口 M23+M24+M25** (M21 收尾扩大版, 半小时)
+
+**v1 经验复利 11 连击曲线**: M22 ~1h → M23 ~1h → M24 ~45min → **M25 ~50min**
+(mate 家族模板已 templative, 1:1 复刻 M19 distance mate, 只换 MateType + 字段
+填充策略)。
+
 ### M22 收尾 — pattern_circular L3 抽测 zero bug + 几何验证 (2026-06-05)
 
 **PR #25 merge 后, 新 session L3 抽测 pattern_circular, zero bug + 几何验证

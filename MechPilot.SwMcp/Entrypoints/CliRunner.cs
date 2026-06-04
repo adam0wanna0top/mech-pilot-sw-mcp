@@ -41,6 +41,7 @@ public static class CliRunner
         root.Subcommands.Add(BuildAddCoincidentMateCommand());
         root.Subcommands.Add(BuildAddDistanceMateCommand());
         root.Subcommands.Add(BuildAddConcentricMateCommand());
+        root.Subcommands.Add(BuildAddAngleMateCommand());
 
         var parseResult = root.Parse(args);
         return await parseResult.InvokeAsync();
@@ -1400,6 +1401,89 @@ public static class CliRunner
                     OutputPath = parseResult.GetValue(outOpt),
                 };
                 var result = AddConcentricMateTool.RunWithSpec(spec);
+                WriteResult(result, parseResult.GetValue(formatOpt) ?? "text");
+                return 0;
+            }
+            catch (McpToolException ex)
+            {
+                Console.Error.WriteLine($"[error] {ex.Message}");
+                return 1;
+            }
+        });
+
+        return cmd;
+    }
+
+    private static Command BuildAddAngleMateCommand()
+    {
+        var asmOpt = new Option<string>("--assembly")
+        {
+            Description = "Absolute path to an existing .sldasm.",
+            Required = true,
+        };
+        var comp1Opt = new Option<string>("--component1")
+        {
+            Description = "First component's instance name (from inspect_assembly).",
+            Required = true,
+        };
+        var plane1Opt = new Option<string>("--plane1")
+        {
+            Description = "Reference plane of component 1: 'front' / 'top' / 'right'.",
+            Required = true,
+        };
+        var comp2Opt = new Option<string>("--component2")
+        {
+            Description = "Second component's instance name.",
+            Required = true,
+        };
+        var plane2Opt = new Option<string>("--plane2")
+        {
+            Description = "Reference plane of component 2: 'front' / 'top' / 'right'.",
+            Required = true,
+        };
+        var angleOpt = new Option<double>("--angle")
+        {
+            Description = "Mate angle in degrees. Must be > 0 and < 180.",
+            Required = true,
+        };
+        var alignOpt = new Option<string>("--alignment")
+        {
+            Description = "Alignment: 'aligned' (default), 'anti-aligned', or 'closest'.",
+            DefaultValueFactory = _ => "aligned",
+        };
+        var outOpt = new Option<string>("--out")
+        {
+            Description = "Optional output .sldasm path. Omit to overwrite in place.",
+            DefaultValueFactory = _ => string.Empty,
+        };
+        var formatOpt = new Option<string>("--output")
+        {
+            Description = "Output format: text | json",
+            DefaultValueFactory = _ => "text",
+        };
+
+        var cmd = new Command("add-mate-angle",
+            "Add an angle mate between two components' reference planes in an assembly.")
+        {
+            asmOpt, comp1Opt, plane1Opt, comp2Opt, plane2Opt, angleOpt, alignOpt, outOpt, formatOpt,
+        };
+
+        cmd.SetAction(parseResult =>
+        {
+            try
+            {
+                var spec = new AngleMateSpec
+                {
+                    AssemblyPath = parseResult.GetValue(asmOpt) ?? string.Empty,
+                    Component1Name = parseResult.GetValue(comp1Opt) ?? string.Empty,
+                    Plane1 = parseResult.GetValue(plane1Opt) ?? string.Empty,
+                    Component2Name = parseResult.GetValue(comp2Opt) ?? string.Empty,
+                    Plane2 = parseResult.GetValue(plane2Opt) ?? string.Empty,
+                    AngleDeg = parseResult.GetValue(angleOpt),
+                    Alignment = parseResult.GetValue(alignOpt) ?? "aligned",
+                    OutputPath = parseResult.GetValue(outOpt),
+                };
+                var result = AddAngleMateTool.RunWithSpec(spec);
                 WriteResult(result, parseResult.GetValue(formatOpt) ?? "text");
                 return 0;
             }
