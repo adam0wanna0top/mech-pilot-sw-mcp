@@ -64,7 +64,8 @@ M5 in-place SaveAs / M20 path-separator bug 都已修。v1 PR #32 真根因 (FCP
 `FindLastUserFeature` + `IsBootFeature` 给 8 工具用。
 
 **下一步候选**: revolve (球壳/锥/旋转件) / add_mate_angle (机械臂关节摆角) /
-shell (薄壁壳) / save_drawing 工程图 / pattern_circular L3 抽测。详见
+shell (薄壁壳) / save_drawing 工程图。pattern_circular L3 已抽测 zero bug
+(2026-06-05 含 featureCount/edgeCount 几何验证, M22 收尾段)。详见
 [`docs/DEV_LOG.md`](docs/DEV_LOG.md) "下一步候选" 段。
 
 ---
