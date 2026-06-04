@@ -69,10 +69,13 @@ helper), M25 add_mate_angle 1:1 复刻 M19 distance mate 模板 (**11 连击 zer
 v1 没做过的 mate 类型也 zero-bug)。
 **`Tools/Internal/PartGeometryHelpers`** 抽出共用 `FindPlanarEndFace` +
 `FindLastUserFeature` + `IsBootFeature` 给 8 工具用。
+**`Tools/Internal/MateHelpers`** 抽出 `SelectFirstPlane` + `FormatAttempts` +
+`MapAlignment` + `StripSldasmExt` 给 4 个 mate 工具用 (M30 refactor, rule of
+four 收口)。
 
-**下一步候选**: mate helpers refactor (M18/M19/M21/M25 四处 inline rule of
-three 早过) / shell (薄壁电机壳) / create_sphere (整球 hemisphere mirror) /
-save_drawing 工程图 / M23+M24+M25 L3 批量抽测 (M21 收尾模式扩大版)。详见
+**下一步候选**: shell (薄壁电机壳) / create_sphere (整球 hemisphere mirror) /
+save_drawing 工程图 / M23+M24+M25 L3 批量抽测 (M21 收尾模式扩大版, 待 MCP
+server reload)。详见
 [`docs/DEV_LOG.md`](docs/DEV_LOG.md) "下一步候选" 段。
 
 ---

@@ -942,6 +942,50 @@ hemisphere/frustum (revolve 模板) — 后续相同类零件 0.5-1h 可加新�
 (mate 家族模板已 templative, 1:1 复刻 M19 distance mate, 只换 MateType + 字段
 填充策略)。
 
+### M25 收尾 — Mate Helpers refactor (PR #?, 2026-06-05) — rule of four 技术债清理
+
+**PR #29 (add_mate_angle) merge 后, 立刻清 mate helpers rule-of-four 技术债**:
+4 个 mate 工具 (M18/M19/M21/M25) inline 复制 4 个 helpers 抽到
+`Tools/Internal/MateHelpers.cs` (跟 M14 抽 `PartGeometryHelpers` 同款模式)。
+
+- **抽出 4 个 helpers**:
+  - `SelectFirstPlane(ext, aliases, componentName, asmTitle, append)` —
+    qualified plane name `"{alias}@{component}@{asm}"` + SelectByID2 mark=0,
+    CN/EN alias fallback. **用在 3 个工具** (Coincident / Distance / Angle).
+  - `FormatAttempts(aliases, componentName, asmTitle)` — error message
+    helper, slash-separated quoted qualified names. **用在 3 个工具**
+    (Coincident / Distance / Angle).
+  - `MapAlignment(keyword)` — LLM keyword (aligned/anti-aligned/closest) →
+    `swMateAlign_e` enum int. **用在全 4 个工具** (含 Concentric).
+  - `StripSldasmExt(title)` — strip `.SLDASM` ext (case-insensitive). **用在 3
+    个工具** (Coincident / Distance / Angle, Concentric 不用因为不构造 qualified
+    plane name).
+- **等价性预证**: refactor 前 diff 对比 4 个 inline copies, 验证 100% byte-equivalent:
+  - `MapAlignment` 4 处完全相同 (字符串和顺序)
+  - `SelectFirstPlane` Distance/Angle 完全相同, Coincident 只差 1 个 `// v1 PR #20`
+    注释 (实现等价)
+  - `StripSldasmExt` 实现完全相同 (const ".SLDASM" + EndsWith + Substring)
+  - `FormatAttempts` 完全相同
+- **代码变化**:
+  - 删 inline (4 个 tools): -182 行
+  - 加 MateHelpers 调用 (4 个 tools): +28 行
+  - 新建 `MateHelpers.cs`: +90 行
+  - **净减 ~64 行** + 消除 4 处重复代码风险
+- **回归测试 (refactor 等价的硬验证)**:
+  - L1: 509/509 pass (unchanged — spec 没动, helpers extraction 不影响)
+  - L2: **4 个 mate 套件全过** (M18 coincident / M19 distance / M21 concentric /
+    M25 angle) — refactor 行为 100% 等价
+  - dotnet format clean, build 0 warnings 0 errors
+
+**rule-of-four 规律 (vs M14 rule-of-three)**: M14 抽 PartGeometryHelpers 是 rule-of-three
+(3 处用 FindPlanarEndFace), M30 抽 MateHelpers 是 rule-of-four (4 处用 helpers)。
+两次抽出都在新工具完成后立刻做, 而非工具开发中分心 — **保护 zero-试错 streak**
+的同时分阶段清债。
+
+**意义**: 24 工具不变, 代码质量曲线收口。Internal helpers 现有 2 个 (`PartGeometryHelpers` +
+`MateHelpers`), 后续相似模式 (例如未来 sketch primitives 共用 / drawing view 选择
+共用) 都可按此模式独立 refactor PR 推进。
+
 ### M22 收尾 — pattern_circular L3 抽测 zero bug + 几何验证 (2026-06-05)
 
 **PR #25 merge 后, 新 session L3 抽测 pattern_circular, zero bug + 几何验证

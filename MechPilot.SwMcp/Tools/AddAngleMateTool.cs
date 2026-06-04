@@ -32,11 +32,9 @@ namespace MechPilot.SwMcp.Tools;
 ///      ErrorStatus out).
 ///   5. Save3 the assembly (in-place) or SaveAs (copy). CloseDoc in finally.
 ///
-/// **Inline helpers note**: rule of three has been exceeded for the mate
-/// family helpers (SelectFirstPlane / MapAlignment / StripSldasmExt /
-/// FormatAttempts — copy 4 in M18/M19/M21+M25). Refactor to a shared
-/// MateHelpers internal class is queued as a separate PR to keep this PR
-/// pure-additive (zero-trial-and-error streak protection).
+/// Helpers (SelectFirstPlane / FormatAttempts / MapAlignment /
+/// StripSldasmExt) live in <see cref="Internal.MateHelpers"/> (PR #30
+/// refactor — rule of four).
 /// </summary>
 [McpServerToolType]
 public static class AddAngleMateTool
@@ -148,32 +146,32 @@ public static class AddAngleMateTool
         {
             var ext = model.Extension;
             var asmDoc = (IAssemblyDoc)model;
-            var asmTitle = StripSldasmExt(model.GetTitle());
+            var asmTitle = Internal.MateHelpers.StripSldasmExt(model.GetTitle());
 
             // ── 2. Select plane1 (mark=0, append=false) then plane2 (append=true) ──
             var plane1Aliases = CoincidentMateSpec.PlaneAliases[spec.Plane1];
             var plane2Aliases = CoincidentMateSpec.PlaneAliases[spec.Plane2];
 
             model.ClearSelection2(true);
-            var selected1Name = SelectFirstPlane(ext, plane1Aliases,
+            var selected1Name = Internal.MateHelpers.SelectFirstPlane(ext, plane1Aliases,
                 spec.Component1Name, asmTitle, append: false);
             if (selected1Name == null)
             {
                 throw new McpToolException(
                     $"Could not select '{spec.Plane1}' plane on component " +
                     $"'{spec.Component1Name}'. Tried " +
-                    $"{FormatAttempts(plane1Aliases, spec.Component1Name, asmTitle)}. " +
+                    $"{Internal.MateHelpers.FormatAttempts(plane1Aliases, spec.Component1Name, asmTitle)}. " +
                     "Verify the component name with inspect_assembly first.");
             }
 
-            var selected2Name = SelectFirstPlane(ext, plane2Aliases,
+            var selected2Name = Internal.MateHelpers.SelectFirstPlane(ext, plane2Aliases,
                 spec.Component2Name, asmTitle, append: true);
             if (selected2Name == null)
             {
                 throw new McpToolException(
                     $"Could not select '{spec.Plane2}' plane on component " +
                     $"'{spec.Component2Name}'. Tried " +
-                    $"{FormatAttempts(plane2Aliases, spec.Component2Name, asmTitle)}.");
+                    $"{Internal.MateHelpers.FormatAttempts(plane2Aliases, spec.Component2Name, asmTitle)}.");
             }
 
             // ── 3. AddMate5 with type=ANGLE.
@@ -181,7 +179,7 @@ public static class AddAngleMateTool
             //   actual rad (locked single value, no range). Distance fields
             //   stay 0 (angle mate has no distance semantic). Gear ratio
             //   magic positions stay non-zero per v1 PR #20.
-            var alignment = MapAlignment(spec.Alignment);
+            var alignment = Internal.MateHelpers.MapAlignment(spec.Alignment);
             var angleRad = spec.AngleDeg * Math.PI / 180.0;
             var mate = asmDoc.AddMate5(
                 MateTypeFromEnum: (int)swMateType_e.swMateANGLE,
@@ -262,53 +260,6 @@ public static class AddAngleMateTool
         }
     }
 
-    // ── inline mate helpers (rule-of-three exceeded — refactor queued in
-    //   a follow-up PR; see class docstring) ─────────────────────────────────
-
-    private static string? SelectFirstPlane(
-        IModelDocExtension ext,
-        IReadOnlyList<string> aliases,
-        string componentName,
-        string asmTitle,
-        bool append)
-    {
-        foreach (var alias in aliases)
-        {
-            var fullName = $"{alias}@{componentName}@{asmTitle}";
-            if (ext.SelectByID2(
-                Name: fullName,
-                Type: "PLANE",
-                X: 0.0, Y: 0.0, Z: 0.0,
-                Append: append,
-                Mark: 0,
-                Callout: null,
-                SelectOption: 0))
-            {
-                return fullName;
-            }
-        }
-        return null;
-    }
-
-    private static string FormatAttempts(
-        IReadOnlyList<string> aliases, string componentName, string asmTitle) =>
-        string.Join(" / ",
-            aliases.Select(a => $"'{a}@{componentName}@{asmTitle}'"));
-
-    private static int MapAlignment(string keyword) => keyword.ToLowerInvariant() switch
-    {
-        "aligned" => (int)swMateAlign_e.swMateAlignALIGNED,
-        "anti-aligned" => (int)swMateAlign_e.swMateAlignANTI_ALIGNED,
-        "closest" => (int)swMateAlign_e.swMateAlignCLOSEST,
-        _ => throw new McpToolException($"unmapped alignment '{keyword}'"),
-    };
-
-    private static string StripSldasmExt(string title)
-    {
-        const string ext = ".SLDASM";
-        return title.EndsWith(ext, StringComparison.OrdinalIgnoreCase)
-            ? title.Substring(0, title.Length - ext.Length)
-            : title;
-    }
+    // Mate-family helpers extracted to Tools/Internal/MateHelpers.cs (PR #30).
 #endif
 }
