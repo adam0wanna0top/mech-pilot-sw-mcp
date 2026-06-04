@@ -986,6 +986,64 @@ hemisphere/frustum (revolve 模板) — 后续相同类零件 0.5-1h 可加新�
 `MateHelpers`), 后续相似模式 (例如未来 sketch primitives 共用 / drawing view 选择
 共用) 都可按此模式独立 refactor PR 推进。
 
+### M27 — create_sphere (PR #?, 2026-06-05) — M23 sketch+revolve 框架第二次复刻 + 13 连击
+
+**几何能力扩展第五步, 第三个 revolve 工具**。复刻 M23 hemisphere 框架, 只换
+sketch 原语 (1 直径 line + 1 Create3PointArc 半圆 替代 1 line + 1 arc + 1 line
+四分之一圆)。**13 连击 zero-试错** (M13/14×2/16/18/19/20/21/22/23/24/25/26/27)。
+
+- **方向决策 (本次 session 第 2 次切换计划)**:
+  - 原推荐 M27 = rib (加强筋), 用户"继续"接受
+  - 反射 InsertRib: 10 参 + 需要 sketch line + selection state 复杂 (v1
+    "selection 不识"不是 v1 看错地方那种 type bug, 是真 SW API 复杂)
+  - **30 分钟搞不定 rib + silent fail 风险高** → 主动切到 create_sphere
+    (M23 框架复刻, ~30 分钟稳)
+  - rib 推迟到 future dedicated session (~1-2 天深探索 sketch + selection state)
+- **设计 (1:1 复刻 M23 hemisphere)**:
+  - LLM use: `create_sphere(diameter, savePath)` — 跟 hemisphere 同款参数化
+    helper 哲学
+  - 内部: Front Plane sketch + 半圆 profile + Y 轴 centerline + FeatureRevolve2(360°)
+  - 半圆 profile 设计:
+    - Line: (0, -R, 0) → (0, R, 0)        直径 line (沿 Y 轴, 也是 axis-side 边)
+    - Create3PointArc: start (0, R), end (0, -R), middle (R, 0)
+                                                  半圆经过 +X 那一侧
+    - CenterLine: (0, -2R, 0) → (0, 2R, 0)        沿 Y 轴
+- **关键设计选择 — 用 Create3PointArc 而非 CreateArc**:
+  - hemisphere 用 `CreateArc(center, start, end, direction=1)` work, 因为起点
+    和终点不对称 (1/4 圆, 90° 角)
+  - sphere 半圆的起点 (0, R) 和终点 (0, -R) **都在 Y 轴上**, x 坐标都是 0 —
+    `CreateArc` direction=CCW 有 **180° ambiguity** (沿哪侧画?)
+  - **`Create3PointArc(start, end, middle)`** 用第 3 点 (R, 0) 明确告诉 SW
+    "弧线经过 +X 侧" — 绕开 ambiguity, **零 silent fail 风险**
+  - 反射 ISketchManager 早就发现这个 API (9 args), 当时没用上
+- **bbox 几何验证关键 — 区分 sphere vs hemisphere**:
+  - hemisphere: bbox **D × D/2 × D** (Y=D/2, 只有 +Y 半)
+  - **sphere: bbox D × D × D** (Y=D, 全 [-R, R])
+  - L2 inspect-part 显式断言 Y=40 (=D), 不是 20 (=D/2) — 防止"sketch 画错变
+    hemisphere"的回归
+- **代码复用率高 (M24 后第二次)**:
+  - CreateSphereTool.cs 几乎 1:1 复刻 CreateHemisphereTool.cs 框架
+  - 唯一变量: sketch primitives (2 个 line/arc 替换 3 个 line/arc/line)
+  - FeatureRevolve2 调用参数全相同 (20 参 educated defaults)
+- **测试**:
+  - L1: +23 SphereSpec 用例 (= 559 total): diameter [0.1, 10000] + path validation
+    (跟 HemisphereSpec 同款 23 个)
+  - L2: M27 5/5 pass (含 inspect-part 几何验证, Y=D=40 sphere 而非 D/2=20 hemisphere)
+  - L3: 待批量收口 M23+M24+M25+M26+M27 (**5 工具积压**)
+- **build 0 warnings 0 errors, dotnet format clean**
+
+**意义**: 26 工具 = 造 (**7**: 圆柱/法兰/方块/半球/圆锥台/**球**+ 装配) + 改
+(7) + 阵列 (2) + 看 (2) + 出货 (1) + 装配 (6) + ping。**revolve 家族 3 工具齐**
+(hemisphere 半球 + sphere 整球 + frustum 圆锥台). sketch+revolve 框架真正模板化
+(M23→M24→M27 三次成功复刻, 复用率 95%)。下一步候选: **save_drawing** (工程图 PDF,
+M22 反射已就绪, 1-2 天 — 闭环造-改-装-出图) / rib (~1-2 天深 sketch+selection
+state 探索, 类似 M26 反射证伪可能性 50%) / sweep+loft (扇叶/翼型, 离电风扇扇叶
+最近, ~2-3 天) / L3 批量收口 (5 工具积压, 待 MCP server reload).
+
+**v1 经验复利 13 连击曲线** (新增 M27 ~30min — 最快迭代!): M22 ~1h → M23 ~1h →
+M24 ~45min → M25 ~50min → M26 ~50min → **M27 ~30min**。**revolve 模板真正稳态**:
+后续 rotational 工具 (圆环/圆盘/凹槽轴/钟形罩等) 都 30 分钟级别可达。
+
 ### M26 — add_shell (PR #?, 2026-06-05) — 反射证伪 v1 "API 不存在" + 12 连击 + LLM 不可替代能力
 
 **几何能力扩展第四步, 第一个 SW 减材 (subtractive) 几何工具 + 项目首次"反射证
