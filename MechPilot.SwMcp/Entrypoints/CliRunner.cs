@@ -21,6 +21,7 @@ public static class CliRunner
         root.Subcommands.Add(BuildPingCommand());
         root.Subcommands.Add(BuildCreateCylinderCommand());
         root.Subcommands.Add(BuildCreateHemisphereCommand());
+        root.Subcommands.Add(BuildCreateFrustumCommand());
         root.Subcommands.Add(BuildCreateFlangeCommand());
         root.Subcommands.Add(BuildCreateRectangularBlockCommand());
         root.Subcommands.Add(BuildAddFilletCommand());
@@ -167,6 +168,69 @@ public static class CliRunner
                     SavePath = parseResult.GetValue(outOpt) ?? string.Empty,
                 };
                 var result = CreateHemisphereTool.RunWithSpec(spec);
+                WriteResult(result, parseResult.GetValue(formatOpt) ?? "text");
+                return 0;
+            }
+            catch (McpToolException ex)
+            {
+                Console.Error.WriteLine($"[error] {ex.Message}");
+                return 1;
+            }
+        });
+
+        return cmd;
+    }
+
+    private static Command BuildCreateFrustumCommand()
+    {
+        var baseOpt = new Option<double>("--base-diameter")
+        {
+            Description = "Base (Y=0) circle diameter in mm, e.g. 60.",
+            Required = true,
+        };
+        var topOpt = new Option<double>("--top-diameter")
+        {
+            Description = "Top (Y=height) circle diameter in mm. Must be > 0 and strictly < --base-diameter.",
+            Required = true,
+        };
+        var heightOpt = new Option<double>("--height")
+        {
+            Description = "Frustum height along +Y in mm, e.g. 40.",
+            Required = true,
+        };
+        var outOpt = new Option<string>("--out")
+        {
+            Description = "Absolute output path ending in .sldprt (e.g. C:/tmp/frustum.sldprt).",
+            Required = true,
+        };
+        var formatOpt = new Option<string>("--output")
+        {
+            Description = "Output format: text | json",
+            DefaultValueFactory = _ => "text",
+        };
+
+        var cmd = new Command("create-frustum",
+            "Create a parametric solid frustum (truncated cone, axis +Y).")
+        {
+            baseOpt,
+            topOpt,
+            heightOpt,
+            outOpt,
+            formatOpt,
+        };
+
+        cmd.SetAction(parseResult =>
+        {
+            try
+            {
+                var spec = new FrustumSpec
+                {
+                    BaseDiameterMm = parseResult.GetValue(baseOpt),
+                    TopDiameterMm = parseResult.GetValue(topOpt),
+                    HeightMm = parseResult.GetValue(heightOpt),
+                    SavePath = parseResult.GetValue(outOpt) ?? string.Empty,
+                };
+                var result = CreateFrustumTool.RunWithSpec(spec);
                 WriteResult(result, parseResult.GetValue(formatOpt) ?? "text");
                 return 0;
             }
