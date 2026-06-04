@@ -781,6 +781,44 @@ create_flange 一次包死的路径。**几何能力扩展开张**, 下个候选
 M19 ~40min → M21 ~50min → M22 ~1h (含 L2 block 发现)。**v1 35 PR 教训库
 ROI 持续放大**。
 
+### M22 收尾 — pattern_circular L3 抽测 zero bug + 几何验证 (2026-06-05)
+
+**PR #25 merge 后, 新 session L3 抽测 pattern_circular, zero bug + 几何验证
+通过** (黄金法则 #13 收口)。pattern 类工具的几何验证模板首次确立, 防 v1
+PR #32 老 silent fail 模式 (API 返非 None feat 但实例全重叠在 seed 位置 —
+featureCount 增加但 edge/face 不增)。
+
+- **抽测序列 (全 forward-slash 路径, 4 个调用, 链式 in-place)**:
+  - `create_cylinder` D40 L20 → `pcd_ring.sldprt`
+  - `add_axial_hole` Φ5 @ (10, 0) — PCD20 起始孔 (in-place)
+  - `pattern_circular` count=6 (默认 360° full circle, in-place)
+    → message: "Patterned '切除-拉伸1' circularly around ±Z axis — full circle (6×)"
+  - `inspect_part` → 几何验证
+
+- **几何验证硬证据 (跟 v1 PR #32 老 silent fail 模式对比)**:
+  | 指标 | 期望 | 实际 | 备注 |
+  |---|---|---|---|
+  | featureCount | 5 | **5** ✓ | sketch + extrude + sketch + cut + **CirPattern** |
+  | 最后 feature.typeName | `CirPattern` | **`CirPattern`** ✓ | M22 真生成 |
+  | totalEdgeCount | 14 | **14** ✓ | cyl 2 + hole 2 + 5 副本 ×2 = 14 |
+  | totalFaceCount | 9 | **9** ✓ | 2 端面 + 1 外侧 + 6 孔内壁 = 9 |
+
+  edge/face count 跟"6 孔分散布置"完美匹配 — 这是**真 6 孔生成**而非 silent
+  实例全重叠的硬证据。v1 PR #32 老 bug 是 featureCount=5 但 edge/face 仍按
+  "1 孔"算 (实例重叠原位置)。
+
+- **新规律 (pattern 类工具 L3 必验几何)**: pattern_*/mirror_* 等"批量复制"
+  工具特别容易撞 v1 PR #32 模式 (API 返 ok 但几何只 1 个 instance), L3 抽测
+  必须**数 edge/face 真增加**, 不能只看 featureCount。本次确立的几何验证
+  模板可复用于 future revolve / pattern_* / mirror_* 工具收口。
+
+- **dotnet format clean** (本 PR 纯 docs 不动代码)。
+
+**意义**: 21 工具全部至少 L3 抽测 1 次, 几何能力扩展阶段质量曲线收口。**v1 PR #32
+真根因复刻在 L3 长寿命 server 上也成立** (不只 L2 fresh exe), 跟 M15 (后 10 工具
+L3 zero-bug) / M21 收尾 (装配家族) 同款质量收口节点。下一步 M23 选定后开干
+(用户能力评估推荐 revolve)。
+
 ### M21 收尾 — 装配 mate 家族 L3 抽测 zero bug (2026-06-04)
 
 **PR #23 (add_mate_concentric) merge 后, 新 session L3 抽测 distance + concentric
