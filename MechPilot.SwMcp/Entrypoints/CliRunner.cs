@@ -21,6 +21,7 @@ public static class CliRunner
         root.Subcommands.Add(BuildPingCommand());
         root.Subcommands.Add(BuildCreateCylinderCommand());
         root.Subcommands.Add(BuildCreateHemisphereCommand());
+        root.Subcommands.Add(BuildCreateSphereCommand());
         root.Subcommands.Add(BuildCreateFrustumCommand());
         root.Subcommands.Add(BuildCreateFlangeCommand());
         root.Subcommands.Add(BuildCreateRectangularBlockCommand());
@@ -170,6 +171,55 @@ public static class CliRunner
                     SavePath = parseResult.GetValue(outOpt) ?? string.Empty,
                 };
                 var result = CreateHemisphereTool.RunWithSpec(spec);
+                WriteResult(result, parseResult.GetValue(formatOpt) ?? "text");
+                return 0;
+            }
+            catch (McpToolException ex)
+            {
+                Console.Error.WriteLine($"[error] {ex.Message}");
+                return 1;
+            }
+        });
+
+        return cmd;
+    }
+
+    private static Command BuildCreateSphereCommand()
+    {
+        var diameterOpt = new Option<double>("--diameter")
+        {
+            Description = "Sphere diameter in mm, e.g. 40 for a D40 sphere.",
+            Required = true,
+        };
+        var outOpt = new Option<string>("--out")
+        {
+            Description = "Absolute output path ending in .sldprt (e.g. C:/tmp/sphere.sldprt).",
+            Required = true,
+        };
+        var formatOpt = new Option<string>("--output")
+        {
+            Description = "Output format: text | json",
+            DefaultValueFactory = _ => "text",
+        };
+
+        var cmd = new Command("create-sphere",
+            "Create a parametric solid sphere part (centered at origin).")
+        {
+            diameterOpt,
+            outOpt,
+            formatOpt,
+        };
+
+        cmd.SetAction(parseResult =>
+        {
+            try
+            {
+                var spec = new SphereSpec
+                {
+                    DiameterMm = parseResult.GetValue(diameterOpt),
+                    SavePath = parseResult.GetValue(outOpt) ?? string.Empty,
+                };
+                var result = CreateSphereTool.RunWithSpec(spec);
                 WriteResult(result, parseResult.GetValue(formatOpt) ?? "text");
                 return 0;
             }
