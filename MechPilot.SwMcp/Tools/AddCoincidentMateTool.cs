@@ -140,7 +140,7 @@ public static class AddCoincidentMateTool
             var ext = model.Extension;
             var asmDoc = (IAssemblyDoc)model;
             // SW selection names use the assembly title sans extension.
-            var asmTitle = StripSldasmExt(model.GetTitle());
+            var asmTitle = Internal.MateHelpers.StripSldasmExt(model.GetTitle());
 
             // ── 2. Build the qualified plane-selection names ────────────────
             var plane1Aliases = CoincidentMateSpec.PlaneAliases[spec.Plane1];
@@ -148,30 +148,30 @@ public static class AddCoincidentMateTool
 
             // ── 3. Select plane 1, mark=0 (same as v1 distance-mate path) ──
             model.ClearSelection2(true);
-            var selected1Name = SelectFirstPlane(ext, plane1Aliases,
+            var selected1Name = Internal.MateHelpers.SelectFirstPlane(ext, plane1Aliases,
                 spec.Component1Name, asmTitle, append: false);
             if (selected1Name == null)
             {
                 throw new McpToolException(
                     $"Could not select '{spec.Plane1}' plane on component " +
                     $"'{spec.Component1Name}'. Tried " +
-                    $"{FormatAttempts(plane1Aliases, spec.Component1Name, asmTitle)}. " +
+                    $"{Internal.MateHelpers.FormatAttempts(plane1Aliases, spec.Component1Name, asmTitle)}. " +
                     "Verify the component name with inspect_assembly first.");
             }
 
             // ── 4. Select plane 2, mark=0, append=true ──────────────────────
-            var selected2Name = SelectFirstPlane(ext, plane2Aliases,
+            var selected2Name = Internal.MateHelpers.SelectFirstPlane(ext, plane2Aliases,
                 spec.Component2Name, asmTitle, append: true);
             if (selected2Name == null)
             {
                 throw new McpToolException(
                     $"Could not select '{spec.Plane2}' plane on component " +
                     $"'{spec.Component2Name}'. Tried " +
-                    $"{FormatAttempts(plane2Aliases, spec.Component2Name, asmTitle)}.");
+                    $"{Internal.MateHelpers.FormatAttempts(plane2Aliases, spec.Component2Name, asmTitle)}.");
             }
 
             // ── 5. AddMate5 — coincident mate via v1 PR #20 recipe ──────────
-            var alignment = MapAlignment(spec.Alignment);
+            var alignment = Internal.MateHelpers.MapAlignment(spec.Alignment);
             var mate = asmDoc.AddMate5(
                 MateTypeFromEnum: (int)swMateType_e.swMateCOINCIDENT,
                 AlignFromEnum: alignment,
@@ -248,61 +248,8 @@ public static class AddCoincidentMateTool
         }
     }
 
-    /// <summary>
-    /// Tries each plane alias in order, building the qualified selection
-    /// name <c>"&lt;alias&gt;@&lt;component&gt;@&lt;assemblyTitle&gt;"</c>
-    /// and calling SelectByID2 (type="PLANE", mark=0). Returns the alias
-    /// that succeeded, or null if all failed.
-    /// </summary>
-    private static string? SelectFirstPlane(
-        IModelDocExtension ext,
-        IReadOnlyList<string> aliases,
-        string componentName,
-        string asmTitle,
-        bool append)
-    {
-        foreach (var alias in aliases)
-        {
-            var fullName = $"{alias}@{componentName}@{asmTitle}";
-            if (ext.SelectByID2(
-                Name: fullName,
-                Type: "PLANE",
-                X: 0.0, Y: 0.0, Z: 0.0,
-                Append: append,
-                Mark: 0,                // v1 PR #20: distance / AddMate5 path uses mark=0
-                Callout: null,
-                SelectOption: 0))
-            {
-                return fullName;
-            }
-        }
-        return null;
-    }
-
-    private static string FormatAttempts(
-        IReadOnlyList<string> aliases, string componentName, string asmTitle) =>
-        string.Join(" / ",
-            aliases.Select(a => $"'{a}@{componentName}@{asmTitle}'"));
-
-    private static int MapAlignment(string keyword) => keyword.ToLowerInvariant() switch
-    {
-        "aligned" => (int)swMateAlign_e.swMateAlignALIGNED,
-        "anti-aligned" => (int)swMateAlign_e.swMateAlignANTI_ALIGNED,
-        "closest" => (int)swMateAlign_e.swMateAlignCLOSEST,
-        _ => throw new McpToolException($"unmapped alignment '{keyword}'"),
-    };
-
-    /// <summary>
-    /// SW's <c>GetTitle()</c> sometimes returns "asm.SLDASM" and sometimes
-    /// "asm" depending on whether the doc was opened from disk vs new. SW's
-    /// selection names use the title **without** the extension, so strip it.
-    /// </summary>
-    private static string StripSldasmExt(string title)
-    {
-        const string ext = ".SLDASM";
-        return title.EndsWith(ext, StringComparison.OrdinalIgnoreCase)
-            ? title.Substring(0, title.Length - ext.Length)
-            : title;
-    }
+    // Mate-family helpers (SelectFirstPlane / FormatAttempts / MapAlignment /
+    // StripSldasmExt) extracted to Tools/Internal/MateHelpers.cs in PR #30
+    // (rule of four). Concentric mate also uses MapAlignment from there.
 #endif
 }

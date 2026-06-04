@@ -179,7 +179,7 @@ public static class AddConcentricMateTool
             }
 
             // ── 5. AddMate5 with type=CONCENTRIC + magic positions ─────────
-            var alignment = MapAlignment(spec.Alignment);
+            var alignment = Internal.MateHelpers.MapAlignment(spec.Alignment);
             var mate = asmDoc.AddMate5(
                 MateTypeFromEnum: (int)swMateType_e.swMateCONCENTRIC,
                 AlignFromEnum: alignment,
@@ -307,12 +307,6 @@ public static class AddConcentricMateTool
         return null;
     }
 
-    private static int MapAlignment(string keyword) => keyword.ToLowerInvariant() switch
-    {
-        "aligned" => (int)swMateAlign_e.swMateAlignALIGNED,
-        "anti-aligned" => (int)swMateAlign_e.swMateAlignANTI_ALIGNED,
-        "closest" => (int)swMateAlign_e.swMateAlignCLOSEST,
-        _ => throw new McpToolException($"unmapped alignment '{keyword}'"),
-    };
+    // MapAlignment extracted to Tools/Internal/MateHelpers.cs (PR #30).
 #endif
 }
