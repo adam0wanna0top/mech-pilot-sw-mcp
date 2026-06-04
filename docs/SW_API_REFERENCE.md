@@ -279,9 +279,16 @@ SW 2024+ 在多个 Feature API **尾部**加了若干 Variant 占位（实测，
 - IModelDocExtension：SelectByID2, SaveAs
 
 ### 不存在（在 SW 2026 上完全缺失）
-- **`FeatureShell` 全系列**（FeatureShell / FeatureShell2 / FeatureShell3 /
-  InsertFeatureShell / InsertShell / Shell / AddShell / InsertShellByDistance
-  都缺失）—— shell 抽壳功能可能只能通过 macro / `swApp.RunCommand` 调
+- ~~**`FeatureShell` 全系列**~~ **【M26 修正】** v1 历史的这条结论是**错的**:
+  - v1 在 `IFeatureManager` 找 (确实没有), 但实际 SW 2026 SP02.1 把 shell
+    API 放在 **`IModelDoc2`**:
+    - `IModelDoc2.InsertFeatureShell(double Thickness, bool Outward)` 返 void
+    - `IModelDoc2.InsertFeatureShellAddThickness(double Thickness)` 返 void
+    (multi-thickness shell)
+  - M26 add_shell 复刻 zero-bug L2 6/6 一次过 (用 PartGeometryHelpers.FindPlanarEndFace
+    选 +Z 面打开 + InsertFeatureShell + 几何验证防 silent fail)
+  - **教训**: v1 知识库 "API 不存在" 类结论需要在每个 SW SP 升级后重新反射验证 —
+    不能完全相信
 - **`OpenDoc5`**（OpenDoc4 → 6 间断）
 - `FeatureRevolve3 / 4`
 - `InsertRib2 / 3`，`FeatureRib`，`InsertFeatureRib`

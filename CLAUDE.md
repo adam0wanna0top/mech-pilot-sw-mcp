@@ -27,7 +27,7 @@
 
 ✅ **MVP 已完成** (2026-05-27)。**「前 10 高频工具」迁移 10/10 完成** (M14 提前
 做完, 因 PR #25 沉头/锥头沉孔与同 helper refactor 一起做)。M22 起进入"几何能力
-拓展"阶段 (revolve / pattern_circular / angle mate / shell 等)。**24 工具**:
+拓展"阶段 (revolve / pattern_circular / angle mate / shell 等)。**25 工具**:
 
 | Tool | LLM-facing name | 用途 |
 |---|---|---|
@@ -55,8 +55,9 @@
 | add_mate_distance | `mcp__mech_pilot_sw__add_mate_distance` | 两组件 reference plane 间距 N mm 配合 |
 | add_mate_concentric | `mcp__mech_pilot_sw__add_mate_concentric` | 两组件轴向 ±Z 圆柱面同轴配合 |
 | add_mate_angle | `mcp__mech_pilot_sw__add_mate_angle` | 两组件 reference plane 角度 N° 配合 (机械臂关节摆角/摇头风扇) |
+| add_shell | `mcp__mech_pilot_sw__add_shell` | 抽壳 (电机壳/泵壳/容器, 修正 v1 "API 不存在") |
 
-**L1 / L2 验证通过** (509/509 单元测试 + 22 个 PowerShell L2 集成); 后 10 工具
+**L1 / L2 验证通过** (536/536 单元测试 + 23 个 PowerShell L2 集成); 后 10 工具
 + create_flange L3 抽测 zero bug (M15); **装配家族 6 工具 (new_assembly +
 add_component + inspect_assembly + add_mate_coincident + add_mate_distance +
 add_mate_concentric) L3 全过 zero bug** (distance + concentric 于 2026-06-04
@@ -65,17 +66,18 @@ session 收口, 几何验证生效); M25 add_mate_angle 第 4 类 mate 加入 (�
 M5 in-place SaveAs / M20 path-separator bug 都已修。v1 PR #32 真根因 (FCP3 spacing
 公式) 在 M22 pattern_circular 复刻一次过, M23 create_hemisphere + M24 create_frustum
 共享 sketch+revolve 框架 (FeatureRevolve2 v1 PR #5 复刻 + 自主设计 LLM-friendly
-helper), M25 add_mate_angle 1:1 复刻 M19 distance mate 模板 (**11 连击 zero-试错**,
-v1 没做过的 mate 类型也 zero-bug)。
+helper), M25 add_mate_angle 1:1 复刻 M19 distance mate 模板, M26 add_shell 反射
+证伪 v1 "API 不存在" 错误结论 — IModelDoc2.InsertFeatureShell 实际存在
+(**12 连击 zero-试错**)。
 **`Tools/Internal/PartGeometryHelpers`** 抽出共用 `FindPlanarEndFace` +
 `FindLastUserFeature` + `IsBootFeature` 给 8 工具用。
 **`Tools/Internal/MateHelpers`** 抽出 `SelectFirstPlane` + `FormatAttempts` +
 `MapAlignment` + `StripSldasmExt` 给 4 个 mate 工具用 (M30 refactor, rule of
 four 收口)。
 
-**下一步候选**: shell (薄壁电机壳) / create_sphere (整球 hemisphere mirror) /
-save_drawing 工程图 / M23+M24+M25 L3 批量抽测 (M21 收尾模式扩大版, 待 MCP
-server reload)。详见
+**下一步候选**: create_sphere (整球, hemisphere mirror) / save_drawing
+工程图 / rib (加强筋, v1 InsertRib 10 参 selection 未解) /
+M23+M24+M25+M26 L3 批量抽测 (M21 收尾模式扩大版, 待 MCP server reload)。详见
 [`docs/DEV_LOG.md`](docs/DEV_LOG.md) "下一步候选" 段。
 
 ---
