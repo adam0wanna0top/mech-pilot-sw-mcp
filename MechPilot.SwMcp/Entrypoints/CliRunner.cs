@@ -42,6 +42,7 @@ public static class CliRunner
         root.Subcommands.Add(BuildAddDistanceMateCommand());
         root.Subcommands.Add(BuildAddConcentricMateCommand());
         root.Subcommands.Add(BuildAddAngleMateCommand());
+        root.Subcommands.Add(BuildAddShellCommand());
 
         var parseResult = root.Parse(args);
         return await parseResult.InvokeAsync();
@@ -1484,6 +1485,65 @@ public static class CliRunner
                     OutputPath = parseResult.GetValue(outOpt),
                 };
                 var result = AddAngleMateTool.RunWithSpec(spec);
+                WriteResult(result, parseResult.GetValue(formatOpt) ?? "text");
+                return 0;
+            }
+            catch (McpToolException ex)
+            {
+                Console.Error.WriteLine($"[error] {ex.Message}");
+                return 1;
+            }
+        });
+
+        return cmd;
+    }
+
+    private static Command BuildAddShellCommand()
+    {
+        var inputOpt = new Option<string>("--input")
+        {
+            Description = "Absolute path to an existing .sldprt to shell.",
+            Required = true,
+        };
+        var thickOpt = new Option<double>("--thickness")
+        {
+            Description = "Wall thickness in mm, e.g. 2 for a 2 mm wall.",
+            Required = true,
+        };
+        var outwardOpt = new Option<bool>("--outward")
+        {
+            Description = "If set, thicken outward (less common). Default false = hollow inward.",
+            DefaultValueFactory = _ => false,
+        };
+        var outOpt = new Option<string>("--out")
+        {
+            Description = "Optional output .sldprt path. Omit to overwrite the input in place.",
+            DefaultValueFactory = _ => string.Empty,
+        };
+        var formatOpt = new Option<string>("--output")
+        {
+            Description = "Output format: text | json",
+            DefaultValueFactory = _ => "text",
+        };
+
+        var cmd = new Command("add-shell",
+            "Shell an existing solid part — hollow it out with a uniform wall thickness, opening the +Z end face.")
+        {
+            inputOpt, thickOpt, outwardOpt, outOpt, formatOpt,
+        };
+
+        cmd.SetAction(parseResult =>
+        {
+            try
+            {
+                var spec = new ShellSpec
+                {
+                    InputPath = parseResult.GetValue(inputOpt) ?? string.Empty,
+                    ThicknessMm = parseResult.GetValue(thickOpt),
+                    Outward = parseResult.GetValue(outwardOpt),
+                    OutputPath = parseResult.GetValue(outOpt),
+                };
+                var result = AddShellTool.RunWithSpec(spec);
                 WriteResult(result, parseResult.GetValue(formatOpt) ?? "text");
                 return 0;
             }

@@ -986,6 +986,72 @@ hemisphere/frustum (revolve 模板) — 后续相同类零件 0.5-1h 可加新�
 `MateHelpers`), 后续相似模式 (例如未来 sketch primitives 共用 / drawing view 选择
 共用) 都可按此模式独立 refactor PR 推进。
 
+### M26 — add_shell (PR #?, 2026-06-05) — 反射证伪 v1 "API 不存在" + 12 连击 + LLM 不可替代能力
+
+**几何能力扩展第四步, 第一个 SW 减材 (subtractive) 几何工具 + 项目首次"反射证
+伪 v1 知识库错误结论"**。**12 连击 zero-试错** (M13/14×2/16/18/19/20/21/22/23/24/25/26)。
+
+- **v1 知识库 bug 修正 (项目首次)**:
+  - v1 SW_API_REFERENCE.md §5 写: "FeatureShell 全系列 在 SW 2026 上完全不存在,
+    只能走 swApp.RunCommand macro"
+  - v1 "下一步候选 #11" 也把 shell 列为 "API 完全不存在 → 阻塞"
+  - **M26 反射 SW 2026 SP02.1 找到 `IModelDoc2.InsertFeatureShell(double, bool)`**
+  - 原因: v1 在 `IFeatureManager` 找 (确实没有), 但 shell API 实际在 `IModelDoc2`
+  - **教训**: v1 知识库"API 不存在"类结论必须每个 SW SP 升级重反射, 不能完全信
+  - 本 PR 同步修 SW_API_REFERENCE §5 (划掉旧记录 + 加正确签名 + 教训)
+- **LLM 不可替代能力解锁** (vs M22-M25 主要扩参数化几何):
+  - shell 是 SW **减材 (subtractive)** 操作, **LLM 完全无法用组合 primitive 模拟**
+    (不像"两圆柱套圆筒" 还能近似)
+  - 解锁: 电机壳 / 泵壳 / 减速箱外壳 / 杯具 / 罐体 / 接线盒 / IP6X 防护壳
+  - **跟 LLM-friendly 参数化哲学一致**: spec 极简 (input + thickness + outward?)
+- **InsertFeatureShell 真签名 (反射确认)**:
+  ```csharp
+  IModelDoc2.InsertFeatureShell(double Thickness, bool Outward)
+  → void (no success/failure signal!)
+  ```
+  **风险点**: void 返回 → 无 silent fail detection
+  **应对**: M22 收尾确立的"几何验证模板"复用 — L2 用 inspect-part 验
+  featureCount + Shell-type feature 存在; tool 内部走完 InsertFeatureShell 后
+  walk feature list 查 typeName="Shell" (跟 spec validation 同款防御层)
+- **MVP scope 决策**:
+  - 复用 `PartGeometryHelpers.FindPlanarEndFace` 找 +Z 端面 (cylinder/block/frustum
+    等 axis-Z 拉伸件直接 work)
+  - hemisphere (axis +Y) 不直接支持 (future PR 加 faceSelector)
+  - closed-shell (无开口) / multi-face shell 留 future PR
+  - `outward` 默认 false (向内壳, LLM 直觉)
+- **Pipeline (复刻 M23/M24 框架, 加 silent-fail 防御步)**:
+  1. OpenDoc6
+  2. FindPlanarEndFace (+Z) — 复用 helper
+  3. IEntity.Select4(mark=0)
+  4. model.InsertFeatureShell(thicknessM, outward) — void
+  5. **HasShellFeature(model) walk feature list — 防 silent fail** (M22 模板)
+  6. Save3 / SaveAs split (M5)
+  7. CloseDoc finally
+- **L2 6/6 一次过** (含 inspect-part 几何验证):
+  - D40 cyl + 2mm inward (in-place) + featureCount=3 + Shell feature ✓
+  - 50×30×20 block + 1mm outward (copy) ✓
+  - D40 cyl + 0.5mm 薄壁 ✓
+  - negative thickness validation
+  - > 100mm unit-confusion validation
+- **测试**:
+  - L1: +27 ShellSpec 用例 (= 536 total): thickness [0.01, 100] mm + path validation
+  - L2: M26 6/6 pass (一次过, **InsertFeatureShell void 路径无 silent fail**)
+  - L3: 待批量收口 M23+M24+M25+M26 (4 工具积压)
+- **build 0 warnings 0 errors, dotnet format clean**
+
+**意义**: 25 工具 = 造 (6) + 改 (**7**: + add_shell) + 阵列 (2) + 看 (2) +
+出货 (1) + 装配 (6) + ping。**几何能力突破 prismatic + revolve 框架**:
+- M22-M25 都在 "addition" 范畴 (拼新几何 / 配合)
+- **M26 是首个 "subtraction" — 减材操作**, 真正 LLM 不可替代
+
+下一步候选: create_sphere (整球, M23 mirror, 半天) / save_drawing (1-2 天) /
+**rib** (加强筋, v1 InsertRib 10 参 selection 未解 — 可能本次 session 类似 shell
+能反射证伪重做 ~1天) / L3 批量收口 M23+M24+M25+M26。
+
+**v1 经验复利 12 连击曲线**: M22 ~1h → M23 ~1h → M24 ~45min → M25 ~50min →
+**M26 ~50min** (含反射证伪 v1 错误结论 + 编写 docs 修正)。**项目首次"独立纠错
+v1 知识库"** — 设计能力不仅独立于 v1, 还能反向修正 v1 沉淀的过时/错误结论。
+
 ### M22 收尾 — pattern_circular L3 抽测 zero bug + 几何验证 (2026-06-05)
 
 **PR #25 merge 后, 新 session L3 抽测 pattern_circular, zero bug + 几何验证
