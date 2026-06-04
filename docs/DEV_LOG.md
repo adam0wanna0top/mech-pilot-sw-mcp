@@ -781,6 +781,63 @@ create_flange 一次包死的路径。**几何能力扩展开张**, 下个候选
 M19 ~40min → M21 ~50min → M22 ~1h (含 L2 block 发现)。**v1 35 PR 教训库
 ROI 持续放大**。
 
+### M23 — create_hemisphere (PR #?, 2026-06-05) — 首个 revolve 几何 + v1 PR #5 复刻 + 自主 LLM-friendly 设计
+
+**几何能力扩展第二步, 首个非 prismatic (非拉伸) 几何工具**。继 M22
+pattern_circular 后再下一城, 解锁球壳/球关节/球阀/电风扇底圆顶/球冠罩等
+"半球类"零件。**9 连击 zero-试错** (M13/14×2/16/18/19/20/21/22/23)。
+
+- **设计哲学决策 (跟 v1 不同)**:
+  - v1 PR #5 做 "通用 revolve" (`feature.revolve(angle, reverse)` + LLM
+    用 `draw_line + draw_centerline` 画 sketch) — LLM 画 sketch 认知负载高,
+    容易撞 silent fail
+  - M23 改做**参数化 helper** `create_hemisphere(diameter, savePath)` —
+    跟 create_cylinder/create_flange/create_rectangular_block 同款"LLM 给参数,
+    工具内部画 sketch"哲学。LLM 不需要懂 sketch / centerline / revolve angle。
+  - **首次出现"v1 知识 + 反射 + 自主设计 = 做 v1 没做过的形式"**: 复刻 v1
+    FeatureRevolve2 API 路径 (20 参 / mark=0 sketch / centerline 自动作 axis),
+    但 spec 设计是新的 (LLM-friendly diameter helper)
+- **几何 + sketch 设计**:
+  - Front Plane (XY) 画 1/4 圆 profile + centerline:
+    - Line: (0,0,0) → (R,0,0)         底面半径线
+    - Arc: center (0,0,0), start (R,0,0), end (0,R,0), direction=1 (CCW)
+    - Line: (0,R,0) → (0,0,0)         纵向轴线 (闭合到 origin)
+    - CenterLine: (0,-2R,0) → (0,2R,0)  沿 Y 轴 (axis of revolution)
+  - FeatureRevolve2: SingleDir=true, IsSolid=true, IsCut=false,
+    Dir1Type=0 (Blind), Dir1Angle=2π, Merge=true, 其他 0/false (20 参共 11 个
+    非零, 9 个零/false)
+  - **半球 axis = +Y (故意不跟 cylinder 的 +Z 一致)**:
+    - 故意选 Front Plane 因为 sketch X=世界 X / sketch Y=世界 Y **无歧义**
+    - Right/Top Plane 的 sketch 坐标 ↔ 世界轴映射涉及 SW 内部 handedness,
+      反射看不出来 — 选 Front Plane 避坑
+    - LLM 不在意半球 axis 方向, 文档明确写就行; 装配场景需要 +Z 朝上可
+      add_mate 旋转
+- **FeatureRevolve2 20 参 (vs 文档 15 参)**: v1 PR #5 教训复用 — 反射拿真签名
+  (黄金法则 #5), SW 2026 多 5 个尾部 Variant (`UseFeatScope` / `UseAutoSelect`
+  + 3 个 ThinType 相关)。文档 15 参版本会编译失败。
+- **L2 几何验证 (M22 收尾确立的 pattern 类工具几何验证模板复用)**:
+  - bbox 60×30×60 mm (X×Y×Z) — **Y=D/2=30 confirms hemisphere** ✓
+  - featureCount=2 (1 sketch + 1 Revolution) ✓
+  - features 含 `typeName="Revolution"` ✓
+  防 silent 假成功 (sketch 闭合错误但 SW 不报错 / centerline 没被识别)
+- **测试**:
+  - L1: +23 HemisphereSpec 用例 (= 444 total): diameter [0.1, 10000] +
+    path validation; 23 个比 cylinder 少因为没 length 字段, 同 sanity 模式。
+  - L2: M23 5/5 pass (含 inspect-part 几何验证 step)
+  - L3 待新 session 抽测 (黄金法则 #13)
+- **build 0 warnings 0 errors, dotnet format clean**
+
+**意义**: 22 工具 = 造 (**5**: 圆柱/法兰/方块/**半球**+ 装配) + 改 (6) + 阵列 (2) +
+看 (2) + 出货 (1) + 装配 (5) + ping。**首个非 prismatic 几何**, 几何能力曲线从
+"只能拉伸"扩到"能旋转生成"。下一步候选: **create_frustum (圆锥台, 复用 M23
+sketch+revolve 框架, ~半天)** 解锁锥/漏斗/机械臂关节 taper; create_sphere (整球,
+M23 mirror, 半天); save_drawing (1-2 天); pattern_circular 真 multi-cut limit 验证。
+
+**v1 经验复利 9 连击曲线** (新增 M23 ~1h): M13 ~3h → M14 ~3h → M16 ~2h →
+M18 ~1h → M19 ~40min → M21 ~50min → M22 ~1h → **M23 ~1h** (含 sketch 设计 +
+反射验签名)。**首次"v1 没做过的形式 zero-试错"**, 证明项目设计能力开始独立于
+v1 经验 (v1 是基础, 不是天花板)。
+
 ### M22 收尾 — pattern_circular L3 抽测 zero bug + 几何验证 (2026-06-05)
 
 **PR #25 merge 后, 新 session L3 抽测 pattern_circular, zero bug + 几何验证
