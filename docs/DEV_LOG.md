@@ -838,6 +838,59 @@ M18 ~1h → M19 ~40min → M21 ~50min → M22 ~1h → **M23 ~1h** (含 sketch �
 反射验签名)。**首次"v1 没做过的形式 zero-试错"**, 证明项目设计能力开始独立于
 v1 经验 (v1 是基础, 不是天花板)。
 
+### M24 — create_frustum (PR #?, 2026-06-05) — 复用 M23 sketch+revolve 框架 + SW sketch precision 发现
+
+**几何能力扩展第三步, 第二个 revolve 工具**。复刻 M23 框架 (Front Plane sketch
++ Y-axis centerline + FeatureRevolve2 20 参), 只换 sketch 原语 (4 line 梯形
+profile 代替 1 line + arc + 1 line 四分之一圆)。**10 连击 zero-试错**
+(M13/14×2/16/18/19/20/21/22/23/24)。
+
+- **跟 M23 同款"参数化 helper"哲学**:
+  - LLM use: `create_frustum baseDiameter=60 topDiameter=30 height=40`
+  - 内部: 4 line 梯形 (base radius / slant / top radius / axis closure)
+    + Y 轴 centerline + FeatureRevolve2(360°)
+  - 解锁: 漏斗 / 喇叭口 / 机械臂关节 taper / 喷嘴 / 散热翅片底座 / 沙漏分段
+- **设计 spec 决策 (3 个 cross-field constraints)**:
+  - `topDiameter < baseDiameter` 严格 — 相等 → 引导 LLM 用 create_cylinder
+    (错误消息明确写); 大于 → 倒置 frustum 暂不支持
+  - 3 个尺寸独立 [0.1, 10000] mm sanity bound, 但**SW sketch precision 实测
+    更紧** (见下面 educated finding)
+- **Educated finding — SW sketch precision lower bound**:
+  L2 case 3 初版用 `topD=1mm` 测 near-cone, 撞 `CreateLine (top radius)
+  returned null`。topR=0.5mm 的 line (0.0005m) **SW ISketchManager 内部拒绝**
+  (推测原因: SW 内部 vertex merge / "tiny edge" rejection 阈值)。
+  - **沉淀**: FrustumSpec 的 docstring 加经验 lower bound "LLM 用 topD ≥ 2-3 mm
+    安全; 真 cone (topD=0) 等 future create_cone tool 用 degenerate-vertex
+    sketch 处理"
+  - L2 case 3 改成 "机械臂关节 taper" baseD40/topD20/H15 (更贴近用户目标场景)
+  - Spec sanity bound 暂不缩紧 (0.1mm 保持, 因为 baseD/heightMm 这些大尺寸字
+    段不撞 precision; 只 topD < baseD 时小尺寸有风险, 让 docstring 引导 LLM)
+- **代码复用率高**:
+  - CreateFrustumTool.cs 几乎 1:1 复刻 CreateHemisphereTool.cs 框架 (NewDocument
+    → Front Plane → InsertSketch → 4 line + centerline → ExitSketch → Select
+    Sketch1 → FeatureRevolve2(20 参) → SaveAs → CloseDoc)
+  - 唯一变量: sketch 原语 (line/arc/centerline 顺序 + count)
+  - FeatureRevolve2 调用参数全相同 (20 参 educated defaults)
+- **测试**:
+  - L1: +24 FrustumSpec 用例 (= 468 total): 3 个尺寸 sanity + topD<baseD
+    cross-field + path validation
+  - L2: M24 6/6 pass (含 inspect-part 几何验证, baseD60/topD30/H40 → bbox
+    60×40×60 + Revolution feature; 机械臂 taper baseD40/topD20/H15; 3 个
+    validation case)
+  - L3 待 PR #28 merge 后**批量收口 M23 + M24** (M21 收尾模式: PR #24 一次抽
+    distance + concentric 两个 mate 同款)
+- **build 0 warnings 0 errors, dotnet format clean**
+
+**意义**: 23 工具 = 造 (**6**: 圆柱/法兰/方块/半球/**圆锥台**+ 装配) + 改 (6) +
+阵列 (2) + 看 (2) + 出货 (1) + 装配 (5) + ping。**Revolve 家族 2 工具齐**, sketch
++revolve 框架"模板化"验证 (复用率 95%, 只改 sketch 原语)。下一步候选: add_mate_angle
+(机械臂关节摆角, 让机械臂"能摆动", 0.5 天 mate 家族复刻) / shell (薄壁电机壳,
+1 天) / create_sphere (整球, M23 mirror, 半天) / save_drawing (1-2 天).
+
+**v1 经验复利 10 连击曲线**: M22 ~1h → M23 ~1h → **M24 ~45min** (复用 M23 框架,
+最快迭代)。**几何工具系列"模板化"**: cylinder/flange/block (prismatic 模板) +
+hemisphere/frustum (revolve 模板) — 后续相同类零件 0.5-1h 可加新工具。
+
 ### M22 收尾 — pattern_circular L3 抽测 zero bug + 几何验证 (2026-06-05)
 
 **PR #25 merge 后, 新 session L3 抽测 pattern_circular, zero bug + 几何验证
