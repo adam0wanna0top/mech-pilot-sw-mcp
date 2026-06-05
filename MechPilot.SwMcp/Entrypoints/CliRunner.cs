@@ -31,6 +31,9 @@ public static class CliRunner
         root.Subcommands.Add(BuildSketchRectangleCenterCommand());
         root.Subcommands.Add(BuildExtrudeCommand());
         root.Subcommands.Add(BuildRevolveCommand());
+        root.Subcommands.Add(BuildAddRefPlaneCommand());
+        root.Subcommands.Add(BuildLoftCommand());
+        root.Subcommands.Add(BuildSweepCommand());
         root.Subcommands.Add(BuildCreateCylinderCommand());
         root.Subcommands.Add(BuildCreateHemisphereCommand());
         root.Subcommands.Add(BuildCreateSphereCommand());
@@ -427,6 +430,86 @@ public static class CliRunner
                     Reverse = parseResult.GetValue(reverseOpt),
                 };
                 WriteResult(RevolveTool.RunWithSpec(spec), parseResult.GetValue(formatOpt) ?? "text");
+                return 0;
+            }
+            catch (McpToolException ex) { Console.Error.WriteLine($"[error] {ex.Message}"); return 1; }
+        });
+        return cmd;
+    }
+
+    private static Command BuildAddRefPlaneCommand()
+    {
+        var sourceOpt = new Option<string>("--source") { Description = "Source plane: 'front'/'top'/'right' or literal name.", Required = true };
+        var distOpt = new Option<double>("--distance") { Description = "Offset distance (mm, signed).", Required = true };
+        var revOpt = new Option<bool>("--reverse") { Description = "Flip offset direction.", DefaultValueFactory = _ => false };
+        var formatOpt = new Option<string>("--output") { Description = "text | json", DefaultValueFactory = _ => "text" };
+        var cmd = new Command("add-ref-plane", "Create an offset reference plane from a source plane.")
+        { sourceOpt, distOpt, revOpt, formatOpt };
+        cmd.SetAction(parseResult =>
+        {
+            try
+            {
+                var spec = new AddRefPlaneSpec
+                {
+                    SourcePlane = parseResult.GetValue(sourceOpt) ?? string.Empty,
+                    DistanceMm = parseResult.GetValue(distOpt),
+                    Reverse = parseResult.GetValue(revOpt),
+                };
+                WriteResult(AddRefPlaneTool.RunWithSpec(spec), parseResult.GetValue(formatOpt) ?? "text");
+                return 0;
+            }
+            catch (McpToolException ex) { Console.Error.WriteLine($"[error] {ex.Message}"); return 1; }
+        });
+        return cmd;
+    }
+
+    private static Command BuildLoftCommand()
+    {
+        var sketchOpt = new Option<string[]>("--sketches") { Description = "Comma-separated sketch names.", Required = true };
+        var closedOpt = new Option<bool>("--closed") { Description = "Treat as closed loop.", DefaultValueFactory = _ => false };
+        var formatOpt = new Option<string>("--output") { Description = "text | json", DefaultValueFactory = _ => "text" };
+        var cmd = new Command("loft", "Loft (blend) over 2+ named sketches.")
+        { sketchOpt, closedOpt, formatOpt };
+        cmd.SetAction(parseResult =>
+        {
+            try
+            {
+                var sketches = parseResult.GetValue(sketchOpt) ?? Array.Empty<string>();
+                // Allow either repeated --sketches X --sketches Y, or single --sketches "X,Y" form.
+                if (sketches.Length == 1 && sketches[0].Contains(','))
+                {
+                    sketches = sketches[0].Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+                }
+                var spec = new LoftSpec
+                {
+                    SketchNames = sketches,
+                    Closed = parseResult.GetValue(closedOpt),
+                };
+                WriteResult(LoftTool.RunWithSpec(spec), parseResult.GetValue(formatOpt) ?? "text");
+                return 0;
+            }
+            catch (McpToolException ex) { Console.Error.WriteLine($"[error] {ex.Message}"); return 1; }
+        });
+        return cmd;
+    }
+
+    private static Command BuildSweepCommand()
+    {
+        var profileOpt = new Option<string>("--profile") { Description = "Profile sketch name (closed area).", Required = true };
+        var pathOpt = new Option<string>("--path") { Description = "Path sketch name (open curve).", Required = true };
+        var formatOpt = new Option<string>("--output") { Description = "text | json", DefaultValueFactory = _ => "text" };
+        var cmd = new Command("sweep", "Sweep a profile sketch along a path sketch.")
+        { profileOpt, pathOpt, formatOpt };
+        cmd.SetAction(parseResult =>
+        {
+            try
+            {
+                var spec = new SweepSpec
+                {
+                    ProfileSketchName = parseResult.GetValue(profileOpt) ?? string.Empty,
+                    PathSketchName = parseResult.GetValue(pathOpt) ?? string.Empty,
+                };
+                WriteResult(SweepTool.RunWithSpec(spec), parseResult.GetValue(formatOpt) ?? "text");
                 return 0;
             }
             catch (McpToolException ex) { Console.Error.WriteLine($"[error] {ex.Message}"); return 1; }

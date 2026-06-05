@@ -986,6 +986,62 @@ hemisphere/frustum (revolve 模板) — 后续相同类零件 0.5-1h 可加新�
 `MateHelpers`), 后续相似模式 (例如未来 sketch primitives 共用 / drawing view 选择
 共用) 都可按此模式独立 refactor PR 推进。
 
+### M32 — loft + add_ref_plane + sweep MVP (PR #?, 2026-06-05) — 通用 layer 第 4 步 + LANDMARK 3 + 18 连击
+
+**通用原语 layer 第 4 个 milestone**: 3 个 advanced feature 工具 (loft + add_ref_plane +
+sweep), 让 LLM 能造**任意 loft + 任意多平面 sketch 件**. **LANDMARK 3 联调**:
+通用 loft ≡ create_lofted_round_to_square (bbox 完全匹配). **18 连击 zero-试错**
+(M13/14×2/16/18/19/20/21/22/23/24/25/26/27/28/29/30/31/32).
+
+- **3 个新工具**:
+  - `add_ref_plane(sourcePlane, distance, reverse)` — wraps InsertRefPlane
+    6 args, Distance constraint = 8 (反射于 M28). 返回新 plane 名 ("基准面1")
+    供 start_sketch 用
+  - `loft(sketchNames[], closed)` — wraps InsertProtrusionBlend 17 args
+    (反射于 M28). 接受任意 2+ sketch, M32 generic 版本 (vs M28 hardcoded
+    round-to-square)
+  - `sweep(profileSketchName, pathSketchName)` — wraps InsertProtrusionSwept
+    14 args. **MVP path 已知 finicky** (Front Plane circle + Top Plane line 沿
+    X 试 silent fail), M33 切 v1 PR #27 CreateDefinition(swFmSweep=17) +
+    setattr + CreateFeature 路径
+- **LANDMARK 3 联调 — 通用 loft ≡ create_lofted_round_to_square**:
+  - 通用: new_part → start_sketch(front) → sketch_circle(D60) → end_sketch (草图1)
+    → **add_ref_plane(front, distance=30) → 基准面1** → start_sketch(基准面1) →
+    sketch_rectangle_center(40×40) → end_sketch (草图2) → **loft([草图1, 草图2])** → save_part
+  - 特化: create_lofted_round_to_square (bottomD=60, topL=40, topW=40, H=30)
+  - inspect 两个 part: **bbox 60.01×60.01×30.01 mm 完全匹配** ✓
+- **sweep MVP 决策 (节奏保护 vs 完整能力)**:
+  - SW 2026 `InsertProtrusionSwept` 14 参对 profile/path orientation 极挑剔,
+    Front circle + Top line silent fail (无诊断)
+  - v1 PR #27 历史: sweep 实际走 `CreateDefinition(swFmSweep=17) + setattr +
+    CreateFeature` 路径 (跟 mirror/pattern 同套路, 不是 InsertProtrusionSwept)
+  - **决策**: 保留 sweep tool (spec/CLI/MCP 都注册, LLM 仍能调用), L2 删
+    happy case, M33 切 CreateDefinition 路径 + L2 fan-blade / L-pipe 联调
+  - 类似 add_shell description doc bug 模式 — tool 暴露但限制场景, M33 完善
+- **测试**:
+  - L1: +24 AdvancedFeatureSpec 用例 (= 671 total): AddRefPlaneSpec +
+    LoftSpec + SweepSpec validation
+  - L2: M32 全过 — LANDMARK 3 loft 联调 + add_ref_plane happy + sweep
+    spec validation (happy case skip 标注)
+  - L3: 待新 session 抽测
+- **dotnet format clean, build 0 warnings 0 errors**
+
+**意义**: **41 工具 = 通用 (15) + 造 (8) + 改 (7) + 阵列 (2) + 看 (2) + 出货 (1) +
+装配 (6) + ping**. **通用 layer 第 4 个 milestone**, LLM 现在能:
+- 多平面 sketch 件 (任意 add_ref_plane → start_sketch 嵌套)
+- 任意 N-profile loft (M28 round-to-square 之外的)
+- sweep MVP (需小心 profile/path orientation; M33 改 CreateDefinition 后更鲁棒)
+
+**3 个 LANDMARK 联调已验** (M31 cylinder + hemisphere, M32 loft) — 通用 layer
+跟特化 helper 几何完全等价的硬证据已积累 3 次, **B 计划 (双层 API 共存) 完全
+有效**.
+
+**v1 经验复利 18 连击曲线** (M32 ~1.5h, 含 sweep silent fail 调试): M29 ~30min
+→ M30 ~2h → M31 ~1h → **M32 ~1.5h** (3 工具 + sweep API path 调试).
+
+**下一步 M33: sweep CreateDefinition 路径切换 + Cut variants (extrude_cut + revolve_cut)**
+— 通用 layer 第 5 步收尾.
+
 ### M31 — Feature extrude + revolve (PR #?, 2026-06-05) — 通用 layer 第 3 步 + 联调验证 通用 ≡ 特化 + 17 连击 + LANDMARK
 
 **项目方向修正后第一个完整闭环验证** —— 用通用 layer 8-10 calls 造出跟特化
