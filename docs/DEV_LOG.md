@@ -986,6 +986,66 @@ hemisphere/frustum (revolve 模板) — 后续相同类零件 0.5-1h 可加新�
 `MateHelpers`), 后续相似模式 (例如未来 sketch primitives 共用 / drawing view 选择
 共用) 都可按此模式独立 refactor PR 推进。
 
+### M23-M27 L3 批量收口 — 5 工具 zero bug + add_shell doc fix (2026-06-05)
+
+**PR #33 (M28 loft) merge 后, MCP server reload 装载 PR #32 二进制 (含 M23/M24/M25/M26/M27),
+新 session 批量 L3 抽测 5 工具 zero bug + 几何验证全过** (M21 收尾模式扩大版,
+M22 收尾几何验证模板复用)。**M28 因 server 还未 reload 到 PR #33 二进制, L3 推迟到
+下次 session**。
+
+- **MCP server reload 节奏 observation**: 整个 session (PR #27 → PR #33)
+  4 次 PR merge 后 MCP server 都没 reload, **直到 PR #33 merge 前 (即 PR #32
+  loft 工作开始时) MCP server 才 reload 一次** — 装载了 PR #32 二进制 (含 M23-M27)。
+  这个时序解释了为什么 M28 现在不可用。**规律**: MCP server reload 时机不可控,
+  L3 积压几乎不可避免 — 但批量收口本身没问题 (5 工具一次抽 < 10 分钟)。
+- **抽测序列 (全 forward-slash 路径, 9 个 MCP 调用)**:
+  1. create_hemisphere D40 → hemi.sldprt
+     → inspect: **bbox 40×20×40 mm** (Y=D/2=20) + Revolution feature ✓
+  2. create_sphere D40 → sphere.sldprt
+     → inspect: **bbox 40×40×40 mm** (Y=D=40, **distinct from hemisphere**) +
+        edgeCount=0 (球面无 edge) + Revolution ✓
+  3. create_frustum baseD40 topD20 H30 → frustum.sldprt
+     → inspect: **bbox 40×30×40 mm** (X/Z=baseD, Y=H) + 3 faces (2 端 + 1 锥侧) +
+        Revolution ✓
+  4. create_cylinder D40 L30 → cyl_for_shell.sldprt (shell 用)
+  5. add_shell thickness=2 (in-place) → cyl_for_shell.sldprt
+     → inspect: **featureCount=3 (sketch + extrude + Shell)** + 5 faces
+        (2 端外 + 1 外侧 + 1 内侧 + 1 顶环) + bbox 40×40×30 不变 (外形不变) ✓
+  6. new_assembly → asm_angle.sldasm
+  7. create_cylinder × 2 → link1.sldprt + link2.sldprt
+  8. add_component × 2 (forward-slash, M20 fix 又一次验证) → 2 components 在装配
+  9. add_mate_angle 90° front@link1-1 ↔ front@link2-1 (closest, in-place)
+     → status=ok + mate 持久化到 .sldasm ✓
+- **撞到 1 个 doc bug (顺手修)**: `add_shell` description 写 "Works on
+  cylinder / block / frustum (axis-Z extruded parts)", 但 **frustum 实际 axis 是 +Y**
+  (跟 hemisphere/sphere 同), 不是 axis-Z! 在 frustum 上调 add_shell 直接报错。
+  本 PR 修 description: 把 frustum 从 "supported" 列表移到 "not supported"
+  (revolved parts 全 axis +Y), sphere 也提到。**这是 description vs 实际行为的
+  drift, L3 抽测才发现**。
+- **add_mate_angle 几何验证局限**: inspect_assembly 返 component frame origin
+  position, 但**没返 rotation matrix**, 所以 angle mate 后 component position 看
+  起来"没变"(本来就在 30,0,-20)。**status=ok + mate 持久化到 .sldasm** = 验证通过。
+  Future: inspect_assembly 可加 rotation 字段返 transform[0..8] (3×3 旋转矩阵
+  从 GetXform 的 16 元数组取), 让 angle mate 几何验证更直观。本 PR 不做。
+- **几何验证模板复用 (M22 收尾确立)**:
+  - revolve 工具 (hemisphere/sphere/frustum) 验 bbox Y extent 区分类型 ✓
+  - shell 工具验 featureCount 增长 + feature.typeName=Shell ✓
+  - **几何验证防 silent 假成功的硬规律得到第 N 次验证**
+- **测试**:
+  - L1: 583/583 unchanged (doc fix 不影响 spec)
+  - L2: 不动 (doc fix 不影响 spec layer)
+  - L3: **M23/M24/M25/M26/M27 5 工具 zero bug** + M28 推迟
+  - dotnet format clean
+
+**意义**: 26 工具中 25 个已至少 L3 抽测 1 次 (剩 M28 loft 推迟), 几何能力扩展
+阶段质量曲线收口。**M28 L3 由下次 session reload 后自然收口**。Internal helpers
+保护 + L3 批量模式 (M21 → 本次) 形成项目稳态质量收口策略。
+
+下一步候选: **sweep (路径扫掠)** 复用 M28 multi-plane sketch 框架 +
+InsertProtrusionSwept (反射 17 参, 跟 Blend 同款 API 风格) — 真扇叶路径
+(扇叶 = 翼型 profile + sweep along path) / **save_drawing** 工程图 (M22 反射已就绪) /
+**rib** 加强筋 (深 sketch + selection state 探索 ~1-2 天) / M28 L3 (下次 reload)。
+
 ### M28 — create_lofted_round_to_square (PR #?, 2026-06-05) — 首个多平面 sketch + InsertProtrusionBlend + 14 连击
 
 **几何能力扩展第七步, 项目首个多平面 sketch 工具 (multi-plane sketch)**。复刻
