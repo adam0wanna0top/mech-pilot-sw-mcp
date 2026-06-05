@@ -34,6 +34,8 @@ public static class CliRunner
         root.Subcommands.Add(BuildAddRefPlaneCommand());
         root.Subcommands.Add(BuildLoftCommand());
         root.Subcommands.Add(BuildSweepCommand());
+        root.Subcommands.Add(BuildExtrudeCutCommand());
+        root.Subcommands.Add(BuildRevolveCutCommand());
         root.Subcommands.Add(BuildCreateCylinderCommand());
         root.Subcommands.Add(BuildCreateHemisphereCommand());
         root.Subcommands.Add(BuildCreateSphereCommand());
@@ -510,6 +512,58 @@ public static class CliRunner
                     PathSketchName = parseResult.GetValue(pathOpt) ?? string.Empty,
                 };
                 WriteResult(SweepTool.RunWithSpec(spec), parseResult.GetValue(formatOpt) ?? "text");
+                return 0;
+            }
+            catch (McpToolException ex) { Console.Error.WriteLine($"[error] {ex.Message}"); return 1; }
+        });
+        return cmd;
+    }
+
+    private static Command BuildExtrudeCutCommand()
+    {
+        var sketchOpt = new Option<string>("--sketch") { Description = "Sketch name (from end_sketch).", Required = true };
+        var depthOpt = new Option<double>("--depth") { Description = "Cut depth (mm, > 0).", Required = true };
+        var reverseOpt = new Option<bool>("--reverse") { Description = "Flip cut direction.", DefaultValueFactory = _ => false };
+        var formatOpt = new Option<string>("--output") { Description = "text | json", DefaultValueFactory = _ => "text" };
+        var cmd = new Command("extrude-cut", "Cut a sketch into the active part's body (subtractive).")
+        { sketchOpt, depthOpt, reverseOpt, formatOpt };
+        cmd.SetAction(parseResult =>
+        {
+            try
+            {
+                var spec = new ExtrudeSpec
+                {
+                    SketchName = parseResult.GetValue(sketchOpt) ?? string.Empty,
+                    DepthMm = parseResult.GetValue(depthOpt),
+                    Reverse = parseResult.GetValue(reverseOpt),
+                };
+                WriteResult(ExtrudeCutTool.RunWithSpec(spec), parseResult.GetValue(formatOpt) ?? "text");
+                return 0;
+            }
+            catch (McpToolException ex) { Console.Error.WriteLine($"[error] {ex.Message}"); return 1; }
+        });
+        return cmd;
+    }
+
+    private static Command BuildRevolveCutCommand()
+    {
+        var sketchOpt = new Option<string>("--sketch") { Description = "Sketch name (from end_sketch, must contain centerline).", Required = true };
+        var angleOpt = new Option<double>("--angle") { Description = "Revolve angle (degrees, default 360).", DefaultValueFactory = _ => 360.0 };
+        var reverseOpt = new Option<bool>("--reverse") { Description = "Flip revolve direction.", DefaultValueFactory = _ => false };
+        var formatOpt = new Option<string>("--output") { Description = "text | json", DefaultValueFactory = _ => "text" };
+        var cmd = new Command("revolve-cut", "Revolve-cut: subtract a swept profile around its centerline.")
+        { sketchOpt, angleOpt, reverseOpt, formatOpt };
+        cmd.SetAction(parseResult =>
+        {
+            try
+            {
+                var spec = new RevolveSpec
+                {
+                    SketchName = parseResult.GetValue(sketchOpt) ?? string.Empty,
+                    AngleDeg = parseResult.GetValue(angleOpt),
+                    Reverse = parseResult.GetValue(reverseOpt),
+                };
+                WriteResult(RevolveCutTool.RunWithSpec(spec), parseResult.GetValue(formatOpt) ?? "text");
                 return 0;
             }
             catch (McpToolException ex) { Console.Error.WriteLine($"[error] {ex.Message}"); return 1; }
