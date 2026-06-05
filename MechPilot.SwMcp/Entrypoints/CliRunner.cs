@@ -21,6 +21,14 @@ public static class CliRunner
         root.Subcommands.Add(BuildPingCommand());
         root.Subcommands.Add(BuildNewPartCommand());
         root.Subcommands.Add(BuildSavePartCommand());
+        root.Subcommands.Add(BuildStartSketchCommand());
+        root.Subcommands.Add(BuildEndSketchCommand());
+        root.Subcommands.Add(BuildSketchLineCommand());
+        root.Subcommands.Add(BuildSketchArc3PointCommand());
+        root.Subcommands.Add(BuildSketchArcCenterCommand());
+        root.Subcommands.Add(BuildSketchCircleCommand());
+        root.Subcommands.Add(BuildSketchCenterLineCommand());
+        root.Subcommands.Add(BuildSketchRectangleCenterCommand());
         root.Subcommands.Add(BuildCreateCylinderCommand());
         root.Subcommands.Add(BuildCreateHemisphereCommand());
         root.Subcommands.Add(BuildCreateSphereCommand());
@@ -153,6 +161,222 @@ public static class CliRunner
             }
         });
 
+        return cmd;
+    }
+
+    private static Command BuildStartSketchCommand()
+    {
+        var planeOpt = new Option<string>("--plane")
+        {
+            Description = "Plane name: 'front' / 'top' / 'right' (case-insensitive), or a literal plane name like 'Plane1'.",
+            Required = true,
+        };
+        var formatOpt = new Option<string>("--output") { Description = "text | json", DefaultValueFactory = _ => "text" };
+        var cmd = new Command("start-sketch",
+            "Enter sketch mode on a named plane of the active part.")
+        { planeOpt, formatOpt };
+        cmd.SetAction(parseResult =>
+        {
+            try
+            {
+                var spec = new StartSketchSpec { Plane = parseResult.GetValue(planeOpt) ?? string.Empty };
+                WriteResult(StartSketchTool.RunWithSpec(spec), parseResult.GetValue(formatOpt) ?? "text");
+                return 0;
+            }
+            catch (McpToolException ex) { Console.Error.WriteLine($"[error] {ex.Message}"); return 1; }
+        });
+        return cmd;
+    }
+
+    private static Command BuildEndSketchCommand()
+    {
+        var formatOpt = new Option<string>("--output") { Description = "text | json", DefaultValueFactory = _ => "text" };
+        var cmd = new Command("end-sketch",
+            "Exit sketch mode on the active part; returns the sketch's auto-assigned SW name.")
+        { formatOpt };
+        cmd.SetAction(parseResult =>
+        {
+            try
+            {
+                WriteResult(EndSketchTool.RunWithSpec(new EndSketchSpec()), parseResult.GetValue(formatOpt) ?? "text");
+                return 0;
+            }
+            catch (McpToolException ex) { Console.Error.WriteLine($"[error] {ex.Message}"); return 1; }
+        });
+        return cmd;
+    }
+
+    private static Command BuildSketchLineCommand()
+    {
+        var x1 = new Option<double>("--x1") { Description = "Start X (mm).", Required = true };
+        var y1 = new Option<double>("--y1") { Description = "Start Y (mm).", Required = true };
+        var x2 = new Option<double>("--x2") { Description = "End X (mm).", Required = true };
+        var y2 = new Option<double>("--y2") { Description = "End Y (mm).", Required = true };
+        var formatOpt = new Option<string>("--output") { Description = "text | json", DefaultValueFactory = _ => "text" };
+        var cmd = new Command("sketch-line", "Add a line segment to the active sketch.") { x1, y1, x2, y2, formatOpt };
+        cmd.SetAction(parseResult =>
+        {
+            try
+            {
+                var spec = new SketchLineSpec
+                {
+                    X1 = parseResult.GetValue(x1),
+                    Y1 = parseResult.GetValue(y1),
+                    X2 = parseResult.GetValue(x2),
+                    Y2 = parseResult.GetValue(y2),
+                };
+                WriteResult(SketchLineTool.RunWithSpec(spec), parseResult.GetValue(formatOpt) ?? "text");
+                return 0;
+            }
+            catch (McpToolException ex) { Console.Error.WriteLine($"[error] {ex.Message}"); return 1; }
+        });
+        return cmd;
+    }
+
+    private static Command BuildSketchArc3PointCommand()
+    {
+        var x1 = new Option<double>("--x1") { Description = "Start X (mm).", Required = true };
+        var y1 = new Option<double>("--y1") { Description = "Start Y (mm).", Required = true };
+        var x2 = new Option<double>("--x2") { Description = "End X (mm).", Required = true };
+        var y2 = new Option<double>("--y2") { Description = "End Y (mm).", Required = true };
+        var x3 = new Option<double>("--x3") { Description = "Middle X (mm).", Required = true };
+        var y3 = new Option<double>("--y3") { Description = "Middle Y (mm).", Required = true };
+        var formatOpt = new Option<string>("--output") { Description = "text | json", DefaultValueFactory = _ => "text" };
+        var cmd = new Command("sketch-arc-3point", "Add a 3-point arc to the active sketch.")
+        { x1, y1, x2, y2, x3, y3, formatOpt };
+        cmd.SetAction(parseResult =>
+        {
+            try
+            {
+                var spec = new SketchArc3PointSpec
+                {
+                    X1 = parseResult.GetValue(x1),
+                    Y1 = parseResult.GetValue(y1),
+                    X2 = parseResult.GetValue(x2),
+                    Y2 = parseResult.GetValue(y2),
+                    X3 = parseResult.GetValue(x3),
+                    Y3 = parseResult.GetValue(y3),
+                };
+                WriteResult(SketchArc3PointTool.RunWithSpec(spec), parseResult.GetValue(formatOpt) ?? "text");
+                return 0;
+            }
+            catch (McpToolException ex) { Console.Error.WriteLine($"[error] {ex.Message}"); return 1; }
+        });
+        return cmd;
+    }
+
+    private static Command BuildSketchArcCenterCommand()
+    {
+        var cx = new Option<double>("--cx") { Description = "Center X (mm).", Required = true };
+        var cy = new Option<double>("--cy") { Description = "Center Y (mm).", Required = true };
+        var x1 = new Option<double>("--x1") { Description = "Start X (mm).", Required = true };
+        var y1 = new Option<double>("--y1") { Description = "Start Y (mm).", Required = true };
+        var x2 = new Option<double>("--x2") { Description = "End X (mm).", Required = true };
+        var y2 = new Option<double>("--y2") { Description = "End Y (mm).", Required = true };
+        var dir = new Option<int>("--direction") { Description = "1=CCW, -1=CW. Default 1.", DefaultValueFactory = _ => 1 };
+        var formatOpt = new Option<string>("--output") { Description = "text | json", DefaultValueFactory = _ => "text" };
+        var cmd = new Command("sketch-arc-center", "Add a center+endpoints arc to the active sketch.")
+        { cx, cy, x1, y1, x2, y2, dir, formatOpt };
+        cmd.SetAction(parseResult =>
+        {
+            try
+            {
+                var spec = new SketchArcCenterSpec
+                {
+                    Cx = parseResult.GetValue(cx),
+                    Cy = parseResult.GetValue(cy),
+                    X1 = parseResult.GetValue(x1),
+                    Y1 = parseResult.GetValue(y1),
+                    X2 = parseResult.GetValue(x2),
+                    Y2 = parseResult.GetValue(y2),
+                    Direction = parseResult.GetValue(dir),
+                };
+                WriteResult(SketchArcCenterTool.RunWithSpec(spec), parseResult.GetValue(formatOpt) ?? "text");
+                return 0;
+            }
+            catch (McpToolException ex) { Console.Error.WriteLine($"[error] {ex.Message}"); return 1; }
+        });
+        return cmd;
+    }
+
+    private static Command BuildSketchCircleCommand()
+    {
+        var cx = new Option<double>("--cx") { Description = "Center X (mm).", Required = true };
+        var cy = new Option<double>("--cy") { Description = "Center Y (mm).", Required = true };
+        var r = new Option<double>("--radius") { Description = "Radius (mm, > 0).", Required = true };
+        var formatOpt = new Option<string>("--output") { Description = "text | json", DefaultValueFactory = _ => "text" };
+        var cmd = new Command("sketch-circle", "Add a circle to the active sketch.") { cx, cy, r, formatOpt };
+        cmd.SetAction(parseResult =>
+        {
+            try
+            {
+                var spec = new SketchCircleSpec
+                {
+                    Cx = parseResult.GetValue(cx),
+                    Cy = parseResult.GetValue(cy),
+                    RadiusMm = parseResult.GetValue(r),
+                };
+                WriteResult(SketchCircleTool.RunWithSpec(spec), parseResult.GetValue(formatOpt) ?? "text");
+                return 0;
+            }
+            catch (McpToolException ex) { Console.Error.WriteLine($"[error] {ex.Message}"); return 1; }
+        });
+        return cmd;
+    }
+
+    private static Command BuildSketchCenterLineCommand()
+    {
+        var x1 = new Option<double>("--x1") { Description = "Start X (mm).", Required = true };
+        var y1 = new Option<double>("--y1") { Description = "Start Y (mm).", Required = true };
+        var x2 = new Option<double>("--x2") { Description = "End X (mm).", Required = true };
+        var y2 = new Option<double>("--y2") { Description = "End Y (mm).", Required = true };
+        var formatOpt = new Option<string>("--output") { Description = "text | json", DefaultValueFactory = _ => "text" };
+        var cmd = new Command("sketch-centerline", "Add a centerline (construction line) to the active sketch.")
+        { x1, y1, x2, y2, formatOpt };
+        cmd.SetAction(parseResult =>
+        {
+            try
+            {
+                var spec = new SketchCenterLineSpec
+                {
+                    X1 = parseResult.GetValue(x1),
+                    Y1 = parseResult.GetValue(y1),
+                    X2 = parseResult.GetValue(x2),
+                    Y2 = parseResult.GetValue(y2),
+                };
+                WriteResult(SketchCenterLineTool.RunWithSpec(spec), parseResult.GetValue(formatOpt) ?? "text");
+                return 0;
+            }
+            catch (McpToolException ex) { Console.Error.WriteLine($"[error] {ex.Message}"); return 1; }
+        });
+        return cmd;
+    }
+
+    private static Command BuildSketchRectangleCenterCommand()
+    {
+        var cx = new Option<double>("--cx") { Description = "Center X (mm).", Required = true };
+        var cy = new Option<double>("--cy") { Description = "Center Y (mm).", Required = true };
+        var rx = new Option<double>("--corner-x") { Description = "Corner X (mm).", Required = true };
+        var ry = new Option<double>("--corner-y") { Description = "Corner Y (mm).", Required = true };
+        var formatOpt = new Option<string>("--output") { Description = "text | json", DefaultValueFactory = _ => "text" };
+        var cmd = new Command("sketch-rectangle-center", "Add a centered rectangle to the active sketch.")
+        { cx, cy, rx, ry, formatOpt };
+        cmd.SetAction(parseResult =>
+        {
+            try
+            {
+                var spec = new SketchRectangleCenterSpec
+                {
+                    Cx = parseResult.GetValue(cx),
+                    Cy = parseResult.GetValue(cy),
+                    CornerX = parseResult.GetValue(rx),
+                    CornerY = parseResult.GetValue(ry),
+                };
+                WriteResult(SketchRectangleCenterTool.RunWithSpec(spec), parseResult.GetValue(formatOpt) ?? "text");
+                return 0;
+            }
+            catch (McpToolException ex) { Console.Error.WriteLine($"[error] {ex.Message}"); return 1; }
+        });
         return cmd;
     }
 
