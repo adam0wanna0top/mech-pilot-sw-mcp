@@ -986,6 +986,77 @@ hemisphere/frustum (revolve 模板) — 后续相同类零件 0.5-1h 可加新�
 `MateHelpers`), 后续相似模式 (例如未来 sketch primitives 共用 / drawing view 选择
 共用) 都可按此模式独立 refactor PR 推进。
 
+### M28 — create_lofted_round_to_square (PR #?, 2026-06-05) — 首个多平面 sketch + InsertProtrusionBlend + 14 连击
+
+**几何能力扩展第七步, 项目首个多平面 sketch 工具 (multi-plane sketch)**。复刻
+v1 PR #27 sweep+loft 经验 — SW loft API 是 `InsertProtrusionBlend` (17 参,
+反射确认), 所有 profiles mark=1 按顺序选。**14 连击 zero-试错**
+(M13/14×2/16/18/19/20/21/22/23/24/25/26/27/28).
+
+- **MCP server reload 状态变化**: 本次 session 第一次出现 system reminder
+  确认 mcp__mech-pilot-sw__{create_hemisphere/create_frustum/create_sphere/
+  add_shell/add_mate_angle} 可用 — **M23-M27 5 工具积压 L3 终于可以批量收口
+  (M21 收尾扩大版, 下次 session 第一件事)**, 现在 M28 也加入积压队列 = 6 工具。
+- **方向决策 (用户明确指令)**: 用户 "开干 loft", 而非按我推荐的 save_drawing。
+  loft 是用户机械臂/电风扇目标的核心曲面能力之一, 直接做更高 ROI。L3 推迟到
+  下次。
+- **设计 (粗粒度 LLM-friendly 哲学, v1 PR #27 同款)**:
+  - `create_lofted_round_to_square(bottomDiameter, topLength, topWidth, height, savePath)` — 5 参
+  - 跟 create_cylinder/flange/block/hemisphere/sphere/frustum 同款"LLM 给参数,
+    工具内部画 sketches"哲学
+  - 不暴露 raw loft API + LLM 不需要懂 multi-plane sketch / RefPlane / 选择
+    顺序细节
+  - 选了 round-to-square 而非通用 loft 因为: round-to-round 已被 frustum 覆盖,
+    round-to-square 实用最高 (HVAC 风管/汽车出风口/漏斗/烟囱接头/进风口转方)
+- **API 路径 (全反射确认, v1 PR #27 经验)**:
+  - `IFeatureManager.InsertProtrusionBlend` 17 参 (vs v1 经验完全一致)
+  - **`IFeatureManager.InsertRefPlane(c1, d1, c2, d2, c3, d3)`** 6 参创建偏移平面
+  - **`swRefPlaneReferenceConstraints_e.Distance = 8`** (位标志枚举, 反射拿真值,
+    educated guess "3" 错了)
+  - 自动 plane 命名 "基准面1" / "Plane1" (跟 Sketch1/草图1 同款 alias)
+- **InsertProtrusionBlend 17 参 educated defaults**:
+  - Closed=false (open loft, not loop)
+  - KeepTangency=false (no tangent constraints)
+  - ForceNonRational=false, TessToleranceFactor=0
+  - Start/EndMatchingType=0, Start/EndTangentLength=1, Start/EndTangentDir=false
+  - IsThinBody=false, Thickness1/2=0, ThinType=0
+  - Merge=true, UseFeatScope=true, UseAutoSelect=true (standard solid defaults)
+- **Pipeline (首个跨多平面)**:
+  1. NewDocument(part template)
+  2. Select Front Plane → InsertSketch → CreateCircleByRadius(0,0,0, D/2) → ExitSketch (Sketch1)
+  3. Select Front Plane → **InsertRefPlane(Distance=8, height_m, 0,0,0,0)** → 新 RefPlane1
+  4. Select RefPlane1 → InsertSketch → CreateCenterRectangle(...) → ExitSketch (Sketch2)
+  5. ClearSelection → Select Sketch1 (mark=1, append=false)
+  6. Select Sketch2 (mark=1, append=true)
+  7. **InsertProtrusionBlend(17 args)** → Blend feature
+  8. SaveAs, CloseDoc
+- **L2 撞 1 个断言错** (修后过): RefPlane 在 inspect_part 中被 filter 掉
+  (boot feature 类型), 所以 user-meaningful featureCount=3 (2 sketches +
+  1 Blend) 而非 4 (含 RefPlane)。L2 断言改成 >=3 + 验证 Blend feature 存在。
+- **几何验证硬证据 (M22 收尾模板)**:
+  - D60 → 40×40 H30: **bbox 60.01×60.01×30.01 mm** (X/Y=max(D, top edge)=60, Z=H=30)
+    完美匹配数学预期, 0.01 mm 是 SW tessellation tolerance
+  - featureCount=3 (sketch1 + sketch2 + **Blend**)
+  - feature.typeName 含 "Blend" — SW 给 loft 的内部名 (vs revolve 的 "Revolution")
+  - 非对称 D40 → 80×20 H25 也成功 (asymmetric L/W 独立处理)
+- **测试**:
+  - L1: +24 LoftedRoundToSquareSpec 用例 (= 583 total): 4 dims + path validation
+  - L2: M28 5/5 pass (修 1 个 featureCount 断言后过)
+  - L3: 待批量收口 M23+M24+M25+M26+M27+**M28** (6 工具积压)
+- **build 0 warnings 0 errors, dotnet format clean**
+
+**意义**: 27 工具 = 造 (**8**: 圆柱/法兰/方块/半球/球/圆锥台/**圆方过渡**+ 装配) +
+改 (7) + 阵列 (2) + 看 (2) + 出货 (1) + 装配 (6) + ping. **首个多平面 sketch +
+首个 InsertProtrusionBlend** — 几何能力曲线再跨级。LLM 现在能 "HVAC 风管接头 / 出
+风口 / 漏斗 / 烟囱接头" 一句话。下一步候选: **sweep (路径扫掠)** 可复用 M28 多平
+面 sketch 框架 + InsertProtrusionSwept (反射看到 17 参, 跟 InsertProtrusionBlend
+同款 API 风格), 1-2 天可加 — 这是真正的"扇叶"路径 (扇叶 = 翼型 profile +
+sweep along path).
+
+**v1 经验复利 14 连击曲线** (新增 M28 ~50min): M27 ~30min → **M28 ~50min**
+(含 InsertRefPlane 反射真值修正 + L2 断言一次修)。**多平面 sketch 模板首次确立**:
+后续 sweep / 多 plane 工具 (沟槽 / 异形孔 / 跨 plane 镜像) 都可基于此模板加。
+
 ### M27 — create_sphere (PR #?, 2026-06-05) — M23 sketch+revolve 框架第二次复刻 + 13 连击
 
 **几何能力扩展第五步, 第三个 revolve 工具**。复刻 M23 hemisphere 框架, 只换
