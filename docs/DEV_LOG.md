@@ -986,6 +986,67 @@ hemisphere/frustum (revolve 模板) — 后续相同类零件 0.5-1h 可加新�
 `MateHelpers`), 后续相似模式 (例如未来 sketch primitives 共用 / drawing view 选择
 共用) 都可按此模式独立 refactor PR 推进。
 
+### M29 — new_part + save_part (PR #?, 2026-06-05) — 通用原语 layer 开张 + 15 连击 + 项目方向修正
+
+**项目方向重大转向 — 用户需求重对齐**。用户反馈"我不是真要画电风扇, 我要 MCP
+具有通用能力, 而不是画电风扇这种特定能力"。回顾 27 工具发现**7 个"造"类工具
+基本都是参数化 helper (特化能力)**, LLM 几何表达能力被限制在 7 个特例上, 不能
+造自定义 revolve / loft / sweep / extrude. 我之前用 v1 时代"LLM 画 sketch 认知
+负载高"的过时判断锁死了方向 — 今天 Claude 4.x 完全能可靠表达坐标 list + 几何
+拓扑. **正确方向是通用 sketch + feature 原语 layer** (v1 PR #5 当年其实做对了,
+我之前误判 v1 方向有错).
+
+- **用户决策**: B 计划 (共存) + 偏通用任意几何 + 原参数化 helper 保留:
+  - 加通用原语 layer (~17 工具)
+  - 现有 7 个参数化 helper 保留 (向后兼容, 简单 case 1 call vs 通用 ~8 calls)
+  - LLM 用法: 简单形状用 helper, 复杂形状用通用
+- **路线图 (5 个 milestone, ~3-5 天)**:
+  - **M29 (本 PR)**: Part lifecycle (new_part / save_part) — 通用 layer 入口/出口
+  - M30: Sketch primitives (start_sketch / end_sketch + line/arc/circle/centerline/rectangle) — ~1 天
+  - M31: Feature extrude + revolve — ~1 天 (联调验证: 通用 cylinder 跟 create_cylinder 几何等价)
+  - M32: loft + sweep + add_ref_plane — ~1 天
+  - M33: Cut variants (extrude_cut / revolve_cut) — ~0.5 天
+- **设计决策 (关键基础设施)**:
+  - **状态管理**: SW-style "active doc" — new_part 后 SW 自动切到新 doc 当 active;
+    后续原语作用于 active doc; 简单一致跟 SW UI 工作流
+  - **坐标单位**: mm (跟现有工具一致), 工具内部转 m
+  - **Sketch 平面坐标**: 2D (x, y), z 隐藏 (SW 内部 z=0 in sketch plane)
+  - **错误处理**: silent fail → McpToolException + descriptive
+- **M29 实现 (~30 分钟最短)**:
+  - NewPartTool: NewDocument(part template, 0, 0, 0) → 验证 swDocPART 类型 →
+    返回 title (不 save)
+  - SavePartTool: swApp.ActiveDoc as IModelDoc2 (无 active 拒绝) →
+    Extension.SaveAs → CloseDoc(title)
+- **L2 几何验证 (5/5)**:
+  - new-part → status=ok + active doc opened
+  - save-part → 41 KB 空 .sldprt 写盘
+  - **inspect-part on empty: featureCount=0, bodyCount=0** (RefPlanes 被 boot filter 过滤干净 — 验证 boot filter 在"空 part"边界 case 也正确)
+  - save-part 无 active doc 时正确拒绝 ("No active doc")
+  - spec validation (.step extension reject) ✓
+- **测试**:
+  - L1: +9 PartLifecycleSpec 用例 (= 592 total): NewPartSpec smoke +
+    SavePartSpec 路径 8 个 (相对/绝对/扩展名/父目录, 跟其他 spec 同款)
+  - L2: M29 5/5 pass (一次过)
+  - L3: 待新 session 抽测 (黄金法则 #13)
+- **build 0 warnings 0 errors, dotnet format clean**
+
+**意义**: 28 工具 = 通用 (**2: new/save_part**) + 造 (8: 圆柱/法兰/方块/半球/球/
+圆锥台/圆方过渡 + 装配) + 改 (7) + 阵列 (2) + 看 (2) + 出货 (1) + 装配 (6) +
+ping. **通用原语 layer 开张**, 项目方向修正。但 M29 本身只有 lifecycle 价值,
+**M30 sketch + M31 feature 才让 LLM 真能造任意几何**。下一步立刻做 M30 sketch
+primitives (start_sketch + end_sketch + 6 sketch 原语), 1 天预计完成。
+
+**v1 经验复利 15 连击曲线** (M29 ~30min — 最简实现, 跟之前最快 M27 持平):
+M27 ~30min → M28 ~50min → **M29 ~30min** (无新 SW API, 复用 NewDocument /
+ActiveDoc / SaveAs / CloseDoc 已知调用).
+
+**项目方向修正复盘**:
+- 我之前 27 工具中 7 个特化 helper 是 LLM 认知负载低但能力受限的设计
+- 用户对齐需求后, 通用原语 layer 才是真"MCP 能力", 不是特化 1 工具 1 形状
+- v1 PR #5 当年方向其实是对的 (draw_line / draw_centerline / revolve 通用), 
+  我之前还误读为"过时方向"
+- **本次修正减少未来 N 个特化 helper 的浪费工时, ROI 极高**
+
 ### M23-M27 L3 批量收口 — 5 工具 zero bug + add_shell doc fix (2026-06-05)
 
 **PR #33 (M28 loft) merge 后, MCP server reload 装载 PR #32 二进制 (含 M23/M24/M25/M26/M27),
