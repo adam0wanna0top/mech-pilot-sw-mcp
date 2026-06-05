@@ -986,6 +986,48 @@ hemisphere/frustum (revolve 模板) — 后续相同类零件 0.5-1h 可加新�
 `MateHelpers`), 后续相似模式 (例如未来 sketch primitives 共用 / drawing view 选择
 共用) 都可按此模式独立 refactor PR 推进。
 
+### M31 — Feature extrude + revolve (PR #?, 2026-06-05) — 通用 layer 第 3 步 + 联调验证 通用 ≡ 特化 + 17 连击 + LANDMARK
+
+**项目方向修正后第一个完整闭环验证** —— 用通用 layer 8-10 calls 造出跟特化
+helper 1 call 等价的零件, **bbox 完全匹配**. 17 连击 zero-试错
+(M13/14×2/16/18/19/20/21/22/23/24/25/26/27/28/29/30/31).
+
+- **2 个新工具**:
+  - `extrude(sketchName, depth, reverse)` — wraps FeatureExtrusion3 with
+    educated defaults (blind, single-direction, merge=true). 复刻 CreateCylinderTool
+    内部调用模式.
+  - `revolve(sketchName, angle, reverse)` — wraps FeatureRevolve2 (20 args)
+    with educated defaults. 复刻 CreateHemisphereTool 调用模式.
+- **关键设计**:
+  - sketchName 显式传入: LLM 从 end_sketch 拿到 SW 自动 sketch name ("草图1"),
+    传给 extrude/revolve 引用具体 sketch
+  - revolve 用嵌入 centerline 作 axis: 跟特化 helper 一致
+- **联调验证 L2 (LANDMARK)**:
+  - **联调 1 — 通用 cylinder ≡ create_cylinder**:
+    - 通用: new_part → start_sketch front → sketch_circle (D40) → end_sketch ("草图1") → extrude("草图1", 30) → save_part
+    - 特化: create_cylinder D40 L30
+    - inspect 两个 part: **bbox 40×40×30 mm, bodyCount=1** — 完全等价 ✓
+  - **联调 2 — 通用 hemisphere ≡ create_hemisphere**:
+    - 通用: new_part → start_sketch front → sketch_line + sketch_arc_3point + sketch_line + sketch_centerline → end_sketch → revolve("草图1", 360) → save_part
+    - 特化: create_hemisphere D40
+    - inspect: **bbox 40×20×40 mm, bodyCount=1** — 完全等价 ✓ (浮点 ~1e-14 误差)
+- **测试**:
+  - L1: +27 FeatureSpec 用例 (= 647 total): ExtrudeSpec + RevolveSpec
+  - L2: M31 全过 (一次过, 含 2 个联调等价性验证 + 3 个 validation reject)
+  - L3: 待新 session 抽测
+- **dotnet format clean, build 0 warnings 0 errors**
+
+**意义**: **38 工具 = 通用 (12) + 造 (8) + 改 (7) + 阵列 (2) + 看 (2) + 出货 (1) +
+装配 (6) + ping**. 项目方向修正后第一个完整闭环 — 通用 layer 真能造出跟特化
+helper 完全等价的零件, 证明 B 计划 (双层 API 共存) 完全有效. LLM 用法:
+- 简单形状: `create_cylinder(40, 30)` ← 1 call
+- 复杂形状: `new_part → start_sketch → sketch_<原语> × N → end_sketch → extrude/revolve → save_part` ← ~8 calls 换无限几何能力
+
+**v1 经验复利 17 连击曲线** (M31 ~1h, 含联调验证): M29 ~30min → M30 ~2h
+(8 工具) → **M31 ~1h** (2 工具 + 联调验证).
+
+**下一步 M32: loft + sweep + add_ref_plane** — 让 LLM 造任意 loft + 任意 sweep.
+
 ### M30 — Sketch primitives 8 工具 (PR #?, 2026-06-05) — 通用 layer 第 2 步 + 16 连击
 
 **通用原语 layer 第 2 个 milestone**: 8 个 sketch 工具 (start/end_sketch +

@@ -29,6 +29,8 @@ public static class CliRunner
         root.Subcommands.Add(BuildSketchCircleCommand());
         root.Subcommands.Add(BuildSketchCenterLineCommand());
         root.Subcommands.Add(BuildSketchRectangleCenterCommand());
+        root.Subcommands.Add(BuildExtrudeCommand());
+        root.Subcommands.Add(BuildRevolveCommand());
         root.Subcommands.Add(BuildCreateCylinderCommand());
         root.Subcommands.Add(BuildCreateHemisphereCommand());
         root.Subcommands.Add(BuildCreateSphereCommand());
@@ -373,6 +375,58 @@ public static class CliRunner
                     CornerY = parseResult.GetValue(ry),
                 };
                 WriteResult(SketchRectangleCenterTool.RunWithSpec(spec), parseResult.GetValue(formatOpt) ?? "text");
+                return 0;
+            }
+            catch (McpToolException ex) { Console.Error.WriteLine($"[error] {ex.Message}"); return 1; }
+        });
+        return cmd;
+    }
+
+    private static Command BuildExtrudeCommand()
+    {
+        var sketchOpt = new Option<string>("--sketch") { Description = "Sketch name (from end_sketch).", Required = true };
+        var depthOpt = new Option<double>("--depth") { Description = "Extrusion depth (mm, > 0).", Required = true };
+        var reverseOpt = new Option<bool>("--reverse") { Description = "Flip extrude direction.", DefaultValueFactory = _ => false };
+        var formatOpt = new Option<string>("--output") { Description = "text | json", DefaultValueFactory = _ => "text" };
+        var cmd = new Command("extrude", "Extrude a named sketch into a solid body on the active part.")
+        { sketchOpt, depthOpt, reverseOpt, formatOpt };
+        cmd.SetAction(parseResult =>
+        {
+            try
+            {
+                var spec = new ExtrudeSpec
+                {
+                    SketchName = parseResult.GetValue(sketchOpt) ?? string.Empty,
+                    DepthMm = parseResult.GetValue(depthOpt),
+                    Reverse = parseResult.GetValue(reverseOpt),
+                };
+                WriteResult(ExtrudeTool.RunWithSpec(spec), parseResult.GetValue(formatOpt) ?? "text");
+                return 0;
+            }
+            catch (McpToolException ex) { Console.Error.WriteLine($"[error] {ex.Message}"); return 1; }
+        });
+        return cmd;
+    }
+
+    private static Command BuildRevolveCommand()
+    {
+        var sketchOpt = new Option<string>("--sketch") { Description = "Sketch name (from end_sketch, must contain centerline).", Required = true };
+        var angleOpt = new Option<double>("--angle") { Description = "Revolve angle (degrees, default 360).", DefaultValueFactory = _ => 360.0 };
+        var reverseOpt = new Option<bool>("--reverse") { Description = "Flip revolve direction.", DefaultValueFactory = _ => false };
+        var formatOpt = new Option<string>("--output") { Description = "text | json", DefaultValueFactory = _ => "text" };
+        var cmd = new Command("revolve", "Revolve a named sketch around its embedded centerline.")
+        { sketchOpt, angleOpt, reverseOpt, formatOpt };
+        cmd.SetAction(parseResult =>
+        {
+            try
+            {
+                var spec = new RevolveSpec
+                {
+                    SketchName = parseResult.GetValue(sketchOpt) ?? string.Empty,
+                    AngleDeg = parseResult.GetValue(angleOpt),
+                    Reverse = parseResult.GetValue(reverseOpt),
+                };
+                WriteResult(RevolveTool.RunWithSpec(spec), parseResult.GetValue(formatOpt) ?? "text");
                 return 0;
             }
             catch (McpToolException ex) { Console.Error.WriteLine($"[error] {ex.Message}"); return 1; }

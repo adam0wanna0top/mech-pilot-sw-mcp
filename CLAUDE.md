@@ -28,7 +28,8 @@
 ✅ **MVP 已完成** (2026-05-27)。**「前 10 高频工具」迁移 10/10 完成** (M14 提前
 做完, 因 PR #25 沉头/锥头沉孔与同 helper refactor 一起做)。M22 起进入"几何能力
 拓展"阶段 (revolve / pattern_circular / angle mate / shell / loft 等), M29 起
-开通用原语 layer (允许 LLM 造任意几何, 跟 7 个特化 helper 共存)。**36 工具**:
+开通用原语 layer (允许 LLM 造任意几何, 跟 7 个特化 helper 共存), **M31 联调
+验证通用 layer ≡ 特化 helper (bbox 完全匹配)**。**38 工具**:
 
 | Tool | LLM-facing name | 用途 |
 |---|---|---|
@@ -43,6 +44,8 @@
 | sketch_circle | `mcp__mech_pilot_sw__sketch_circle` | 画圆 (cx, cy, r) |
 | sketch_centerline | `mcp__mech_pilot_sw__sketch_centerline` | 画中心线 (revolve axis 用) |
 | sketch_rectangle_center | `mcp__mech_pilot_sw__sketch_rectangle_center` | 画中心矩形 (center + corner) |
+| extrude | `mcp__mech_pilot_sw__extrude` | 拉伸 sketch 成实体 (FeatureExtrusion3) |
+| revolve | `mcp__mech_pilot_sw__revolve` | 绕 sketch centerline 旋转 (FeatureRevolve2) |
 | create_cylinder | `mcp__mech_pilot_sw__create_cylinder` | 圆柱零件 |
 | create_flange | `mcp__mech_pilot_sw__create_flange` | 法兰 / 端盖 / 周向孔板 |
 | create_rectangular_block | `mcp__mech_pilot_sw__create_rectangular_block` | 长方体零件 (L×W×H 居中) |
@@ -70,7 +73,7 @@
 | add_mate_angle | `mcp__mech_pilot_sw__add_mate_angle` | 两组件 reference plane 角度 N° 配合 (机械臂关节摆角/摇头风扇) |
 | add_shell | `mcp__mech_pilot_sw__add_shell` | 抽壳 (电机壳/泵壳/容器, 修正 v1 "API 不存在") |
 
-**L1 / L2 验证通过** (620/620 单元测试 + 27 个 PowerShell L2 集成); 后 10 工具
+**L1 / L2 验证通过** (647/647 单元测试 + 28 个 PowerShell L2 集成); 后 10 工具
 + create_flange L3 抽测 zero bug (M15); **装配家族 6 工具 (new_assembly +
 add_component + inspect_assembly + add_mate_coincident + add_mate_distance +
 add_mate_concentric) L3 全过 zero bug** (distance + concentric 于 2026-06-04
@@ -84,8 +87,8 @@ helper), M25 add_mate_angle 1:1 复刻 M19 distance mate 模板, M26 add_shell �
 M27 create_sphere 复刻 M23 框架 (Create3PointArc 绕开 180° direction
 ambiguity), M28 create_lofted_round_to_square 首个多平面 sketch + v1 PR #27
 InsertProtrusionBlend 复刻, **M29 起开通用原语 layer (new_part/save_part, **M30 sketch primitives 8 工具**,
-计划 M31 extrude/revolve + M32 loft/sweep)** —
-让 LLM 造任意几何 (**16 连击 zero-试错**)。
+**M31 feature extrude/revolve + 联调验证 通用 ≡ 特化**,
+计划 M32 loft/sweep)** — 让 LLM 造任意几何 (**17 连击 zero-试错**)。
 **`Tools/Internal/PartGeometryHelpers`** 抽出共用 `FindPlanarEndFace` +
 `FindLastUserFeature` + `IsBootFeature` 给 8 工具用。
 **`Tools/Internal/MateHelpers`** 抽出 `SelectFirstPlane` + `FormatAttempts` +
