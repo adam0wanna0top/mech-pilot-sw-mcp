@@ -986,6 +986,50 @@ hemisphere/frustum (revolve 模板) — 后续相同类零件 0.5-1h 可加新�
 `MateHelpers`), 后续相似模式 (例如未来 sketch primitives 共用 / drawing view 选择
 共用) 都可按此模式独立 refactor PR 推进。
 
+### M30 — Sketch primitives 8 工具 (PR #?, 2026-06-05) — 通用 layer 第 2 步 + 16 连击
+
+**通用原语 layer 第 2 个 milestone**: 8 个 sketch 工具 (start/end_sketch +
+6 sketch 原语), 让 LLM 能造任意 sketch profile. **16 连击 zero-试错**
+(M13/14×2/16/18/19/20/21/22/23/24/25/26/27/28/29/30).
+
+- **8 个新工具**:
+  - `start_sketch(plane)` — plane = "front"/"top"/"right" 或 literal name
+  - `end_sketch()` — 返回 SW 自动 sketch name ("草图1")
+  - `sketch_line(x1, y1, x2, y2)` / `sketch_arc_3point(x1,y1,x2,y2,x3,y3)` /
+    `sketch_arc_center(cx,cy,x1,y1,x2,y2,direction)` / `sketch_circle(cx,cy,r)` /
+    `sketch_centerline(x1,y1,x2,y2)` / `sketch_rectangle_center(cx,cy,cornerX,cornerY)`
+- **共用 helper `Tools/Internal/SketchSession`** (rule of 6+ 直接抽):
+  - `RequireActiveDoc()` / `RequireActiveSketch()` / `RequireSketchManager()`
+  - 让 8 个 tool 不重复 null-guard
+- **设计决策**:
+  - 状态管理沿用 M29 SW-style "active doc + active sketch"
+  - 坐标 2D (x, y) mm, z 隐藏 (内部 z=0)
+  - end_sketch 返回 sketch name 通过 FindLastUserFeature (复用 boot filter)
+- **L2 几何验证 (一次过)**:
+  - new-part → start-sketch front → sketch-circle (D40) → end-sketch
+    → 返回 "草图1" ✓
+  - 多 sketch 同 part: Front + Top + Right 三个平面上的 4 sketches (circle /
+    rectangle / hemisphere 半截面 / center arc) ✓
+  - inspect-part: featureCount=4 全是 ProfileFeature, bodyCount=0 ✓
+  - **关键: hemisphere 半截面 sketch 用 sketch_line + sketch_arc_3point +
+    sketch_line + sketch_centerline 画出**, 跟 create_hemisphere 内部 sketch
+    等价 — M31 revolve 上来后 LLM 通用 hemisphere ≡ create_hemisphere
+- **测试**:
+  - L1: +28 SketchPrimitiveSpec 用例 (= 620 total)
+  - L2: M30 全过 (一次过, 含联调 4-sketch part 几何验证)
+  - L3: 待新 session 抽测
+- **dotnet format clean, build 0 warnings 0 errors**
+
+**意义**: 36 工具 = 通用 (**10**) + 造 (8) + 改 (7) + 阵列 (2) + 看 (2) +
+出货 (1) + 装配 (6) + ping. **通用 sketch 完整可用**, LLM 能造任意 sketch
+profile. M31 extrude/revolve 才让 sketch 变 3D 实体.
+
+**v1 经验复利 16 连击曲线** (M30 ~2h, 平均 ~15min/工具): M27 ~30min →
+M28 ~50min → M29 ~30min → **M30 ~2h** (8 工具 + 1 helper).
+
+**Internal helpers 现有 3 个** (`PartGeometryHelpers` + `MateHelpers` +
+**`SketchSession`**), M31 可能再加 `FeatureSession`.
+
 ### M29 — new_part + save_part (PR #?, 2026-06-05) — 通用原语 layer 开张 + 15 连击 + 项目方向修正
 
 **项目方向重大转向 — 用户需求重对齐**。用户反馈"我不是真要画电风扇, 我要 MCP
