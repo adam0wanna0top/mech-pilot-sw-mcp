@@ -51,9 +51,11 @@ public static class AddShellTool
     [Description(
         "Shell an existing solid part — hollow it out leaving a uniform wall " +
         "of the given thickness in mm, with the +Z end face removed to form " +
-        "an open cup. Works on cylinder / block / frustum (axis-Z extruded " +
-        "parts); hemispheres (axis +Y) are not directly supported in this " +
-        "MVP. outward=false (default) shells inward (outer geometry stays " +
+        "an open cup. Works on cylinder / block (axis-Z extruded parts); " +
+        "revolved parts (hemisphere / sphere / frustum — all axis +Y) are " +
+        "not directly supported in this MVP because their +Z end face is " +
+        "side-curved, not flat. outward=false (default) shells inward " +
+        "(outer geometry stays " +
         "the same, interior is hollowed). outward=true thickens outward " +
         "(less common). outputPath is optional: empty = overwrite the input " +
         "in place. Common LLM use: '把 D40 圆柱抽壳 2mm' → cup with 2 mm " +

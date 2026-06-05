@@ -79,9 +79,10 @@ InsertProtrusionBlend 复刻 (**14 连击 zero-试错**)。
 `MapAlignment` + `StripSldasmExt` 给 4 个 mate 工具用 (M30 refactor, rule of
 four 收口)。
 
-**下一步候选**: sweep (路径扫掠, 弯管/异形走线, M28 multi-plane sketch 框架
-复用) / save_drawing 工程图 / rib (加强筋) / **M23-M28 L3 批量抽测 (6 工具
-积压, M21 收尾模式扩大版)** — **MCP server 已 reload**。详见
+**下一步候选**: sweep (路径扫掠, 弯管/异形走线/真扇叶路径, M28 multi-plane
+sketch 框架复用) / save_drawing 工程图 / rib (加强筋) / M28 L3 抽测 (下次
+session reload 后)。M23-M27 L3 已批量收口 (2026-06-05 几何验证 5 工具全过,
+add_shell description 顺手修 frustum/sphere 误标支持)。详见
 [`docs/DEV_LOG.md`](docs/DEV_LOG.md) "下一步候选" 段。
 
 ---
