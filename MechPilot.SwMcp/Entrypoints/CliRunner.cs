@@ -19,6 +19,8 @@ public static class CliRunner
         var root = new RootCommand("mech-pilot-sw: SolidWorks MCP server + CLI");
 
         root.Subcommands.Add(BuildPingCommand());
+        root.Subcommands.Add(BuildNewPartCommand());
+        root.Subcommands.Add(BuildSavePartCommand());
         root.Subcommands.Add(BuildCreateCylinderCommand());
         root.Subcommands.Add(BuildCreateHemisphereCommand());
         root.Subcommands.Add(BuildCreateSphereCommand());
@@ -68,6 +70,79 @@ public static class CliRunner
             try
             {
                 var result = PingTool.Run();
+                WriteResult(result, parseResult.GetValue(formatOpt) ?? "text");
+                return 0;
+            }
+            catch (McpToolException ex)
+            {
+                Console.Error.WriteLine($"[error] {ex.Message}");
+                return 1;
+            }
+        });
+
+        return cmd;
+    }
+
+    private static Command BuildNewPartCommand()
+    {
+        var formatOpt = new Option<string>("--output")
+        {
+            Description = "Output format: text | json",
+            DefaultValueFactory = _ => "text",
+        };
+
+        var cmd = new Command("new-part",
+            "Open a new blank SolidWorks part document (generic primitives layer entry).")
+        {
+            formatOpt,
+        };
+
+        cmd.SetAction(parseResult =>
+        {
+            try
+            {
+                var result = NewPartTool.RunWithSpec(new NewPartSpec());
+                WriteResult(result, parseResult.GetValue(formatOpt) ?? "text");
+                return 0;
+            }
+            catch (McpToolException ex)
+            {
+                Console.Error.WriteLine($"[error] {ex.Message}");
+                return 1;
+            }
+        });
+
+        return cmd;
+    }
+
+    private static Command BuildSavePartCommand()
+    {
+        var outOpt = new Option<string>("--out")
+        {
+            Description = "Absolute output path ending in .sldprt (e.g. C:/tmp/part.sldprt).",
+            Required = true,
+        };
+        var formatOpt = new Option<string>("--output")
+        {
+            Description = "Output format: text | json",
+            DefaultValueFactory = _ => "text",
+        };
+
+        var cmd = new Command("save-part",
+            "Save the active SolidWorks part to disk and close it (generic primitives layer exit).")
+        {
+            outOpt, formatOpt,
+        };
+
+        cmd.SetAction(parseResult =>
+        {
+            try
+            {
+                var spec = new SavePartSpec
+                {
+                    SavePath = parseResult.GetValue(outOpt) ?? string.Empty,
+                };
+                var result = SavePartTool.RunWithSpec(spec);
                 WriteResult(result, parseResult.GetValue(formatOpt) ?? "text");
                 return 0;
             }
