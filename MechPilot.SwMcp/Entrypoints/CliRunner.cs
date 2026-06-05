@@ -23,6 +23,7 @@ public static class CliRunner
         root.Subcommands.Add(BuildCreateHemisphereCommand());
         root.Subcommands.Add(BuildCreateSphereCommand());
         root.Subcommands.Add(BuildCreateFrustumCommand());
+        root.Subcommands.Add(BuildCreateLoftedRoundToSquareCommand());
         root.Subcommands.Add(BuildCreateFlangeCommand());
         root.Subcommands.Add(BuildCreateRectangularBlockCommand());
         root.Subcommands.Add(BuildAddFilletCommand());
@@ -1594,6 +1595,71 @@ public static class CliRunner
                     OutputPath = parseResult.GetValue(outOpt),
                 };
                 var result = AddShellTool.RunWithSpec(spec);
+                WriteResult(result, parseResult.GetValue(formatOpt) ?? "text");
+                return 0;
+            }
+            catch (McpToolException ex)
+            {
+                Console.Error.WriteLine($"[error] {ex.Message}");
+                return 1;
+            }
+        });
+
+        return cmd;
+    }
+
+    private static Command BuildCreateLoftedRoundToSquareCommand()
+    {
+        var bottomDOpt = new Option<double>("--bottom-diameter")
+        {
+            Description = "Bottom-face circle diameter in mm, e.g. 60.",
+            Required = true,
+        };
+        var topLOpt = new Option<double>("--top-length")
+        {
+            Description = "Top-face rectangle length (X extent) in mm, e.g. 40.",
+            Required = true,
+        };
+        var topWOpt = new Option<double>("--top-width")
+        {
+            Description = "Top-face rectangle width (Y extent) in mm, e.g. 40.",
+            Required = true,
+        };
+        var heightOpt = new Option<double>("--height")
+        {
+            Description = "Loft height (Z direction) in mm, e.g. 30.",
+            Required = true,
+        };
+        var outOpt = new Option<string>("--out")
+        {
+            Description = "Absolute output path ending in .sldprt (e.g. C:/tmp/transition.sldprt).",
+            Required = true,
+        };
+        var formatOpt = new Option<string>("--output")
+        {
+            Description = "Output format: text | json",
+            DefaultValueFactory = _ => "text",
+        };
+
+        var cmd = new Command("create-lofted-round-to-square",
+            "Create a parametric solid lofted transition (round bottom → square top).")
+        {
+            bottomDOpt, topLOpt, topWOpt, heightOpt, outOpt, formatOpt,
+        };
+
+        cmd.SetAction(parseResult =>
+        {
+            try
+            {
+                var spec = new LoftedRoundToSquareSpec
+                {
+                    BottomDiameterMm = parseResult.GetValue(bottomDOpt),
+                    TopLengthMm = parseResult.GetValue(topLOpt),
+                    TopWidthMm = parseResult.GetValue(topWOpt),
+                    HeightMm = parseResult.GetValue(heightOpt),
+                    SavePath = parseResult.GetValue(outOpt) ?? string.Empty,
+                };
+                var result = CreateLoftedRoundToSquareTool.RunWithSpec(spec);
                 WriteResult(result, parseResult.GetValue(formatOpt) ?? "text");
                 return 0;
             }
