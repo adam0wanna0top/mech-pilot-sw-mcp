@@ -30,8 +30,9 @@
 拓展"阶段 (revolve / pattern_circular / angle mate / shell / loft 等), M29 起
 开通用原语 layer (允许 LLM 造任意几何, 跟 7 个特化 helper 共存), **M31/M32
 联调验证通用 layer ≡ 特化 helper (cylinder/hemisphere/lofted-round-to-square
-bbox 完全匹配)**, M33 cut variants spec/CLI/MCP 暴露 (happy case 推 M34
-dedicated 探索 — sweep CreateDefinition path + FeatureCut2 face-based state)。
+bbox 完全匹配)**, M33 cut variants spec/CLI/MCP 暴露, **M34 cut happy case
+落地 (extrude_cut/revolve_cut 几何验证过 — 纠正 M33 误诊: 真因是 cut 草图几何
+位置, 非 selection/face-based)**, sweep happy 仍待 direction A 录宏。
 **43 工具**:
 
 | Tool | LLM-facing name | 用途 |
@@ -51,9 +52,9 @@ dedicated 探索 — sweep CreateDefinition path + FeatureCut2 face-based state)
 | revolve | `mcp__mech_pilot_sw__revolve` | 绕 sketch centerline 旋转 (FeatureRevolve2) |
 | add_ref_plane | `mcp__mech_pilot_sw__add_ref_plane` | 创建偏移参考平面 (InsertRefPlane Distance=8) |
 | loft | `mcp__mech_pilot_sw__loft` | 任意 2+ sketch loft (InsertProtrusionBlend) |
-| sweep | `mcp__mech_pilot_sw__sweep` | 路径扫掠 (CreateDefinition swFmSweep=17 + AccessSelections, **happy case 待 M34**) |
-| extrude_cut | `mcp__mech_pilot_sw__extrude_cut` | sketch 拉伸切除 (FeatureCut2, **plane-based happy 待 M34**) |
-| revolve_cut | `mcp__mech_pilot_sw__revolve_cut` | sketch 绕 centerline 旋转切除 (FeatureRevolve2 IsCut=true, **happy 待 M34**) |
+| sweep | `mcp__mech_pilot_sw__sweep` | 路径扫掠 (CreateDefinition swFmSweep=17 + AccessSelections, **happy 待 M34 direction A 录宏 — RPC fault**) |
+| extrude_cut | `mcp__mech_pilot_sw__extrude_cut` | sketch 拉伸切除 (FeatureCut2, **M34 happy ✓** Blind-to-depth + 草图须在 body 入口面非 base 面 + 方向自动回退) |
+| revolve_cut | `mcp__mech_pilot_sw__revolve_cut` | sketch 绕 centerline 旋转切除 (FeatureRevolve2 IsCut=true, **M34 happy ✓** profile 须重叠 body + 含 centerline) |
 | create_cylinder | `mcp__mech_pilot_sw__create_cylinder` | 圆柱零件 |
 | create_flange | `mcp__mech_pilot_sw__create_flange` | 法兰 / 端盖 / 周向孔板 |
 | create_rectangular_block | `mcp__mech_pilot_sw__create_rectangular_block` | 长方体零件 (L×W×H 居中) |
@@ -81,7 +82,7 @@ dedicated 探索 — sweep CreateDefinition path + FeatureCut2 face-based state)
 | add_mate_angle | `mcp__mech_pilot_sw__add_mate_angle` | 两组件 reference plane 角度 N° 配合 (机械臂关节摆角/摇头风扇) |
 | add_shell | `mcp__mech_pilot_sw__add_shell` | 抽壳 (电机壳/泵壳/容器, 修正 v1 "API 不存在") |
 
-**L1 / L2 验证通过** (671/671 单元测试 + 30 个 PowerShell L2 集成 (M33 spec only)); 后 10 工具
+**L1 / L2 验证通过** (671/671 单元测试 + PowerShell L2 集成, **M34-cut-happy 12 检查几何验证全过**); 后 10 工具
 + create_flange L3 抽测 zero bug (M15); **装配家族 6 工具 (new_assembly +
 add_component + inspect_assembly + add_mate_coincident + add_mate_distance +
 add_mate_concentric) L3 全过 zero bug** (distance + concentric 于 2026-06-04
@@ -96,9 +97,10 @@ M27 create_sphere 复刻 M23 框架 (Create3PointArc 绕开 180° direction
 ambiguity), M28 create_lofted_round_to_square 首个多平面 sketch + v1 PR #27
 InsertProtrusionBlend 复刻, **M29 起开通用原语 layer (new_part/save_part, **M30 sketch primitives 8 工具**,
 **M31 feature extrude/revolve + 联调验证 通用 ≡ 特化**, **M32 loft + add_ref_plane
-+ sweep MVP + LANDMARK 3**, **M33 sweep CreateDefinition + cut variants 暴露
-(happy case 推 M34)**) — 让 LLM 造任意几何。**M33 中断 18 连击** (sweep + cut
-plane-based path 都撞 SW selection state 复杂度, 收 PR 推 M34 dedicated)。
++ sweep MVP + LANDMARK 3**, **M33 sweep CreateDefinition + cut variants 暴露**,
+**M34 cut happy case 落地 — 纠正 M33 误诊 (真因=cut 草图几何位置, 非
+selection/face-based; 诊断 build + 参数矩阵 + 受控几何对照证伪, 不用录宏)**) —
+让 LLM 造任意几何。sweep happy (RPC_E_SERVERFAULT) 仍待 direction A 录宏。
 **`Tools/Internal/PartGeometryHelpers`** 抽出共用 `FindPlanarEndFace` +
 `FindLastUserFeature` + `IsBootFeature` 给 8 工具用。
 **`Tools/Internal/MateHelpers`** 抽出 `SelectFirstPlane` + `FormatAttempts` +
