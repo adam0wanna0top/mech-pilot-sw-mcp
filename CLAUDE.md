@@ -37,7 +37,8 @@ profile/path mark 1/4 + 几何 ⊥)**, 通用 layer 5/5 milestone 全完成。**
 落地 — 又一个被推迟的"吓人"特征 (M27 标记 1-2 天) 第一次试就成 (InsertRib + L-bracket gusset)**。
 **M36 inspect_active (边建边验) — E2E 验证撞到的"盲建"痛点直接孵出, 项目首个 dogfooding-born 工具**。
 **M37 face-based start_sketch (+z/-z/+x/-x/+y/-y 直接选极值平面建草图 — E2E 缺口 #2 闭合, 不用 ref plane)**。
-**47 工具**:
+**M38 modify_feature (改已有特征主尺寸 + 重生成 — 机械 Cursor 第一个"编辑已有几何"原语; 绕开 NoPIA ModifyDefinition bug 改用 Parameter.SystemValue)**。
+**48 工具**:
 
 | Tool | LLM-facing name | 用途 |
 |---|---|---|
@@ -78,6 +79,7 @@ profile/path mark 1/4 + 几何 ⊥)**, 通用 layer 5/5 milestone 全完成。**
 | pattern_circular | `mcp__mech_pilot_sw__pattern_circular` | 绕 ±Z 轴圆周阵列特征 (PCD 孔环等) |
 | inspect_part | `mcp__mech_pilot_sw__inspect_part` | 读取零件元数据（bbox / 特征 / 面+边数） |
 | inspect_active | `mcp__mech_pilot_sw__inspect_active` | 读**活动 doc** 元数据 (bbox/特征/面+边), 不存不关 — 通用 layer 边建边验 (**M36**, E2E 孵出, 共用 PartMetadata) |
+| modify_feature | `mcp__mech_pilot_sw__modify_feature` | 改活动 doc 已有特征主尺寸 + 重生成 (extrude/cut 深度 / revolve 角度) — 机械 Cursor 编辑原语 (**M38**, Parameter.SystemValue 绕 NoPIA ModifyDefinition bug) |
 | export_part | `mcp__mech_pilot_sw__export_part` | 导出 STEP / STL / IGES / Parasolid |
 | new_assembly | `mcp__mech_pilot_sw__new_assembly` | 创建空装配体 (.sldasm) |
 | add_component | `mcp__mech_pilot_sw__add_component` | 把零件/子装配体插入装配体 (x,y,z) 位置 |
@@ -116,11 +118,15 @@ cut=草图几何位置, sweep=InsertProtrusionSwept + mark 1/4 + 几何⊥; 诊�
 four 收口)。**`Tools/Internal/SketchSession`** (M30) 抽出 `RequireActiveDoc` +
 `RequireActiveSketch` + `RequireSketchManager` 给 8 个 sketch 原语共用。
 
-**下一步候选**: save_drawing 工程图 (闭环造-改-装-出图, 反射 M22 已就绪) / rib +
-inspect_active L3 抽测 (待新 session 重启; M37 face-based start_sketch L3 已本 session 验,
-因是已有工具行为扩展) / shell+rib 组合件 (电机壳/泵壳) / 再跑一次 E2E (这次用 inspect_active
-边建边验 + face-based start_sketch, 验证两个 dogfooding 改进协同)。M35 E2E 暴露的 2 缺口
-**已全闭合** (inspect_active M36 + face-based start_sketch M37)。
+**项目方向 (用户定调 2026-06-06): 做"机械版 Cursor" — 交互式 建→看→精准改→重生成,
+加强建模/编辑能力, 不做下游导出 (save_drawing 已被明确否决)。**
+
+**下一步候选 (都朝"编辑已有几何"深化)**: ① 更深 inspection (列每个面/边的法向/质心/面积 +
+特征参数, 让 AI 看清以精准改) / ② 精准实体操作 (给指定边/面倒角圆角/切, 而非 add_fillet
+全选) / ③ 特征管理 (suppress/删除/重命名) / ④ modify_feature 扩展 (sketch 尺寸、fillet
+半径、更多类型) / rib + inspect_active + modify_feature L3 抽测 (待新 session 重启) /
+再跑 E2E (inspect_active 边建边验 + face-based sketch + modify_feature 迭代改尺寸)。
+机械 Cursor 读写闭环已成型: inspect_active (看) + modify_feature (改) + 通用 layer (建)。
 **通用 layer 5/5 已收官** (lifecycle + 8 sketch 原语 + extrude/revolve + loft/sweep/
 add_ref_plane + extrude_cut/revolve_cut) + **M35 rib**。M23-M27 L3 已批量收口 (2026-06-05 几何验证
 5 工具全过, add_shell description 顺手修 frustum/sphere 误标支持)。详见
