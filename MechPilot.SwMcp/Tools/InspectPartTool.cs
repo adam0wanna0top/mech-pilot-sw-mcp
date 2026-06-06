@@ -11,24 +11,21 @@ using SolidWorks.Interop.swconst;
 namespace MechPilot.SwMcp.Tools;
 
 /// <summary>
-/// Reads metadata from an existing part: bounding box, feature list,
+/// Reads metadata from an existing part file: bounding box, feature list,
 /// face / edge counts. Pure read-only — opens with the ReadOnly flag and
-/// closes without saving.
+/// closes without saving. The metadata extraction itself lives in
+/// <see cref="Internal.PartMetadata"/>, shared with <see cref="InspectActiveTool"/>.
 ///
-/// LLM value: lets an LLM "see" a .sldprt it didn't create. Before this
-/// tool the LLM could only guess at a part's size / feature set from the
-/// file name or earlier conversation; now it can ask the part directly
-/// (e.g. before drilling a Φ30 hole into a D20 cylinder, inspect first).
+/// LLM value: lets an LLM "see" a .sldprt it didn't create. Before this tool
+/// the LLM could only guess at a part's size / feature set from the file name
+/// or earlier conversation; now it can ask the part directly (e.g. before
+/// drilling a Φ30 hole into a D20 cylinder, inspect first).
 ///
 /// Pipeline:
 ///   1. OpenDoc6 with Silent | ReadOnly.
-///   2. Read GetTitle, GetFeatureCount, GetPartBox (raw SI meters).
-///   3. For each solid body: GetFaceCount + GetEdgeCount, accumulate.
-///   4. Walk the top-level feature list via IGetFeatures(true), collect
-///      { name, typeName, suppressed } for each.
-///   5. CloseDoc — no save (ReadOnly mode means no dirty state).
-///   6. Return ToolResult with both a human-readable Message and a
-///      structured Data dictionary (CLI --output json surfaces both).
+///   2. Internal.PartMetadata.Build(model) — bbox + body face/edge counts +
+///      top-level feature list → ToolResult.
+///   3. CloseDoc — no save (ReadOnly mode means no dirty state).
 /// </summary>
 [McpServerToolType]
 public static class InspectPartTool
@@ -40,7 +37,9 @@ public static class InspectPartTool
         "edge count across solid bodies, and a bounding box in millimeters. " +
         "Use this to 'see' a part before editing it — e.g. check the diameter " +
         "before drilling a hole that's too large for the part. inputPath must " +
-        "be an absolute path to an existing .sldprt.")]
+        "be an absolute path to an existing .sldprt. (To inspect the part you " +
+        "are currently building in the generic layer without saving, use " +
+        "inspect_active instead.)")]
     public static ToolResult Run(
         [Description("Absolute path to an existing .sldprt to inspect, e.g. C:/tmp/part.sldprt.")]
         string inputPath)
@@ -108,142 +107,13 @@ public static class InspectPartTool
 
         try
         {
-            // ── 2. Document-level metadata ──────────────────────────────────
-            var title = model.GetTitle();
-            var part = (IPartDoc)model;
-
-            // GetPartBox(NoConversion=true) returns raw SI meters (no unit
-            // scaling), as a Variant SAFEARRAY of 6 doubles:
-            //   [minX, minY, minZ, maxX, maxY, maxZ].
-            var boundingBox = ReadBoundingBoxMm(part);
-
-            // ── 3. Body iteration: face + edge counts ───────────────────────
-            var (bodyCount, totalFaceCount, totalEdgeCount) = CountBodyEntities(part);
-
-            // ── 4. Top-level feature walk ───────────────────────────────────
-            var features = ReadTopLevelFeatures(model);
-
-            // ── 5. Build human summary + structured payload ────────────────
-            var sizeXMm = boundingBox is null ? 0 : boundingBox["maxX"] - boundingBox["minX"];
-            var sizeYMm = boundingBox is null ? 0 : boundingBox["maxY"] - boundingBox["minY"];
-            var sizeZMm = boundingBox is null ? 0 : boundingBox["maxZ"] - boundingBox["minZ"];
-            var sizeLabel = boundingBox is null
-                ? "(no bounding box)"
-                : $"{sizeXMm:G6} × {sizeYMm:G6} × {sizeZMm:G6} mm";
-            var featureLabel = features.Count switch
-            {
-                0 => "no features",
-                1 => "1 feature",
-                _ => $"{features.Count} features",
-            };
-
-            var data = new Dictionary<string, object>
-            {
-                ["title"] = title,
-                ["featureCount"] = features.Count,
-                ["bodyCount"] = bodyCount,
-                ["totalFaceCount"] = totalFaceCount,
-                ["totalEdgeCount"] = totalEdgeCount,
-                ["features"] = features,
-                ["sizeMm"] = new Dictionary<string, double>
-                {
-                    ["x"] = sizeXMm,
-                    ["y"] = sizeYMm,
-                    ["z"] = sizeZMm,
-                },
-            };
-            if (boundingBox is not null)
-            {
-                data["boundingBoxMm"] = boundingBox;
-            }
-
-            return ToolResult.Ok(
-                message:
-                    $"'{title}': {sizeLabel}; {bodyCount} body, {featureLabel}, " +
-                    $"{totalFaceCount} faces, {totalEdgeCount} edges",
-                data: data);
+            return Internal.PartMetadata.Build(model);
         }
         finally
         {
             // Read-only doc: clean drop, no Save needed.
             swApp.CloseDoc(model.GetTitle());
         }
-    }
-
-    /// <summary>
-    /// Reads <c>GetPartBox(NoConversion=true)</c> (raw SI meters) and returns
-    /// a {minX,minY,minZ,maxX,maxY,maxZ} dictionary in **mm**. Returns null
-    /// for empty parts (no solid bodies).
-    /// </summary>
-    private static Dictionary<string, double>? ReadBoundingBoxMm(IPartDoc part)
-    {
-        var bboxObj = part.GetPartBox(NoConversion: true);
-        if (bboxObj is not double[] bbox || bbox.Length < 6)
-        {
-            return null;
-        }
-        // SW returns 0..0..0..0..0..0 for parts without bodies; treat as null.
-        if (bbox[0] == 0 && bbox[1] == 0 && bbox[2] == 0 &&
-            bbox[3] == 0 && bbox[4] == 0 && bbox[5] == 0)
-        {
-            return null;
-        }
-        return new Dictionary<string, double>
-        {
-            ["minX"] = bbox[0] * 1000.0,
-            ["minY"] = bbox[1] * 1000.0,
-            ["minZ"] = bbox[2] * 1000.0,
-            ["maxX"] = bbox[3] * 1000.0,
-            ["maxY"] = bbox[4] * 1000.0,
-            ["maxZ"] = bbox[5] * 1000.0,
-        };
-    }
-
-    private static (int bodyCount, int totalFaceCount, int totalEdgeCount) CountBodyEntities(IPartDoc part)
-    {
-        var bodiesObj = part.GetBodies2((int)swBodyType_e.swSolidBody, false);
-        if (bodiesObj is not object[] bodies || bodies.Length == 0)
-        {
-            return (0, 0, 0);
-        }
-        var totalFaces = 0;
-        var totalEdges = 0;
-        foreach (var bodyObj in bodies)
-        {
-            var body = (IBody2)bodyObj;
-            totalFaces += body.GetFaceCount();
-            totalEdges += body.GetEdgeCount();
-        }
-        return (bodies.Length, totalFaces, totalEdges);
-    }
-
-    /// <summary>
-    /// Walks the top-level feature linked list via IFeature.GetNextFeature
-    /// and returns only the user-meaningful features (no SW-internal boot
-    /// nodes). Boot filter lives in
-    /// <see cref="Internal.PartGeometryHelpers.IsBootFeature"/> — single
-    /// source of truth shared with mirror_feature / pattern_linear's
-    /// auto-pick of the seed feature.
-    /// </summary>
-    private static List<Dictionary<string, object>> ReadTopLevelFeatures(IModelDoc2 model)
-    {
-        var features = new List<Dictionary<string, object>>();
-        var feature = model.FirstFeature() as IFeature;
-        while (feature != null)
-        {
-            var typeName = feature.GetTypeName2() ?? feature.GetTypeName() ?? "";
-            if (!Internal.PartGeometryHelpers.IsBootFeature(typeName))
-            {
-                features.Add(new Dictionary<string, object>
-                {
-                    ["name"] = feature.Name ?? "",
-                    ["typeName"] = typeName,
-                    ["suppressed"] = feature.IsSuppressed(),
-                });
-            }
-            feature = feature.GetNextFeature() as IFeature;
-        }
-        return features;
     }
 #endif
 }

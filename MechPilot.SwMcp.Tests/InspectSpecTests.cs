@@ -81,4 +81,13 @@ public class InspectSpecTests : IDisposable
         var ex = Assert.Throws<McpToolException>(spec.Validate);
         Assert.Contains("does not exist", ex.Message);
     }
+
+    // ── InspectActiveSpec (M36) — no parameters, reads the active doc ──────
+
+    [Fact]
+    public void InspectActiveSpec_validates_with_no_parameters()
+    {
+        // Empty spec: Validate is a no-op and must never throw.
+        new InspectActiveSpec().Validate();
+    }
 }
