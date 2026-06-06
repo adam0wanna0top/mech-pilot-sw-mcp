@@ -986,6 +986,70 @@ hemisphere/frustum (revolve 模板) — 后续相同类零件 0.5-1h 可加新�
 `MateHelpers`), 后续相似模式 (例如未来 sketch primitives 共用 / drawing view 选择
 共用) 都可按此模式独立 refactor PR 推进。
 
+### M34 — extrude_cut + revolve_cut happy case 落地 (PR #?, 2026-06-06) — 纠正 M33 误诊: 真因是几何不是 selection
+
+**M33 留下的 3 个 happy case，先攻 cut 两个 (用户「先干 B」)。结论: M33 的根因
+诊断完全错了。** extrude_cut + revolve_cut 现在都能造出几何验证通过的零件; sweep
+(RPC fault) 仍待 direction A (录宏)。
+
+- **M33 误诊 vs M34 实测真因 (本里程碑核心)**:
+  - M33 说: FeatureCut2 失败是 "face-based vs plane-based sketch" + "selection
+    state" 差异, 结论 "必须录宏"
+  - M34 实测 (诊断 build + 参数矩阵 + 几何 sweep 探针) 证伪两条:
+    1. **selection state 完全相同**: end_sketch 后 implicit selection =
+       `count=1, type=9 (SKETCHES)`, 与 M3 字节级一致; SelectByID2(mark=0) 选出
+       的也是 `count=1, type=9`。**implicit 和 reselect 两条路 FeatureCut2 都 null**
+       → selection 机制不是因
+    2. **plane-based 完全能用**: 真因是 **cut 草图所在平面的几何位置**
+  - **真因**: cut 草图必须在 body 的"入口面"对应平面上 (如顶面 ref plane),
+    **不能在挤出 body 的那个 base 构造面 (Front Plane) 上**。
+    - 几何 1 (方块在 Front Plane Z=0 底面): 6 种 (ThroughAll/Blind × flip × dir)
+      组合**全 null**, 连 both-direction 都不行
+    - 几何 2 (方块在 ref plane Z=30 顶面, 向下切): M3-exact (ThroughAll D1=0
+      flip=F) **一次成功** → 切除-拉伸1
+  - M33 大概只在 Front Plane (几何 1) 上测过就下了 "plane-based 不行" 的结论 —
+    没换几何 sweep, 把"基准面位置"误判成"face-based 要求"
+- **诊断方法 (沉淀)**: silent fail 不要猜根因。改 tool 成"诊断 build"
+  (Console.Error 打 selection count/type + 跑参数矩阵, 每次 attempt 前重选),
+  L2 探针跑**两种几何**对照 — 一次 build 同时证伪 selection 假设 + 锁定几何变量。
+  比"反射 + 文档猜 + 录宏"快得多 (M33 撞墙的地方 ~1h 定位)。
+- **extrude_cut 修法**: `T1=ThroughAll, D1=depthM` (M33 自相矛盾) →
+  `T1=Blind, D1=depthM` (depth ≥ body 厚 = 穿透孔, honor depth 参数)。
+  加**方向自动回退**: 先试 `spec.Reverse`, null 再试 `!spec.Reverse` (每次重选);
+  cut 打偏 body 返 null 无副作用, 第一个非 null 即正确方向 — LLM 不用算方向符号。
+- **revolve_cut 修法**: **SW 代码零改动** — M33 的 FeatureRevolve2(IsCut=true) +
+  SelectByID2(mark=0) 本就正确, 被 extrude_cut 的误诊连累。只补几何指引文档 +
+  错误消息。真要点: profile 必须**重叠 body** (V 槽 = 贴 body 外表面的三角) + 含
+  centerline 作轴。
+- **几何验证 (硬证据, M22 模板)**:
+  - extrude_cut: cyl D40×30 + 顶面 ref plane + 10×10 方块向下切 50mm →
+    bbox 40×40×30, **7 faces** (3 圆柱 + 4 方孔内壁), **14 edges** (上下方各 4 + 竖 4 +
+    原 2 圆) — 干净方通孔
+  - revolve_cut: cyl D40×30 (revolve 绕 Y) + 切 V 槽 (revolve_cut 360°) →
+    bbox 40×30×40, **6 faces** (顶底 + 上下侧带 + 2 锥面槽壁), **5 edges**
+- **测试**:
+  - L1: 671/671 unchanged (复用 ExtrudeSpec / RevolveSpec, spec 没变)
+  - L2: `M34-cut-happy.test.ps1` 12 检查全过 (extrude_cut 几何 + revolve_cut 几何 +
+    base-plane cut 被友好拒绝 + 几何指引消息防回归); M33 test 改成 cut-skip → done 注记
+  - **L3 (黄金法则 #13)**: 两个工具都在长寿命 MCP server 上抽测过 (extrude_cut
+    11 工具链 + revolve_cut 13 工具链), 几何与 L2 完全一致, 热 server 不挂
+  - dotnet format clean, build 0 warnings 0 errors
+- **L3 实测注意**: ToolSearch 给的 tool 描述是 session 启动时缓存的旧版, **但执行
+  走 live server 新代码** (geom-2 在旧码 null / 新码成功, 是新代码已加载的硬证据)。
+  抽测前 `Stop-Process mech-pilot-sw` 强制下次调用 re-spawn 新 build。
+
+**意义**: **通用 layer cut 能力落地** — LLM 现在真能在已有 body 上挖任意截面孔
+(方孔/异形槽/窗口) + 旋转切槽 (V 槽/退刀槽/密封槽)。**LANDMARK 4 (cut 部分) 达成**:
+通用 extrude_cut / revolve_cut 几何验证通过。**B 计划双层 API 再加两块拼图**。
+通用 layer 还差 sweep (5/5 的最后一个 happy case)。
+
+**最大教训 (诚实, 比代码更值钱)**: **M33 "18 连击中断、必须录宏" 是误诊**。
+silent fail 时把多个假设 (selection / plane-type / 几何 / 方向 / API 参数) **用
+诊断 build + 参数矩阵 + 受控几何对照逐个证伪**, 比凭直觉归因 + 升级到录宏快且准。
+反射看签名解决不了运行时 selection/几何语义 — 但**复现 + 矩阵探针**能 (不用录宏)。
+sweep 的 RPC_E_SERVERFAULT 是另一层 (server 直接拒绝, 非 silent null), 那个可能
+真要录宏 — M34 没碰, 留 direction A。
+
 ### M33 — sweep CreateDefinition + extrude_cut + revolve_cut (PR #?, 2026-06-05) — spec/CLI/MCP 暴露 + 18 连击中断
 
 **通用 layer 第 5 步收尾尝试** —— 但**M33 happy case 全部撞 SW selection state

@@ -11,12 +11,22 @@ namespace MechPilot.SwMcp.Tools;
 
 /// <summary>
 /// Cut a body by revolving a named sketch around its embedded centerline.
-/// M33 generic-layer counterpart to <see cref="RevolveTool"/> — same input
-/// spec (<see cref="RevolveSpec"/>), but calls <c>FeatureRevolve2</c> with
+/// Generic-layer counterpart to <see cref="RevolveTool"/> — same input spec
+/// (<see cref="RevolveSpec"/>), but calls <c>FeatureRevolve2</c> with
 /// <c>IsCut=true</c> to remove material instead of adding it.
 ///
 /// Common LLM use: turn a groove, cut a shaped hollow, machine a profile
 /// into an existing axis-symmetric body.
+///
+/// M34 verification: the M33 code is correct as-is — the SW logic (selection +
+/// FeatureRevolve2 IsCut=true) was never the problem. The M33 "failure" was a
+/// geometry/test-setup issue shared with extrude_cut's misdiagnosis. What
+/// actually matters: (a) the sketch must contain the profile AND a centerline
+/// (SW binds the centerline as the revolve axis), and (b) the profile must
+/// overlap the existing body so there is material to remove — e.g. for a
+/// circumferential V groove on a D40 cylinder (axis Y, built via revolve), a
+/// triangle touching the radius-20 surface at the desired height, revolved 360°.
+/// Verified: cylinder + V groove → '切除-旋转1', bbox 40×30×40, 6 faces / 5 edges.
 /// </summary>
 [McpServerToolType]
 public static class RevolveCutTool
@@ -25,11 +35,15 @@ public static class RevolveCutTool
     [Description(
         "Revolve-cut: revolve a named sketch around its embedded centerline " +
         "and SUBTRACT the resulting volume from the active body. sketchName " +
-        "is from end_sketch and must contain a profile + a centerline. angle " +
-        "is the sweep in degrees (default 360). Generic-layer counterpart to " +
-        "revolve — same spec, uses FeatureRevolve2 with IsCut=true. Common " +
-        "uses: turn a groove, cut a shaped hollow, machine a profile into an " +
-        "existing axis-symmetric body. The active part MUST already have a body.")]
+        "is from end_sketch and MUST contain a closed profile + a centerline " +
+        "(the centerline is the revolve axis). angle is the sweep in degrees " +
+        "(default 360). Generic-layer counterpart to revolve — same spec, uses " +
+        "FeatureRevolve2 with IsCut=true. The profile must OVERLAP the existing " +
+        "body so there is material to remove — e.g. for a circumferential V " +
+        "groove, draw a small triangle touching the body's outer surface at the " +
+        "groove height, with the centerline on the body's axis. The active part " +
+        "MUST already have a body. Common uses: turn a groove, cut a shaped " +
+        "hollow, machine a profile into an axis-symmetric body.")]
     public static ToolResult Run(
         [Description("Name of the sketch to revolve-cut (from end_sketch, must contain centerline).")]
         string sketchName,
@@ -109,8 +123,11 @@ public static class RevolveCutTool
         {
             throw new McpToolException(
                 $"FeatureRevolve2 (IsCut=true) returned null for sketch " +
-                $"'{spec.SketchName}' angle {spec.AngleDeg}°. Common causes: " +
-                "no body to cut from, or the cut doesn't intersect any body.");
+                $"'{spec.SketchName}' angle {spec.AngleDeg}°. Common causes: the " +
+                "sketch has no centerline (needed as the revolve axis); the " +
+                "profile is open / self-intersecting; there is no body to cut; or " +
+                "the profile does not overlap the body (position it to touch the " +
+                "body's surface, e.g. a triangle on the radius-R outer face for a groove).");
         }
 
         var featureName = feature.Name ?? "(unnamed)";

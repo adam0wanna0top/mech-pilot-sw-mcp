@@ -50,25 +50,12 @@ try {
     # McpToolException on failure rather than silent null.
     Write-Host "[skip] sweep happy-case still requires M34 dedicated exploration"
 
-    # ═══════════════════════════════════════════════════════════════════════
-    # NOTE: extrude_cut + revolve_cut happy-cases ALSO require M34 exploration.
-    #
-    # Problem: FeatureCut2 / FeatureRevolve2(IsCut=true) returned null when
-    # invoked via the generic-layer plane-based sketch + SelectByID2(mark=0)
-    # path used in ExtrudeCutTool / RevolveCutTool.
-    # M3's CreateFlangeTool successfully invokes FeatureCut2 — but it uses a
-    # FACE-BASED sketch (drilled on the existing flange face), not a plane-
-    # based one. The sketch selection state after exiting a face-based sketch
-    # appears to be different from after a plane-based sketch + manual
-    # SelectByID2.
-    #
-    # The cut tools are exposed (spec validation + CLI/MCP registered) so LLM
-    # power-users can invoke them and may succeed with carefully constructed
-    # state; happy-case L2 verification waits for M34 dedicated exploration
-    # (record macro + selection-state binding inspection).
-    Write-Host "[skip] extrude_cut + revolve_cut happy-cases require M34 dedicated exploration"
-    Write-Host "       (FeatureCut2 needs face-based sketch + implicit selection state,"
-    Write-Host "        plane-based + SelectByID2 path returns null — M3 trick was face-based)"
+    # extrude_cut + revolve_cut happy-cases are now VERIFIED in M34
+    # (tests/integration/M34-cut-happy.test.ps1). The M33 "face-based required /
+    # selection-state" guess was wrong — the real cause was geometry (cut sketch
+    # must sit on a plane/face that bounds the body; revolve profile must overlap
+    # the body). See the M34 test header for the corrected recipe.
+    Write-Host "[done] extrude_cut + revolve_cut happy-cases verified in M34-cut-happy.test.ps1"
 
     Write-Host ''
     Write-Host '[ok] M33 spec/CLI/MCP layer verified for sweep + extrude_cut + revolve_cut'
