@@ -986,6 +986,41 @@ hemisphere/frustum (revolve 模板) — 后续相同类零件 0.5-1h 可加新�
 `MateHelpers`), 后续相似模式 (例如未来 sketch primitives 共用 / drawing view 选择
 共用) 都可按此模式独立 refactor PR 推进。
 
+### M37 — face-based start_sketch (PR #?, 2026-06-06) — E2E 缺口 #2: 草图直接选面, 不用 ref plane
+
+**M35 E2E 暴露的第 2 个缺口闭合** (#1 是 inspect_active/M36): start_sketch 现在除
+平面外, 接受**面选择器 `+z`/`-z`/`+x`/`-x`/`+y`/`-y`** → 在「外法向朝该方向的极值平面」
+上开草图 (如 `+z` = 当前最高的朝上平面 = 当前顶面)。LLM 往上/下/侧建特征时不用先
+`add_ref_plane` 到那个精确高度 + 心算 Z。
+
+- **`PartGeometryHelpers.FindExtremePlanarFace(model, axis, sign)`**: 泛化
+  FindPlanarEndFace —— 扫所有 body 的平面, 外法向 `normal[axis]*sign > 0.99`,
+  按沿轴位置取极值 (+ 取 GetBox max-corner, - 取 min-corner)。反射确认
+  `IFace2.GetBox()→Object(double[6])` + `Normal→Object(double[3])` (golden rule #5)。
+- **StartSketchTool**: `TryParseFaceSelector` 解析 `^[+-][xyz]$` (不撞 front/top/right
+  /RefPlane 名 → 落到原平面路径); 命中则 FindExtremePlanarFace → `((IEntity)face).
+  Select4` → InsertSketch (face-based, 同 M3 create_flange 的 face 草图)。
+- **顺带修 E2E 缺口 #3**: 面-based extrude 方向**可预测** (默认朝 body 外), 比 plane-based
+  少一次方向赌 (M35 我盲赌凸台 +Z)。
+- **测试**:
+  - L1: 685 unchanged (StartSketchSpec.Validate 只查非空, `+z` 非空 → 工具内解析)
+  - L2: `M37-face-start-sketch.test.ps1` 6 检查全过: 用**纯 `+z`** 复刻 M35 bracket
+    (plate + boss + bore, 零 add_ref_plane) → bbox 80×80×30 / 1 body / **9 faces**;
+    9 faces 证第 2 个 `+z` 选中**凸台顶 (Z=30)** 而非板顶 (bore 穿透了凸台) = 极值面
+    选择正确; + 空 part `+z` 友好拒绝。
+  - **L3 (本 session 即验!)**: start_sketch 是**已有工具** (session 启动已注册),
+    我只扩展行为 (MCP 接口 `plane:string` 不变), 故 `+z` 本 session 就能 MCP 调 ——
+    disk D40 + `+z` 顶面加 boss → bbox 40×40×20, boss 在顶 (证 `+z` 选面 + 面-extrude
+    朝外)。**旧码会把 `+z` 当字面平面名 SelectByID2 失败, 成功即证新码上线** (对比
+    rib/inspect_active 那种全新工具要 server 重启)。
+  - build 0 warnings, dotnet format clean
+
+**意义**: dogfooding 闭环第 2 个缺口闭合, 通用 layer 多特征建模再降门槛 —— 「在顶面/侧面
+加特征」从「算高度→add_ref_plane→start_sketch」3 步降到「start_sketch('+z')」1 步。
+**已有工具的行为扩展可当 session L3** (vs 全新工具待重启) 是个有用的区分。
+**局限**: `+z` 只选极值面 (最外那个); 要选被覆盖的内层面 (如凸台下的板顶) 仍需 ref plane —
+future 可加「某特征的顶/底面」或按坐标的面选择。
+
 ### M36 — inspect_active (PR #?, 2026-06-06) — E2E 验证孵出的第一个工具 (边建边验)
 
 **项目首个"由自家 dogfooding 孵出"的工具** —— 不是 v1 移植、不是 catalog 形状, 而是

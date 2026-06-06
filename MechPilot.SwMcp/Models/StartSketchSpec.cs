@@ -9,6 +9,11 @@ namespace MechPilot.SwMcp.Models;
 /// The plane can be one of:
 ///   • "front" / "top" / "right" (case-insensitive) — SW's default
 ///     reference planes
+///   • A face selector "+x" / "-x" / "+y" / "-y" / "+z" / "-z" (M37) —
+///     sketch directly on the outermost planar body face whose outward
+///     normal points that way (e.g. "+z" = the current top face). Lets the
+///     LLM build onto an existing face without first creating a RefPlane at
+///     that height. Requires an existing solid body.
 ///   • Any other string — interpreted as a literal SW plane name
 ///     (e.g. "基准面1" or "Plane1" for auto-created RefPlanes from
 ///     add_ref_plane, or a custom-named plane).
