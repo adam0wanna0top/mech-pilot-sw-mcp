@@ -4,8 +4,8 @@ using MechPilot.SwMcp.Models;
 namespace MechPilot.SwMcp.Tests;
 
 /// <summary>
-/// L1 unit tests for the M32 advanced feature specs (AddRefPlaneSpec /
-/// LoftSpec / SweepSpec).
+/// L1 unit tests for the advanced feature specs (M32 AddRefPlaneSpec /
+/// LoftSpec / SweepSpec + M35 RibSpec).
 /// </summary>
 public class AdvancedFeatureSpecTests
 {
@@ -140,5 +140,65 @@ public class AdvancedFeatureSpecTests
     {
         Assert.Throws<McpToolException>(() =>
             new SweepSpec { ProfileSketchName = "Sketch1", PathSketchName = "sketch1" }.Validate());
+    }
+
+    // ── RibSpec ──────────────────────────────────────────────────────────
+
+    [Fact]
+    public void RibSpec_canonical_validates()
+    {
+        new RibSpec { SketchName = "草图2", ThicknessMm = 6 }.Validate();
+    }
+
+    [Theory]
+    [InlineData(0.1)]
+    [InlineData(6)]
+    [InlineData(1000)]
+    public void RibSpec_valid_thicknesses_validate(double t)
+    {
+        new RibSpec { SketchName = "草图1", ThicknessMm = t }.Validate();
+    }
+
+    [Fact]
+    public void RibSpec_reverse_flag_validates()
+    {
+        new RibSpec { SketchName = "草图1", ThicknessMm = 6, Reverse = true }.Validate();
+    }
+
+    [Theory]
+    [InlineData("")]
+    [InlineData("   ")]
+    public void RibSpec_empty_sketch_name_is_rejected(string s)
+    {
+        Assert.Throws<McpToolException>(() =>
+            new RibSpec { SketchName = s, ThicknessMm = 6 }.Validate());
+    }
+
+    [Theory]
+    [InlineData(0)]
+    [InlineData(-6)]
+    public void RibSpec_non_positive_thickness_is_rejected(double t)
+    {
+        var ex = Assert.Throws<McpToolException>(() =>
+            new RibSpec { SketchName = "草图1", ThicknessMm = t }.Validate());
+        Assert.Contains("> 0", ex.Message);
+    }
+
+    [Theory]
+    [InlineData(double.NaN)]
+    [InlineData(double.PositiveInfinity)]
+    public void RibSpec_non_finite_thickness_is_rejected(double t)
+    {
+        Assert.Throws<McpToolException>(() =>
+            new RibSpec { SketchName = "草图1", ThicknessMm = t }.Validate());
+    }
+
+    [Theory]
+    [InlineData(0.05)]    // below 0.1 mm min
+    [InlineData(1001)]    // above 1000 mm max
+    public void RibSpec_thickness_outside_range_is_rejected(double t)
+    {
+        Assert.Throws<McpToolException>(() =>
+            new RibSpec { SketchName = "草图1", ThicknessMm = t }.Validate());
     }
 }

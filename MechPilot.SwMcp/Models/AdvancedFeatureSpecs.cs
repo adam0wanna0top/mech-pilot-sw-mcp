@@ -149,3 +149,57 @@ public sealed record SweepSpec
         }
     }
 }
+
+/// <summary>
+/// Specification for a rib (stiffener / gusset) feature: thicken an OPEN
+/// sketch contour into a structural rib that fills toward the existing body
+/// walls. M35 generic-layer feature.
+///
+/// LLM workflow (gusset rib in an L-bracket extruded along Z):
+///   ... build the L-bracket body ...
+///   add_ref_plane("front", 15)              ← a plane mid-way along the bracket
+///   start_sketch("基准面1") → sketch_line (a diagonal across the inner corner) → end_sketch
+///   rib("草图N", thickness=6)
+///
+/// Wraps SW's <c>InsertRib</c> (10 args, reflected). InsertRib returns void,
+/// so success is detected by scanning for a "Rib" feature afterward, not a
+/// return value. The rib sketch must be an OPEN contour positioned so the rib
+/// can reach the body walls; thickness is applied normal to the sketch plane.
+/// </summary>
+public sealed record RibSpec
+{
+    /// <summary>Name of the open-contour sketch to thicken into a rib (from end_sketch).</summary>
+    public required string SketchName { get; init; }
+
+    /// <summary>Rib thickness in mm (applied normal to the sketch plane). Must be &gt; 0.</summary>
+    public required double ThicknessMm { get; init; }
+
+    /// <summary>
+    /// If true, flip the side the rib material fills toward. Default false.
+    /// The tool auto-detects the fill direction, so this is rarely needed.
+    /// </summary>
+    public bool Reverse { get; init; } = false;
+
+    private const double MinThicknessMm = 0.1;
+    private const double MaxThicknessMm = 1000.0;
+
+    public void Validate()
+    {
+        if (string.IsNullOrWhiteSpace(SketchName))
+        {
+            throw new McpToolException(
+                "sketchName must not be empty. Pass the name returned from end_sketch.");
+        }
+        if (double.IsNaN(ThicknessMm) || double.IsInfinity(ThicknessMm) || ThicknessMm <= 0)
+        {
+            throw new McpToolException(
+                $"thickness must be > 0 mm (got {ThicknessMm}). Hint: pass millimeters, e.g. 6.");
+        }
+        if (ThicknessMm < MinThicknessMm || ThicknessMm > MaxThicknessMm)
+        {
+            throw new McpToolException(
+                $"thickness {ThicknessMm} mm is outside the supported range " +
+                $"[{MinThicknessMm}, {MaxThicknessMm}] mm.");
+        }
+    }
+}

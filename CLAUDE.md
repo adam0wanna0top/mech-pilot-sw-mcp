@@ -33,8 +33,9 @@
 bbox 完全匹配)**, M33 cut variants spec/CLI/MCP 暴露, **M34 cut happy case
 落地 (extrude_cut/revolve_cut 几何验证过 — 纠正 M33 误诊: 真因是 cut 草图几何
 位置, 非 selection/face-based)**, **M34 sweep happy 也落地 (InsertProtrusionSwept +
-profile/path mark 1/4 + 几何 ⊥)**, 通用 layer 5/5 milestone 全完成。
-**43 工具**:
+profile/path mark 1/4 + 几何 ⊥)**, 通用 layer 5/5 milestone 全完成。**M35 rib (加强筋)
+落地 — 又一个被推迟的"吓人"特征 (M27 标记 1-2 天) 第一次试就成 (InsertRib + L-bracket gusset)**。
+**46 工具**:
 
 | Tool | LLM-facing name | 用途 |
 |---|---|---|
@@ -56,6 +57,7 @@ profile/path mark 1/4 + 几何 ⊥)**, 通用 layer 5/5 milestone 全完成。
 | sweep | `mcp__mech_pilot_sw__sweep` | 路径扫掠 (**M34 happy ✓** InsertProtrusionSwept + profile mark=1/path mark=4 + profile⊥path; 弯管/扇叶路径) |
 | extrude_cut | `mcp__mech_pilot_sw__extrude_cut` | sketch 拉伸切除 (FeatureCut2, **M34 happy ✓** Blind-to-depth + 草图须在 body 入口面非 base 面 + 方向自动回退) |
 | revolve_cut | `mcp__mech_pilot_sw__revolve_cut` | sketch 绕 centerline 旋转切除 (FeatureRevolve2 IsCut=true, **M34 happy ✓** profile 须重叠 body + 含 centerline) |
+| rib | `mcp__mech_pilot_sw__rib` | 加强筋/gusset (**M35 ✓** InsertRib 返 void→数 Rib 特征检测 + 方向自动回退; 草图开放轮廓跨壁, 2sided/parallel) |
 | create_cylinder | `mcp__mech_pilot_sw__create_cylinder` | 圆柱零件 |
 | create_flange | `mcp__mech_pilot_sw__create_flange` | 法兰 / 端盖 / 周向孔板 |
 | create_rectangular_block | `mcp__mech_pilot_sw__create_rectangular_block` | 长方体零件 (L×W×H 居中) |
@@ -102,6 +104,8 @@ InsertProtrusionBlend 复刻, **M29 起开通用原语 layer (new_part/save_part
 **M34 cut + sweep happy case 落地 — 纠正 M33 三连误诊 (真因都不是 selection/录宏:
 cut=草图几何位置, sweep=InsertProtrusionSwept + mark 1/4 + 几何⊥; 诊断 build + 矩阵 +
 反射证伪, 全程零录宏)**) — 让 LLM 造任意几何, **通用 layer 5/5 收官**。
+**M35 rib (加强筋) 落地 — InsertRib (返 void→数 Rib 特征检测) + L-bracket gusset 第一次试就成,
+又证 M27"1-2 天 scary 探索"是高估 (同 M34 cut/sweep playbook, 反射+几何就行)**。
 **`Tools/Internal/PartGeometryHelpers`** 抽出共用 `FindPlanarEndFace` +
 `FindLastUserFeature` + `IsBootFeature` 给 8 工具用。
 **`Tools/Internal/MateHelpers`** 抽出 `SelectFirstPlane` + `FormatAttempts` +
@@ -109,10 +113,10 @@ cut=草图几何位置, sweep=InsertProtrusionSwept + mark 1/4 + 几何⊥; 诊�
 four 收口)。**`Tools/Internal/SketchSession`** (M30) 抽出 `RequireActiveDoc` +
 `RequireActiveSketch` + `RequireSketchManager` 给 8 个 sketch 原语共用。
 
-**下一步候选**: save_drawing 工程图 (闭环造-改-装-出图) / rib (加强筋, ~1-2 天深
-sketch+selection 探索) / 通用 layer E2E 体验 (LLM 自然语言造弯管/异形件/旋转切槽)。
+**下一步候选**: save_drawing 工程图 (闭环造-改-装-出图, 反射 M22 已就绪) / 通用 layer
+E2E 体验 (LLM 自然语言造弯管/异形件/旋转切槽/加强筋) / shell+rib 组合件 (电机壳/泵壳)。
 **通用 layer 5/5 已收官** (lifecycle + 8 sketch 原语 + extrude/revolve + loft/sweep/
-add_ref_plane + extrude_cut/revolve_cut)。M23-M27 L3 已批量收口 (2026-06-05 几何验证
+add_ref_plane + extrude_cut/revolve_cut) + **M35 rib**。M23-M27 L3 已批量收口 (2026-06-05 几何验证
 5 工具全过, add_shell description 顺手修 frustum/sphere 误标支持)。详见
 [`docs/DEV_LOG.md`](docs/DEV_LOG.md) "下一步候选" 段。
 

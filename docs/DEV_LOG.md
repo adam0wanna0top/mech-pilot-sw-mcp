@@ -986,6 +986,50 @@ hemisphere/frustum (revolve 模板) — 后续相同类零件 0.5-1h 可加新�
 `MateHelpers`), 后续相似模式 (例如未来 sketch primitives 共用 / drawing view 选择
 共用) 都可按此模式独立 refactor PR 推进。
 
+### M35 — rib / 加强筋 (PR #?, 2026-06-06) — 第 4 个被推迟的"吓人"特征第一次试就成
+
+**rib 自 M27 被推迟 4 次, 标记"1-2 天深 sketch+selection 探索, 50% silent fail 风险"
+(v1 撞 "selection 不识")。结果跟 M34 cut/sweep 一样: 反射签名 + 正确几何 + 标准选项,
+第一个合理参数组合就成。** M27 的"吓人"评估是高估; v1 的失败是 late-binding 假象,
+不是真 SW 复杂度。
+
+- **反射 InsertRib (golden rule #5)**: `InsertRib(Is2Sided, ReverseThicknessDir,
+  Thickness, ReferenceEdgeIndex, ReverseMaterialDir, IsDrafted, DraftOutward,
+  DraftAngle, IsNormToSketch, IsDraftedFromWall)` → **返回 Void (不是 Feature!)**。
+  这是 rib 真正的特殊点: 不能靠返回值 null-check 检测 silent fail。
+- **检测手法 (因 void)**: 数零件里 type=="Rib" 的特征, InsertRib 前后比对 count delta。
+  方向自动回退: rib 背离 body 壁 → 产不出 (count 不变), 先试 spec.Reverse 再试反向。
+- **诊断矩阵一击中**: 扫 (Is2Sided × ReverseMaterialDir × IsNormToSketch) 6 组合,
+  **第 1 个 (2sided / parallel-to-sketch / matDir=F) 就出 rib** → 切到正式版固定该组合。
+- **几何 (L-bracket gusset)**: Front Plane 画 L 型闭轮廓 (横腿 y0..8 + 竖腿 x0..8,
+  内角 (8,8)) → extrude +Z 30 = 角铁; add_ref_plane(front, 15) 中部平面 → 在其上画
+  对角线 (8,28)→(28,8) 跨内角两壁 → rib(thickness=6) 填三角 gusset (Z 厚 6 居中)。
+- **固定选项**: Is2Sided=true (厚度对称, 草图放跨度中部平面), IsNormToSketch=false
+  (parallel-to-sketch, rib 在平面内长到壁), 无 draft — cover 通用 gusset/stiffener。
+- **几何验证 (M22 模板)**: 纯 L-bracket = 8 faces / 18 edges; 加 gusset rib →
+  **11 faces / 27 edges** (gusset +3 面 +9 边), bbox 40×40×30 不变 (rib 在包围盒内)。
+- **测试**:
+  - L1: +13 RibSpec 用例 (= 684 total): sketchName + thickness 边界 [0.1, 1000]
+  - L2: `M35-rib.test.ps1` 6 检查全过 (rib 成功消息 + 1 body + bbox + 11 faces +
+    27 edges + inspect features 含 "Rib" type)
+  - **L3: 待新 session 重启抽测** — rib 是新工具, MCP server 在 session 启动时注册
+    工具列表, 新增工具要 server 重启才出现在协议层 (golden rule #13 标准 fallback)。
+    rib 用的 `RunWithSpec` 路径与已过 L3 的工具相同, L2 已端到端验证 (CLI fresh exe
+    连共享 SW), 仅长寿命 server 维度待补。
+  - build 0 warnings, dotnet format clean
+- **新工具脚手架**: `Models/AdvancedFeatureSpecs.cs` +RibSpec; `Tools/RibTool.cs`;
+  CLI `rib` 子命令; MCP `[McpServerTool(Name="rib")]` 自动注册。
+
+**意义**: **+1 工具 (rib)** (CLAUDE 旧 label "43" 是 pre-existing 漂移, 表格机械计数 +rib)。
+通用 layer 在 5/5 收官之上再加结构筋能力。LLM 现在能 "给这个支架加个加强筋" /
+"电机壳壁之间加筋" 一句话。**4 个被推迟的"吓人"特征 (extrude_cut/revolve_cut/sweep/rib)
+全部用同一 playbook 拆掉**: 反射真签名 → 简单 API/标准选项 → 诊断 build 矩阵 + 受控几何
+→ 正式版。零录宏。
+
+**最大教训 (M34 教训的再确认)**: "被前人标记为难/要录宏/要 N 天" 的 SW 特征先别信。
+**反射签名 (尤其注意返回类型 — rib 返 void 改变了检测策略) + 复现 + 矩阵探针**几乎总能
+找到简单解。M27 把 rib 估成 "1-2 天 + 50% 失败", 实际 ~40 分钟一次过。
+
 ### M34 — extrude_cut + revolve_cut + sweep happy case 落地 (PR #40 cuts + PR #? sweep, 2026-06-06) — 纠正 M33 三连误诊
 
 **M33 留下的 3 个 happy case 全部落地，全程零录宏。结论: M33 的根因诊断三次全错。**
