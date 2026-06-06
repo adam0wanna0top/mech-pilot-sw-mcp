@@ -36,6 +36,7 @@ public static class CliRunner
         root.Subcommands.Add(BuildSweepCommand());
         root.Subcommands.Add(BuildExtrudeCutCommand());
         root.Subcommands.Add(BuildRevolveCutCommand());
+        root.Subcommands.Add(BuildRibCommand());
         root.Subcommands.Add(BuildCreateCylinderCommand());
         root.Subcommands.Add(BuildCreateHemisphereCommand());
         root.Subcommands.Add(BuildCreateSphereCommand());
@@ -564,6 +565,32 @@ public static class CliRunner
                     Reverse = parseResult.GetValue(reverseOpt),
                 };
                 WriteResult(RevolveCutTool.RunWithSpec(spec), parseResult.GetValue(formatOpt) ?? "text");
+                return 0;
+            }
+            catch (McpToolException ex) { Console.Error.WriteLine($"[error] {ex.Message}"); return 1; }
+        });
+        return cmd;
+    }
+
+    private static Command BuildRibCommand()
+    {
+        var sketchOpt = new Option<string>("--sketch") { Description = "Open-contour rib sketch name (from end_sketch).", Required = true };
+        var thicknessOpt = new Option<double>("--thickness") { Description = "Rib thickness (mm, > 0).", Required = true };
+        var reverseOpt = new Option<bool>("--reverse") { Description = "Flip rib fill direction.", DefaultValueFactory = _ => false };
+        var formatOpt = new Option<string>("--output") { Description = "text | json", DefaultValueFactory = _ => "text" };
+        var cmd = new Command("rib", "Add a structural rib (stiffener / gusset) by thickening an open sketch.")
+        { sketchOpt, thicknessOpt, reverseOpt, formatOpt };
+        cmd.SetAction(parseResult =>
+        {
+            try
+            {
+                var spec = new RibSpec
+                {
+                    SketchName = parseResult.GetValue(sketchOpt) ?? string.Empty,
+                    ThicknessMm = parseResult.GetValue(thicknessOpt),
+                    Reverse = parseResult.GetValue(reverseOpt),
+                };
+                WriteResult(RibTool.RunWithSpec(spec), parseResult.GetValue(formatOpt) ?? "text");
                 return 0;
             }
             catch (McpToolException ex) { Console.Error.WriteLine($"[error] {ex.Message}"); return 1; }
