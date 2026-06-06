@@ -986,11 +986,11 @@ hemisphere/frustum (revolve 模板) — 后续相同类零件 0.5-1h 可加新�
 `MateHelpers`), 后续相似模式 (例如未来 sketch primitives 共用 / drawing view 选择
 共用) 都可按此模式独立 refactor PR 推进。
 
-### M34 — extrude_cut + revolve_cut happy case 落地 (PR #?, 2026-06-06) — 纠正 M33 误诊: 真因是几何不是 selection
+### M34 — extrude_cut + revolve_cut + sweep happy case 落地 (PR #40 cuts + PR #? sweep, 2026-06-06) — 纠正 M33 三连误诊
 
-**M33 留下的 3 个 happy case，先攻 cut 两个 (用户「先干 B」)。结论: M33 的根因
-诊断完全错了。** extrude_cut + revolve_cut 现在都能造出几何验证通过的零件; sweep
-(RPC fault) 仍待 direction A (录宏)。
+**M33 留下的 3 个 happy case 全部落地，全程零录宏。结论: M33 的根因诊断三次全错。**
+先攻 cut 两个 (用户「先干 B」, PR #40 已合并), sweep 紧接着也修好 (本 PR, 从 master
+重新拉分支)。extrude_cut + revolve_cut + sweep 现在都能造出几何验证通过的零件。
 
 - **M33 误诊 vs M34 实测真因 (本里程碑核心)**:
   - M33 说: FeatureCut2 失败是 "face-based vs plane-based sketch" + "selection
@@ -1021,34 +1021,47 @@ hemisphere/frustum (revolve 模板) — 后续相同类零件 0.5-1h 可加新�
   SelectByID2(mark=0) 本就正确, 被 extrude_cut 的误诊连累。只补几何指引文档 +
   错误消息。真要点: profile 必须**重叠 body** (V 槽 = 贴 body 外表面的三角) + 含
   centerline 作轴。
+- **sweep 修法 (第 3 个 M33 误诊, 本 PR)**: M33 说 `RPC_E_SERVERFAULT`、必须走
+  CreateDefinition path、要录宏 — 全错。真因三连: ① 用简单的 14-arg
+  `InsertProtrusionSwept` (不用 RPC-faulting 的 CreateDefinition + AccessSelections)
+  ② **profile mark=1 + path mark=4** (loft 全 mark=1, sweep 不是 — M32 复用 loft 的
+  mark 是 silent fail 主因) ③ profile 平面须 **⊥ path 起点方向** (M32「沿 X」path
+  躺在 profile 平面里 = 退化)。反射先拿 InsertProtrusionSwept 真签名 (golden rule #5/#7)。
 - **几何验证 (硬证据, M22 模板)**:
   - extrude_cut: cyl D40×30 + 顶面 ref plane + 10×10 方块向下切 50mm →
     bbox 40×40×30, **7 faces** (3 圆柱 + 4 方孔内壁), **14 edges** (上下方各 4 + 竖 4 +
     原 2 圆) — 干净方通孔
   - revolve_cut: cyl D40×30 (revolve 绕 Y) + 切 V 槽 (revolve_cut 360°) →
     bbox 40×30×40, **6 faces** (顶底 + 上下侧带 + 2 锥面槽壁), **5 edges**
+  - sweep: Top Plane 圆 profile (⊥ Y) + Front Plane Y-line path → 直管 D10×50
+    (1 body, **3 faces / 2 edges**); quarter-arc path → 弯管肘 (同拓扑) — **曲线路径也行**
 - **测试**:
-  - L1: 671/671 unchanged (复用 ExtrudeSpec / RevolveSpec, spec 没变)
-  - L2: `M34-cut-happy.test.ps1` 12 检查全过 (extrude_cut 几何 + revolve_cut 几何 +
-    base-plane cut 被友好拒绝 + 几何指引消息防回归); M33 test 改成 cut-skip → done 注记
-  - **L3 (黄金法则 #13)**: 两个工具都在长寿命 MCP server 上抽测过 (extrude_cut
-    11 工具链 + revolve_cut 13 工具链), 几何与 L2 完全一致, 热 server 不挂
+  - L1: 671/671 unchanged (复用 ExtrudeSpec / RevolveSpec / SweepSpec, spec 没变)
+  - L2: `M34-cut-happy.test.ps1` 12 检查 (cuts, PR #40) + `M34-sweep-happy.test.ps1`
+    8 检查 (sweep 直管 5 + 弯管 3, 本 PR) 全过; M33 test 的 cut-skip → done 注记
+  - **L3 (黄金法则 #13)**: 三个工具都在长寿命 MCP server 上抽测过 (extrude_cut
+    11 工具链 + revolve_cut 13 工具链 + sweep 直管 9 工具链), 几何与 L2 一致, 热 server 不挂
   - dotnet format clean, build 0 warnings 0 errors
 - **L3 实测注意**: ToolSearch 给的 tool 描述是 session 启动时缓存的旧版, **但执行
   走 live server 新代码** (geom-2 在旧码 null / 新码成功, 是新代码已加载的硬证据)。
   抽测前 `Stop-Process mech-pilot-sw` 强制下次调用 re-spawn 新 build。
 
-**意义**: **通用 layer cut 能力落地** — LLM 现在真能在已有 body 上挖任意截面孔
-(方孔/异形槽/窗口) + 旋转切槽 (V 槽/退刀槽/密封槽)。**LANDMARK 4 (cut 部分) 达成**:
-通用 extrude_cut / revolve_cut 几何验证通过。**B 计划双层 API 再加两块拼图**。
-通用 layer 还差 sweep (5/5 的最后一个 happy case)。
+**意义**: **通用 layer 5/5 milestone 全部达成** — cut 能力 (任意截面孔/异形槽/窗口 +
+旋转切槽 V 槽/退刀槽/密封槽) + **sweep (弯管/异形走线/扇叶路径)** 都落地。
+**LANDMARK 4 (cut + sweep) 达成**。LLM 现在能造任意几何: 拉伸 / 旋转 / loft / sweep
+造型 + extrude_cut / revolve_cut 切除 (共 ~17 个通用工具的完整建模框架)。
+**B 计划双层 API 再加三块拼图, 通用 layer 收官**。
 
 **最大教训 (诚实, 比代码更值钱)**: **M33 "18 连击中断、必须录宏" 是误诊**。
 silent fail 时把多个假设 (selection / plane-type / 几何 / 方向 / API 参数) **用
 诊断 build + 参数矩阵 + 受控几何对照逐个证伪**, 比凭直觉归因 + 升级到录宏快且准。
 反射看签名解决不了运行时 selection/几何语义 — 但**复现 + 矩阵探针**能 (不用录宏)。
-sweep 的 RPC_E_SERVERFAULT 是另一层 (server 直接拒绝, 非 silent null), 那个可能
-真要录宏 — M34 没碰, 留 direction A。
+sweep 的 RPC_E_SERVERFAULT 一度以为是另一层 (server 直接拒绝, 要录宏), 实测**也是
+同款误诊**: 换简单 API (InsertProtrusionSwept 而非 CreateDefinition) + 对的 selection
+mark (profile=1/path=4) + 对的几何 (profile ⊥ path) 就成, 没录宏。**三个 happy case
+三次都是同一剧本: M33 归因错 → 复现 + 反射 + 矩阵/几何证伪 → 简单解**。
+v1 PR #27 的 CreateDefinition path 是 SW 2024 时代写法, SW 2026 用更简单的 selection-based
+API 反而稳 (golden rule #7 表面积小的版本绕过严苛前置条件, 再获一证)。
 
 ### M33 — sweep CreateDefinition + extrude_cut + revolve_cut (PR #?, 2026-06-05) — spec/CLI/MCP 暴露 + 18 连击中断
 
