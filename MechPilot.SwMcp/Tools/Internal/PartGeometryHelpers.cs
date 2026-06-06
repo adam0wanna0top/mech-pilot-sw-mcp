@@ -94,6 +94,70 @@ internal static class PartGeometryHelpers
     }
 
     /// <summary>
+    /// Returns the EXTREME planar face on the part whose outward normal points
+    /// along the given axis+sign — i.e. the "+Z" face is the highest-Z planar
+    /// face that faces up, "-X" is the lowest-X planar face that faces -X, etc.
+    /// Scans every solid body. Used by face-based start_sketch (M37) so an LLM
+    /// can sketch on "the top face" without first computing its height for a
+    /// reference plane.
+    ///
+    /// <paramref name="axis"/> is 0=X / 1=Y / 2=Z; <paramref name="sign"/> is
+    /// +1 or -1. "Outward normal points this way" = normal[axis]*sign &gt; 0.99
+    /// (cos-similarity, same threshold as <see cref="FindPlanarEndFace"/>).
+    /// Returns null if no body or no matching planar face exists.
+    /// </summary>
+    public static IFace2? FindExtremePlanarFace(IModelDoc2 model, int axis, int sign)
+    {
+        var part = (IPartDoc)model;
+        var bodiesObj = part.GetBodies2((int)swBodyType_e.swSolidBody, false);
+        if (bodiesObj is not object[] bodies || bodies.Length == 0)
+        {
+            return null;
+        }
+
+        IFace2? best = null;
+        var bestPos = sign > 0 ? double.NegativeInfinity : double.PositiveInfinity;
+
+        foreach (var bodyObj in bodies)
+        {
+            var body = (IBody2)bodyObj;
+            if (body.GetFaces() is not object[] faces)
+            {
+                continue;
+            }
+            foreach (var faceObj in faces)
+            {
+                var face = (IFace2)faceObj;
+                if (((ISurface)face.GetSurface()).IsPlane() == false)
+                {
+                    continue;
+                }
+                if (face.Normal is not double[] normal || normal.Length < 3)
+                {
+                    continue;
+                }
+                // Outward normal must point along (axis, sign).
+                if (normal[axis] * sign < 0.99)
+                {
+                    continue;
+                }
+                if (face.GetBox() is not double[] box || box.Length < 6)
+                {
+                    continue;
+                }
+                // Position along the axis: max-corner for +, min-corner for -.
+                var pos = sign > 0 ? box[axis + 3] : box[axis];
+                if ((sign > 0 && pos > bestPos) || (sign < 0 && pos < bestPos))
+                {
+                    bestPos = pos;
+                    best = face;
+                }
+            }
+        }
+        return best;
+    }
+
+    /// <summary>
     /// Walks the feature linked list (FirstFeature → GetNextFeature) and
     /// returns the most recently added user-meaningful feature, skipping SW
     /// boot features via <see cref="IsBootFeature"/>. Returns null if the

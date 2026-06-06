@@ -26,17 +26,22 @@ public static class StartSketchTool
 {
     [McpServerTool(Name = "start_sketch")]
     [Description(
-        "Enter sketch mode on a named plane of the active part. plane is " +
-        "'front' / 'top' / 'right' (case-insensitive) for SW's default " +
-        "reference planes, or a literal SW plane name (e.g. 'Plane1' or " +
-        "'基准面1') for a custom RefPlane created with add_ref_plane. " +
-        "Requires an active part (call new_part first). After this call, " +
-        "use sketch_line / sketch_arc_3point / sketch_arc_center / " +
-        "sketch_circle / sketch_centerline / sketch_rectangle_center to " +
-        "add geometry, then end_sketch to exit and obtain the sketch's " +
-        "name for use in extrude / revolve / loft / sweep.")]
+        "Enter sketch mode on a plane OR a body face of the active part. plane is: " +
+        "'front' / 'top' / 'right' (case-insensitive) for SW's default reference " +
+        "planes; a literal SW plane name (e.g. 'Plane1' / '基准面1') for a " +
+        "RefPlane from add_ref_plane; OR a FACE selector '+z' / '-z' / '+x' / " +
+        "'-x' / '+y' / '-y' to sketch directly on the outermost planar body face " +
+        "whose outward normal points that way (e.g. '+z' = the current top face). " +
+        "The face option lets you build on top of / under / beside the body " +
+        "without first creating a ref plane at that height — prefer it when " +
+        "adding a feature onto an existing face. Requires an active part (call " +
+        "new_part first; the face option also needs an existing solid body). " +
+        "After this call, use sketch_line / sketch_arc_3point / sketch_arc_center " +
+        "/ sketch_circle / sketch_centerline / sketch_rectangle_center to add " +
+        "geometry, then end_sketch to exit and obtain the sketch's name for use " +
+        "in extrude / revolve / loft / sweep.")]
     public static ToolResult Run(
-        [Description("Plane name: 'front', 'top', 'right', or a literal SW plane name like 'Plane1'.")]
+        [Description("'front'/'top'/'right', a literal plane name like 'Plane1', or a face selector '+z'/'-z'/'+x'/'-x'/'+y'/'-y'.")]
         string plane)
     {
         var spec = new StartSketchSpec { Plane = plane };
@@ -81,6 +86,34 @@ public static class StartSketchTool
         {
             throw new McpToolException(
                 "A sketch is already active. Call end_sketch before starting a new one.");
+        }
+
+        // Face selector: "+x"/"-x"/"+y"/"-y"/"+z"/"-z" → sketch on the EXTREME
+        // planar body face whose outward normal points that way (M37). Lets the
+        // LLM sketch on "the top face" without first computing its height for a
+        // ref plane. Distinct tokens from the plane aliases, so no collision.
+        if (TryParseFaceSelector(spec.Plane, out var axis, out var sign))
+        {
+            model.ClearSelection2(true);
+            var face = Internal.PartGeometryHelpers.FindExtremePlanarFace(model, axis, sign)
+                ?? throw new McpToolException(
+                    $"No planar face found facing '{spec.Plane}'. The active part may have no " +
+                    "solid body yet, or no planar face whose outward normal points that way. " +
+                    "Build a body first, or use a reference plane ('front'/'top'/'right' or add_ref_plane).");
+            if (!((IEntity)face).Select4(false, null))
+            {
+                throw new McpToolException(
+                    $"Failed to select the '{spec.Plane}' face for sketching.");
+            }
+            model.SketchManager.InsertSketch(true);
+            if (model.SketchManager.ActiveSketch == null)
+            {
+                throw new McpToolException(
+                    $"InsertSketch did not produce an active sketch on the '{spec.Plane}' face.");
+            }
+            return ToolResult.Ok(
+                message: $"Entered sketch mode on the '{spec.Plane}' face (extreme planar face facing {spec.Plane})",
+                path: null);
         }
 
         // Resolve plane name. Standard aliases map to CN/EN pairs (tried in
@@ -136,6 +169,29 @@ public static class StartSketchTool
             }
         }
         return null;
+    }
+
+    /// <summary>
+    /// Parses a face selector like "+z" / "-x" (case-insensitive) into an
+    /// (axis 0=X / 1=Y / 2=Z, sign +1 / -1) pair. Returns false for anything
+    /// that isn't exactly a sign char followed by x/y/z, so plane names and
+    /// RefPlane names fall through to the plane-resolution path.
+    /// </summary>
+    private static bool TryParseFaceSelector(string s, out int axis, out int sign)
+    {
+        axis = 0;
+        sign = 0;
+        if (s is not { Length: 2 })
+        {
+            return false;
+        }
+        sign = s[0] switch { '+' => 1, '-' => -1, _ => 0 };
+        if (sign == 0)
+        {
+            return false;
+        }
+        axis = char.ToLowerInvariant(s[1]) switch { 'x' => 0, 'y' => 1, 'z' => 2, _ => -1 };
+        return axis >= 0;
     }
 #endif
 }
