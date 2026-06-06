@@ -10,27 +10,30 @@ using SolidWorks.Interop.swconst;
 namespace MechPilot.SwMcp.Tools;
 
 /// <summary>
-/// Sweep a profile sketch along a path sketch into a solid body. M33 —
-/// switched from M32's <c>InsertProtrusionSwept</c> (14 args, silent-fails
-/// on orientation edge cases) to v1 PR #27's verified path:
-/// <c>CreateDefinition(swFmSweep=17) + setattr + CreateFeature</c>.
+/// Sweep a profile sketch along a path sketch into a solid body. Happy case
+/// made to work in M34.
 ///
-/// swFmSweep = 17 (reflected from swFeatureNameID_e; CHM does not expose
-/// the integer value). The returned <c>ISweepFeatureData</c> has properties
-/// for Profile / Path / Merge / TangentPropagation / etc — set them, then
-/// call CreateFeature(def) to materialize the feature.
+/// M34 correction (third M33 misdiagnosis fixed, after extrude_cut/revolve_cut):
+/// the simple 14-arg <c>InsertProtrusionSwept</c> works fine — M33's switch to
+/// the <c>CreateDefinition(swFmSweep=17) + AccessSelections + CreateFeature</c>
+/// path was unnecessary and RPC-faulted (0x80010105). The two real
+/// prerequisites M32/M33 missed:
+///   • SELECTION MARKS: profile = mark 1, path = mark 4 (loft uses mark=1 for
+///     all profiles; sweep does NOT — reusing the loft mark is why M32's
+///     14-arg call silently failed).
+///   • GEOMETRY: the profile plane must be ~perpendicular to the path at the
+///     path's start (M32 swept a Front-Plane circle along an X path that lay
+///     IN the profile plane — degenerate). Put the profile on a plane normal
+///     to the path's initial direction and start the path at the profile.
 ///
 /// Pipeline:
-///   1. Find Profile + Path sketch features by name (walk FM via
-///      FindFeatureByName, similar to FindLastUserFeature).
-///   2. Pull ISketch instances out of the features via GetSpecificFeature2.
-///   3. CreateDefinition(17) → cast to ISweepFeatureData.
-///   4. def.Profile = profileSketch; def.Path = pathSketch; def.Merge = true.
-///   5. CreateFeature(def).
+///   1. ClearSelection2.
+///   2. SelectByID2(profile, "SKETCH", mark=1) + SelectByID2(path, "SKETCH",
+///      mark=4, append=true).
+///   3. InsertProtrusionSwept(14 args, follow-path defaults, merge=true).
 ///
-/// This path is robust to the profile/path orientation issues that broke
-/// InsertProtrusionSwept's 14-arg version (e.g. Front Plane circle +
-/// Top Plane line silent-failing in M32).
+/// Verified M34: Top-Plane circle profile + Front-Plane Y-line path → straight
+/// D10×50 pipe (3 faces / 2 edges); quarter-arc path → clean elbow (same topology).
 /// </summary>
 [McpServerToolType]
 public static class SweepTool
@@ -38,13 +41,15 @@ public static class SweepTool
     [McpServerTool(Name = "sweep")]
     [Description(
         "Sweep a profile sketch along a path sketch into a solid body. " +
-        "profileSketchName must be a closed-area sketch (the cross-section); " +
-        "pathSketchName must be an open-curve sketch (the trajectory). Both " +
-        "names from end_sketch. Common uses: pipes / cables / fan blades / " +
-        "cams / extrusions along curved paths. Internally uses the v1-verified " +
-        "CreateDefinition(swFmSweep=17) + setattr + CreateFeature path " +
-        "(reflected ISweepFeatureData properties), which is robust to the " +
-        "profile/path orientation issues that affect the 14-arg InsertProtrusionSwept API.")]
+        "profileSketchName must be a single closed-contour sketch (the cross-" +
+        "section); pathSketchName must be a single continuous open-curve sketch " +
+        "(the trajectory, straight or curved). Both names from end_sketch. " +
+        "GEOMETRY: put the profile on a plane PERPENDICULAR to the path's start " +
+        "direction and start the path at the profile center — e.g. profile circle " +
+        "on the Top plane (normal +Y) + path line/arc on the Front plane starting " +
+        "at the origin going +Y. (A path lying in the profile's own plane will " +
+        "fail.) Common uses: pipes, bent tubing, cables, fan blades, cams, " +
+        "trim along a curve.")]
     public static ToolResult Run(
         [Description("Name of the cross-section profile sketch (closed area).")]
         string profileSketchName,
@@ -75,102 +80,67 @@ public static class SweepTool
     }
 
 #if HAS_SOLIDWORKS
-    // Reflected from swFeatureNameID_e (CHM doesn't expose the integer values).
-    private const int SwFmSweep = 17;
-
     private static ToolResult RunSw(SweepSpec spec)
     {
         var model = Internal.SketchSession.RequireActiveDoc();
+        var ext = model.Extension;
         var fm = model.FeatureManager;
 
-        // ── 1. Find both sketch features by name ────────────────────────────
-        var profileFeature = FindSketchFeatureByName(model, spec.ProfileSketchName)
-            ?? throw new McpToolException(
-                $"Cannot find sketch '{spec.ProfileSketchName}' on the active part.");
-        var pathFeature = FindSketchFeatureByName(model, spec.PathSketchName)
-            ?? throw new McpToolException(
-                $"Cannot find sketch '{spec.PathSketchName}' on the active part.");
-
-        // ── 2. Sanity-verify the features are sketches via GetSpecificFeature2.
-        //   The Profile / Path properties on ISweepFeatureData take the
-        //   sketch's IFeature (not the ISketch interface) — SW marshals the
-        //   IDispatch via the underlying feature wrapper.
-        if (profileFeature.GetSpecificFeature2() is not ISketch)
+        // Sweep selection marks are NOT uniform like loft's: SW expects the
+        // profile selected with mark=1 and the path with mark=4. (Loft uses
+        // mark=1 for every profile; reusing that here is why M32's sweep
+        // silently failed.) InsertProtrusionSwept reads profile + path from
+        // these marks; it takes no profile/path arguments.
+        model.ClearSelection2(true);
+        if (!ext.SelectByID2(spec.ProfileSketchName, "SKETCH", 0.0, 0.0, 0.0, false, 1, null, 0))
         {
             throw new McpToolException(
-                $"'{spec.ProfileSketchName}' is not a sketch feature.");
+                $"Cannot select profile sketch '{spec.ProfileSketchName}'. " +
+                "Verify the name returned by end_sketch.");
         }
-        if (pathFeature.GetSpecificFeature2() is not ISketch)
+        if (!ext.SelectByID2(spec.PathSketchName, "SKETCH", 0.0, 0.0, 0.0, true, 4, null, 0))
         {
             throw new McpToolException(
-                $"'{spec.PathSketchName}' is not a sketch feature.");
+                $"Cannot select path sketch '{spec.PathSketchName}'. " +
+                "Verify the name returned by end_sketch.");
         }
 
-        // ── 3. CreateDefinition(17) — returns ISweepFeatureData ────────────
-        if (fm.CreateDefinition(SwFmSweep) is not ISweepFeatureData def)
-        {
-            throw new McpToolException(
-                $"FeatureManager.CreateDefinition(swFmSweep={SwFmSweep}) returned null " +
-                "or non-sweep type. SW Interop may have changed signature.");
-        }
+        // 14-arg InsertProtrusionSwept with educated defaults: follow-path
+        // orientation (no twist), no thin wall, merge into the body. M34
+        // verified this simple overload works — the M33 CreateDefinition +
+        // AccessSelections path RPC-faulted (0x80010105) and was unnecessary.
+        var feature = fm.InsertProtrusionSwept(
+            Propagate: false,
+            Alignment: false,
+            TwistCtrlOption: 0,
+            KeepTangency: false,
+            ForceNonRational: false,
+            StartMatchingType: 0,
+            EndMatchingType: 0,
+            IsThinBody: false,
+            Thickness1: 0.0,
+            Thickness2: 0.0,
+            ThinType: 0,
+            Merge: true,
+            UseFeatScope: true,
+            UseAutoSelect: true);
 
-        // ── 4. AccessSelections + set Profile/Path + ReleaseSelectionAccess ──
-        //   v1 PR #21/#27 pattern: CreateDefinition path needs AccessSelections
-        //   wrapping the setattr calls or attributes silently don't bind.
-        if (!def.AccessSelections(model, null))
-        {
-            throw new McpToolException(
-                "ISweepFeatureData.AccessSelections returned false — cannot bind " +
-                "Profile/Path attributes.");
-        }
-
-        def.Profile = profileFeature;
-        def.Path = pathFeature;
-        def.Merge = true;
-        def.TangentPropagation = false;
-        def.ThinFeature = false;
-        def.AdvancedSmoothing = false;
-        def.MaintainTangency = false;
-        def.FeatureScope = true;
-        def.AutoSelect = true;
-
-        // ── 5. CreateFeature(def) ───────────────────────────────────────────
-        var feature = fm.CreateFeature(def);
-        def.ReleaseSelectionAccess();
         if (feature == null)
         {
             throw new McpToolException(
-                $"CreateFeature(SweepFeatureData) returned null for profile " +
-                $"'{spec.ProfileSketchName}' path '{spec.PathSketchName}'. " +
-                "Common causes: profile is not closed, path is not a single " +
-                "open curve, or profile/path planes are incompatible.");
+                $"InsertProtrusionSwept returned null for profile '{spec.ProfileSketchName}' " +
+                $"along path '{spec.PathSketchName}'. Common causes: the profile is not a " +
+                "single closed contour; the path is not a single continuous open curve; or the " +
+                "profile plane is not roughly perpendicular to the path at the path's start " +
+                "(put the profile on a plane normal to the path's initial direction, and start " +
+                "the path at the profile center).");
         }
 
         var featureName = feature.Name ?? "(unnamed)";
         return ToolResult.Ok(
             message: $"Swept profile '{spec.ProfileSketchName}' along path " +
-                     $"'{spec.PathSketchName}' → feature '{featureName}' (via CreateDefinition path)",
+                     $"'{spec.PathSketchName}' → feature '{featureName}'",
             path: null);
-    }
-
-    /// <summary>
-    /// Walks the feature manager design tree and returns the first feature
-    /// whose Name equals <paramref name="name"/>. Used to resolve sketch
-    /// names ("草图1" etc.) to <see cref="IFeature"/> instances for the
-    /// CreateDefinition sweep path.
-    /// </summary>
-    private static IFeature? FindSketchFeatureByName(IModelDoc2 model, string name)
-    {
-        var feature = model.FirstFeature() as IFeature;
-        while (feature != null)
-        {
-            if (string.Equals(feature.Name, name, StringComparison.Ordinal))
-            {
-                return feature;
-            }
-            feature = feature.GetNextFeature() as IFeature;
-        }
-        return null;
     }
 #endif
 }
