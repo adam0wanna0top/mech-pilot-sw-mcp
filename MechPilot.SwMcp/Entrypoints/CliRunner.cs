@@ -49,6 +49,7 @@ public static class CliRunner
         root.Subcommands.Add(BuildExportPartCommand());
         root.Subcommands.Add(BuildAddAxialHoleCommand());
         root.Subcommands.Add(BuildInspectPartCommand());
+        root.Subcommands.Add(BuildInspectActiveCommand());
         root.Subcommands.Add(BuildMirrorFeatureCommand());
         root.Subcommands.Add(BuildPatternLinearCommand());
         root.Subcommands.Add(BuildPatternCircularCommand());
@@ -1147,6 +1148,38 @@ public static class CliRunner
                     InputPath = parseResult.GetValue(inputOpt) ?? string.Empty,
                 };
                 var result = InspectPartTool.RunWithSpec(spec);
+                WriteResult(result, parseResult.GetValue(formatOpt) ?? "text");
+                return 0;
+            }
+            catch (McpToolException ex)
+            {
+                Console.Error.WriteLine($"[error] {ex.Message}");
+                return 1;
+            }
+        });
+
+        return cmd;
+    }
+
+    private static Command BuildInspectActiveCommand()
+    {
+        var formatOpt = new Option<string>("--output")
+        {
+            Description = "Output format: text | json",
+            DefaultValueFactory = _ => "text",
+        };
+
+        var cmd = new Command("inspect-active",
+            "Read metadata (bbox / features / face+edge counts) from the active part WITHOUT saving/closing it.")
+        {
+            formatOpt,
+        };
+
+        cmd.SetAction(parseResult =>
+        {
+            try
+            {
+                var result = InspectActiveTool.RunWithSpec(new InspectActiveSpec());
                 WriteResult(result, parseResult.GetValue(formatOpt) ?? "text");
                 return 0;
             }

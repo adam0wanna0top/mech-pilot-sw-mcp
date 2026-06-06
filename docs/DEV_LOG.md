@@ -986,6 +986,40 @@ hemisphere/frustum (revolve 模板) — 后续相同类零件 0.5-1h 可加新�
 `MateHelpers`), 后续相似模式 (例如未来 sketch primitives 共用 / drawing view 选择
 共用) 都可按此模式独立 refactor PR 推进。
 
+### M36 — inspect_active (PR #?, 2026-06-06) — E2E 验证孵出的第一个工具 (边建边验)
+
+**项目首个"由自家 dogfooding 孵出"的工具** —— 不是 v1 移植、不是 catalog 形状, 而是
+M35 通用 layer E2E 体验验证撞到的真痛点直接催生: 建造途中没法验证几何 (inspect_part
+要读已存文件, save_part 会关 doc), LLM 只能盲建到底再查。inspect_active 读**活动 doc**
+的 bbox/特征/面+边, **不保存不关闭**, LLM 可边建边验。
+
+- **设计**: `inspect_active()` 无参 → `SketchSession.RequireActiveDoc()` → 复用元数据
+  逻辑 → 返回 (不 open / 不 close)。
+- **refactor (rule-of-two)**: 抽 `Tools/Internal/PartMetadata.cs`, 把 inspect_part 的
+  bbox(GetPartBox) + body face/edge 计数 + 顶层特征 walk + data 组装搬进去, inspect_part
+  和 inspect_active 共用。inspect_part 改成 open → `PartMetadata.Build(model)` → finally
+  close; inspect_active 是 RequireActiveDoc → `PartMetadata.Build(model)` (无 close)。
+  PartMetadata.Build 加了 `is not IPartDoc` 守卫 (active doc 可能是装配/工程图)。
+- **测试**:
+  - L1: +1 InspectActiveSpec 用例 (= 685): 空 spec no-op Validate 不抛
+  - L2: `M36-inspect-active.test.ps1` 6 检查全过:
+    1. 建 cylinder D40×30 → **中途** inspect_active: 1 body / bbox 40×40×30 / 3 faces
+    2. **doc 仍开** (核心): inspect 后继续 add_ref_plane + 切 Ø10 bore 成功 (若 inspect
+       关了 doc, 后续 start_sketch 会报 "no active doc")
+    3. inspect_active #2 反映 cut: 4 faces / 4 edges
+    4. inspect_active 与 inspect_part (save 后) 数据**一致** (证 PartMetadata 共用正确)
+  - **L3: 待新 session 重启抽测** — inspect_active 是新工具, MCP server 启动时注册工具,
+    同 rib 待重启 (golden rule #13 fallback)。inspect_part refactor 由 L2 Test 3 回归覆盖。
+  - build 0 warnings, dotnet format clean
+
+**意义**: 通用 layer 的 LLM-友好度补上关键一环 —— **verify-as-you-build**。M35 E2E 我盲建
+bracket 赌凸台方向 (赌对了); 有了 inspect_active, LLM 可在每个特征后确认 bbox/面数/body
+数再继续, E2E 鲁棒性大增。**这条 "E2E 找缺口 → 补工具" 闭环本身是项目方法论的升级**:
+通用 layer 不只靠移植/catalog, 而是靠 dogfooding 迭代。
+
+**下一步联动**: inspect_active + 下次 session 重启后, rib 也可 MCP 调 → 跑一个真正
+"边建边验" 的 E2E (造件中途用 inspect_active 校验), 同时清 rib + inspect_active 的 L3。
+
 ### M35 — rib / 加强筋 (PR #?, 2026-06-06) — 第 4 个被推迟的"吓人"特征第一次试就成
 
 **rib 自 M27 被推迟 4 次, 标记"1-2 天深 sketch+selection 探索, 50% silent fail 风险"

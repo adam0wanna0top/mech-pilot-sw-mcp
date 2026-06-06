@@ -38,3 +38,26 @@ public sealed record InspectSpec
         }
     }
 }
+
+/// <summary>
+/// Specification for inspecting the currently ACTIVE part (M36) — same
+/// metadata as <see cref="InspectSpec"/> (bbox / features / face+edge counts)
+/// but read from the active doc the generic primitives layer is building,
+/// WITHOUT saving or closing it. Solves the "blind build" gap surfaced by the
+/// M35 E2E validation: the LLM can verify geometry mid-build (e.g. confirm a
+/// boss extruded in +Z) instead of only after save_part closes the doc.
+///
+/// LLM workflow:
+///   new_part → ... features ... → inspect_active()   ← check, keep building
+///   ... more features ... → save_part(...)
+///
+/// No parameters — operates on whatever new_part opened.
+/// </summary>
+public sealed record InspectActiveSpec
+{
+    /// <summary>No-op — inspect_active reads the active doc and has no parameters.</summary>
+    public void Validate()
+    {
+        _ = this;
+    }
+}

@@ -35,7 +35,8 @@ bbox 完全匹配)**, M33 cut variants spec/CLI/MCP 暴露, **M34 cut happy case
 位置, 非 selection/face-based)**, **M34 sweep happy 也落地 (InsertProtrusionSwept +
 profile/path mark 1/4 + 几何 ⊥)**, 通用 layer 5/5 milestone 全完成。**M35 rib (加强筋)
 落地 — 又一个被推迟的"吓人"特征 (M27 标记 1-2 天) 第一次试就成 (InsertRib + L-bracket gusset)**。
-**46 工具**:
+**M36 inspect_active (边建边验) — E2E 验证撞到的"盲建"痛点直接孵出, 项目首个 dogfooding-born 工具**。
+**47 工具**:
 
 | Tool | LLM-facing name | 用途 |
 |---|---|---|
@@ -75,6 +76,7 @@ profile/path mark 1/4 + 几何 ⊥)**, 通用 layer 5/5 milestone 全完成。**
 | pattern_linear | `mcp__mech_pilot_sw__pattern_linear` | 1D / 2D 线性阵列特征 |
 | pattern_circular | `mcp__mech_pilot_sw__pattern_circular` | 绕 ±Z 轴圆周阵列特征 (PCD 孔环等) |
 | inspect_part | `mcp__mech_pilot_sw__inspect_part` | 读取零件元数据（bbox / 特征 / 面+边数） |
+| inspect_active | `mcp__mech_pilot_sw__inspect_active` | 读**活动 doc** 元数据 (bbox/特征/面+边), 不存不关 — 通用 layer 边建边验 (**M36**, E2E 孵出, 共用 PartMetadata) |
 | export_part | `mcp__mech_pilot_sw__export_part` | 导出 STEP / STL / IGES / Parasolid |
 | new_assembly | `mcp__mech_pilot_sw__new_assembly` | 创建空装配体 (.sldasm) |
 | add_component | `mcp__mech_pilot_sw__add_component` | 把零件/子装配体插入装配体 (x,y,z) 位置 |
@@ -113,8 +115,10 @@ cut=草图几何位置, sweep=InsertProtrusionSwept + mark 1/4 + 几何⊥; 诊�
 four 收口)。**`Tools/Internal/SketchSession`** (M30) 抽出 `RequireActiveDoc` +
 `RequireActiveSketch` + `RequireSketchManager` 给 8 个 sketch 原语共用。
 
-**下一步候选**: save_drawing 工程图 (闭环造-改-装-出图, 反射 M22 已就绪) / 通用 layer
-E2E 体验 (LLM 自然语言造弯管/异形件/旋转切槽/加强筋) / shell+rib 组合件 (电机壳/泵壳)。
+**下一步候选**: save_drawing 工程图 (闭环造-改-装-出图, 反射 M22 已就绪) / face-based
+start_sketch (E2E 第 2 缺口: 草图直接选 body 面而非建 ref plane) / rib + inspect_active
+L3 抽测 (待新 session 重启) / shell+rib 组合件 (电机壳/泵壳)。M35 通用 layer E2E 体验已验
+(支架 22 调用零失败), 暴露 2 缺口 (inspect_active 已补 M36, face-based sketch 待做)。
 **通用 layer 5/5 已收官** (lifecycle + 8 sketch 原语 + extrude/revolve + loft/sweep/
 add_ref_plane + extrude_cut/revolve_cut) + **M35 rib**。M23-M27 L3 已批量收口 (2026-06-05 几何验证
 5 工具全过, add_shell description 顺手修 frustum/sphere 误标支持)。详见
