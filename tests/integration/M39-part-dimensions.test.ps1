@@ -3,7 +3,7 @@
 # PartMetadata now lists each feature's display dimensions as {name, value, unit}
 # so an LLM can SEE what modify_feature can change. name is the "D1@<feature>"
 # handle modify_feature consumes (extrude/cut depth -> mm, revolve angle -> deg);
-# undimensioned features (our generic sketches) carry an empty list.
+# (since M46, generic circle/rectangle sketches carry their own driving dimension.)
 #
 #   Test 1 extrude: depth dim "D1@<ext>" = 30 mm; the SURFACED name round-trips
 #                   through modify_feature (30 -> 50) and the re-read dim shows 50
@@ -47,7 +47,7 @@ try {
     $s1 = SK (Run @('end-sketch'))
     Run @('extrude','--sketch',$s1,'--depth','30') | Out-Null
     $d1 = (Run @('inspect-active')).data
-    Check "editableDimensionCount == 1" ($d1.editableDimensionCount -eq 1) "got $($d1.editableDimensionCount)"
+    Check "editableDimensionCount == 2 (sketch Ø + extrude depth)" ($d1.editableDimensionCount -eq 2) "got $($d1.editableDimensionCount)"
     $ext = Feat $d1 'Extrusion'
     $extDims = @($ext.dimensions)
     Check "extrude feature has 1 dimension" ($extDims.Count -eq 1) "got $($extDims.Count)"
@@ -55,7 +55,8 @@ try {
     Check "dim value == 30" ($extDims[0].value -eq 30) "got $($extDims[0].value)"
     Check "dim unit == mm" ($extDims[0].unit -eq 'mm') "got $($extDims[0].unit)"
     $sk = Feat $d1 'ProfileFeature'
-    Check "undimensioned sketch has 0 dims" (@($sk.dimensions).Count -eq 0) "got $(@($sk.dimensions).Count)"
+    Check "sketch carries its driving Ø dimension (M46)" (@($sk.dimensions).Count -eq 1) "got $(@($sk.dimensions).Count)"
+    Check "sketch Ø dim == 40 (r20)" (@($sk.dimensions)[0].value -eq 40) "got $(@($sk.dimensions)[0].value)"
 
     # The surfaced dim names this feature; modify_feature edits it; re-read shows new value.
     Run @('modify-feature','--feature',$ext.name,'--value','50') | Out-Null
@@ -85,7 +86,7 @@ try {
     $pext = Feat $p 'Extrusion'
     Check "inspect_part dim name == D1@<feature>" (@($pext.dimensions)[0].name -eq "D1@$($pext.name)") "got $(@($pext.dimensions)[0].name)"
     Check "inspect_part shows modified value 50" (@($pext.dimensions)[0].value -eq 50) "got $(@($pext.dimensions)[0].value)"
-    Check "inspect_part editableDimensionCount == 1" ($p.editableDimensionCount -eq 1) "got $($p.editableDimensionCount)"
+    Check "inspect_part editableDimensionCount == 2" ($p.editableDimensionCount -eq 2) "got $($p.editableDimensionCount)"
 
     Write-Host ""
     if ($script:fail -eq 0) { Write-Host "[PASS] M39 part-dimensions -- all checks green" }

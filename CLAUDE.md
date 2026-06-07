@@ -50,9 +50,9 @@ profile/path mark 1/4 + 几何 ⊥)**, 通用 layer 5/5 milestone 全完成。**
 | sketch_line | `mcp__mech_pilot_sw__sketch_line` | 画直线 (x1,y1) → (x2,y2) |
 | sketch_arc_3point | `mcp__mech_pilot_sw__sketch_arc_3point` | 3 点画弧 (start, end, middle) |
 | sketch_arc_center | `mcp__mech_pilot_sw__sketch_arc_center` | 中心+起终画弧 (CCW/CW) |
-| sketch_circle | `mcp__mech_pilot_sw__sketch_circle` | 画圆 (cx, cy, r) |
+| sketch_circle | `mcp__mech_pilot_sw__sketch_circle` | 画圆 (cx, cy, r) + **驱动 Ø 尺寸** (**M46** 可被 modify_feature 改) |
 | sketch_centerline | `mcp__mech_pilot_sw__sketch_centerline` | 画中心线 (revolve axis 用) |
-| sketch_rectangle_center | `mcp__mech_pilot_sw__sketch_rectangle_center` | 画中心矩形 (center + corner) |
+| sketch_rectangle_center | `mcp__mech_pilot_sw__sketch_rectangle_center` | 画中心矩形 (center + corner) + **驱动 长/宽 尺寸** (**M46**) |
 | extrude | `mcp__mech_pilot_sw__extrude` | 拉伸 sketch 成实体 (FeatureExtrusion3) |
 | revolve | `mcp__mech_pilot_sw__revolve` | 绕 sketch centerline 旋转 (FeatureRevolve2) |
 | add_ref_plane | `mcp__mech_pilot_sw__add_ref_plane` | 创建偏移参考平面 (InsertRefPlane Distance=8) |

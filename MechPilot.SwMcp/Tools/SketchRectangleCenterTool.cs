@@ -2,6 +2,11 @@ using System.ComponentModel;
 using MechPilot.SwMcp.Exceptions;
 using MechPilot.SwMcp.Models;
 using ModelContextProtocol.Server;
+#if HAS_SOLIDWORKS
+using MechPilot.SwMcp.Interop;
+using SolidWorks.Interop.sldworks;
+using SolidWorks.Interop.swconst;
+#endif
 
 namespace MechPilot.SwMcp.Tools;
 
@@ -54,21 +59,46 @@ public static class SketchRectangleCenterTool
     private static ToolResult RunSw(SketchRectangleCenterSpec spec)
     {
         var skMgr = Internal.SketchSession.RequireSketchManager();
+        var model = Internal.SketchSession.RequireActiveDoc();
         _ = Internal.SketchSession.RequireActiveSketch();
 
-        var segs = skMgr.CreateCenterRectangle(
+        var segsObj = skMgr.CreateCenterRectangle(
             spec.Cx / 1000.0, spec.Cy / 1000.0, 0.0,
             spec.CornerX / 1000.0, spec.CornerY / 1000.0, 0.0)
             ?? throw new McpToolException(
                 $"CreateCenterRectangle returned null for center=({spec.Cx}, {spec.Cy}), " +
                 $"corner=({spec.CornerX}, {spec.CornerY}) mm.");
-        _ = segs;
         var width = 2.0 * Math.Abs(spec.CornerX - spec.Cx);
         var height = 2.0 * Math.Abs(spec.CornerY - spec.Cy);
+
+        // Driving width + height dimensions on two adjacent sides so the size is
+        // parametric / editable. swInputDimValOnCreate must be OFF or AddDimension2
+        // pops a modal "Modify" dialog that blocks the API call (M46 finding).
+        SwConnection.Instance.GetApp().SetUserPreferenceToggle(
+            (int)swUserPreferenceToggle_e.swInputDimValOnCreate, false);
+        if (segsObj is object[] segs && segs.Length >= 2)
+        {
+            DimensionSegment(model, segs[0], spec.Cx, spec.Cy + height / 2.0 + 15.0);
+            DimensionSegment(model, segs[1], spec.Cx + width / 2.0 + 15.0, spec.Cy);
+        }
+
         return ToolResult.Ok(
             message: $"Added centered rectangle: center=({spec.Cx}, {spec.Cy}), " +
-                     $"size {width} × {height} mm to active sketch",
+                     $"size {width} × {height} mm (driving dimensions) to active sketch",
             path: null);
+    }
+
+    /// <summary>Selects a sketch line segment and adds a driving length dimension
+    /// (annotation placed at the given mm point; the value is the line's length).</summary>
+    private static void DimensionSegment(IModelDoc2 model, object segObj, double placeXMm, double placeYMm)
+    {
+        if (segObj is not ISketchSegment seg)
+        {
+            return;
+        }
+        model.ClearSelection2(true);
+        seg.Select2(false, 0);
+        _ = model.AddDimension2(placeXMm / 1000.0, placeYMm / 1000.0, 0.0);
     }
 #endif
 }

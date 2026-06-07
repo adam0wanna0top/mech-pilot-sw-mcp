@@ -986,6 +986,39 @@ hemisphere/frustum (revolve 模板) — 后续相同类零件 0.5-1h 可加新�
 `MateHelpers`), 后续相似模式 (例如未来 sketch primitives 共用 / drawing view 选择
 共用) 都可按此模式独立 refactor PR 推进。
 
+### M46 — 草图驱动尺寸 (PR #?, 2026-06-08) — 🥇 第 2 半: 圆直径/矩形长宽真正可改 (解锁真·几何缩放)
+
+**🥇 编辑深度第二半 (接 M45)。** 此前通用草图原语画的几何无驱动尺寸 → 圆直径、矩形长宽根本不
+存在、改不了 (M45 能改的只有特征 D1)。M46 让 `sketch_circle` 自动加 **Ø 驱动尺寸**、
+`sketch_rectangle_center` 加 **长+宽** → 配合 M45 即可原地改这些尺寸, 几何随之变 (真·几何缩放)。
+
+- **加尺寸 recipe (反射确认, golden rule #5)**: 建几何后 `ISketchSegment.Select2(false,0)` 选中 →
+  `IModelDoc2.AddDimension2(placeX,placeY,0)` 在偏移点放尺寸 (返 IDisplayDimension); 圆设
+  `disp.Diametric=true` → Ø (非半径); 矩形选相邻两边各 AddDimension2 → 长+宽。
+- **关键坑 (M46 核心教训)**: `AddDimension2` 默认弹模态 "Modify" 值输入框 → **API 上下文直接卡死**
+  (探针 timeout)。解: 先 `swApp.SetUserPreferenceToggle(swInputDimValOnCreate=10, false)` 关掉它。
+  **沉淀: 任何加尺寸/标注 API 前必须关 swInputDimValOnCreate, 否则挂; 真挂了 SW 卡模态需 kill SLDWORKS 恢复。**
+- **owner-filter 修双重计数 (连带 bug)**: extrude 消费(consume)带尺寸的草图后, 草图的 Ø 尺寸经
+  extrude 的 GetFirstDisplayDimension **也能取到** → 在草图+extrude 下各列一次 (且在 extrude 下被误命名
+  `D1@<extrude>` 与深度撞名)。修: PartMetadata + ModifyFeatureTool 的尺寸遍历都加
+  `dim.GetFeatureOwner().Name == feature.Name` 过滤 → 每个尺寸只在其属主特征下出现一次, 名字唯一。
+- **范围**: 通用草图原语 (sketch_circle / sketch_rectangle_center)。**catalog helper (create_cylinder 等)
+  直接调 CreateCircleByRadius, 未走这两个工具 → 其圆暂仍无 Ø 尺寸** (留 follow-up); line/arc 不标。
+- **测试**:
+  - L1: 777 unchanged
+  - L2: 新 `M46-dimensioned-sketches` 7 检查全过: 圆 Ø40 驱动尺寸 → modify 60 → extrude bbox 60×60×30;
+    矩形 长80+宽60 → modify 80→100 → bbox 100×60×10
+  - **涟漪修复 (本 PR 内)**: M39 (editableDimensionCount 1→2、草图现带 Ø)、M45 (Exts 改回按 type 取 extrude)、
+    M38/M44 (modify_feature 消息文案 M45 改过: 'depth'/'find' → '50 mm'/'editable dimension')。
+    M30/31/36/37/40 不受影响 (仅几何/catalog)。
+  - **L3: 待新 session 重启** — sketch_circle/rectangle 行为扩展; 本 session MCP schema 已缓存。CLI/L2 已验。
+  - build 0 warnings, dotnet format clean
+
+**意义**: **🥇 完成 — 编辑深度从"只能改特征主尺寸"到"改任意标注尺寸 (含草图直径/边长)"**。机械 Cursor
+现在能对通用层造的零件做真·几何缩放 (改 Ø、改长宽), 不只改长度。**下一步候选**: ① catalog helper
+(create_cylinder 等) 也加驱动尺寸 (让 resize 编排对 catalog 件也能缩直径) / ② 精准实体操作 (指定面/边
+fillet/cut) / ③ 把 resize 编排封成 workflow。
+
 ### M45 — modify_feature 改任意已标注尺寸 (PR #?, 2026-06-08) — 编辑深度: 从"只改 D1"到"改任何标注尺寸"
 
 **🥇 编辑深度第一步 (用户定方向)。** 之前 modify_feature 写死 `D1@特征` + 只认 extrude/revolve

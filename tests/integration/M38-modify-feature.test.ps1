@@ -50,7 +50,7 @@ try {
     Check "before: bbox Z == 30" ($d1.sizeMm.z -eq 30) "got $($d1.sizeMm.z)"
     $ext = FeatName $d1 'Extrusion'
     $m = Run @('modify-feature','--feature',$ext,'--value','50')
-    Check "modify reports depth change" ($m.message -match 'depth') $m.message
+    Check "modify reports the new value" ($m.message -match '50 mm') $m.message
     $d2 = (Run @('inspect-active')).data
     Check "after: bbox Z == 50 (regenerated)" ($d2.sizeMm.z -eq 50) "got $($d2.sizeMm.z)"
     Check "after: still 1 body" ($d2.bodyCount -eq 1) "got $($d2.bodyCount)"
@@ -70,7 +70,7 @@ try {
     Check "before: full cylinder 3 faces" ($r1.totalFaceCount -eq 3) "got $($r1.totalFaceCount)"
     $rev = FeatName $r1 'Revolution'
     $m2 = Run @('modify-feature','--feature',$rev,'--value','180')
-    Check "modify reports angle change" ($m2.message -match 'angle') $m2.message
+    Check "modify reports the new angle" ($m2.message -match '180') $m2.message
     $r2 = (Run @('inspect-active')).data
     Check "after: half cylinder 4 faces (gained flat face)" ($r2.totalFaceCount -eq 4) "got $($r2.totalFaceCount)"
     CloseDoc 't2'
@@ -102,7 +102,7 @@ try {
     Run @('extrude','--sketch',$z,'--depth','10') | Out-Null
     $bad = TryRun @('modify-feature','--feature','NoSuchFeature','--value','5')
     Check "nonexistent feature exits non-zero" ($bad.Code -ne 0) "code=$($bad.Code)"
-    Check "error mentions cannot find" ($bad.Out -match 'find') $bad.Out
+    Check "error mentions no editable dimension" ($bad.Out -match 'editable dimension') $bad.Out
     CloseDoc 't4'
 
     Write-Host ""

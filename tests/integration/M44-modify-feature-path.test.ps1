@@ -66,7 +66,7 @@ try {
     Check "missing part file rejected" ($bad1.Code -ne 0) "code=$($bad1.Code)"
     $bad2 = TryRun @('modify-feature','--part',$cyl,'--feature','NoSuchFeature','--value','5')
     Check "unknown feature rejected" ($bad2.Code -ne 0) "code=$($bad2.Code)"
-    Check "error mentions cannot find" ($bad2.Out -match 'find') $bad2.Out
+    Check "error mentions no editable dimension" ($bad2.Out -match 'editable dimension') $bad2.Out
 
     Write-Host ""
     if ($script:fail -eq 0) { Write-Host "[PASS] M44 modify-feature --part -- all checks green" }

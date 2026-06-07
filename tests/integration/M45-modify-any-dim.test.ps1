@@ -36,9 +36,9 @@ function TryRun([string[]]$a) {
     return [pscustomobject]@{ Code = $LASTEXITCODE; Out = ($o -join "`n") }
 }
 function SK($obj) { if ($obj.message -match "sketch name='([^']+)'") { return $Matches[1] } ; throw "no sketch: $($obj.message)" }
-# Features that carry an editable dimension (an extrude is 'Extrusion' on a plane,
-# but 'ICE' when sketched on a face — match by having a dim, not by type).
-function Exts($d) { return @($d.features | Where-Object { @($_.dimensions).Count -gt 0 }) }
+# The extrude features (an extrude is 'Extrusion' on a plane, 'ICE' on a face).
+# Match by type — since M46, dimensioned sketches also carry dims.
+function Exts($d) { return @($d.features | Where-Object { $_.typeName -eq 'Extrusion' -or $_.typeName -eq 'ICE' }) }
 function DimVal($f) { return (@($f.dimensions))[0].value }
 function DimName($f) { return (@($f.dimensions))[0].name }
 function CloseDoc { $p = Join-Path $tmpDir ("m45_{0}_{1}.sldprt" -f (Get-Random), $rand); Run @('save-part','--out',$p) | Out-Null; Remove-Item $p -Force -EA SilentlyContinue }

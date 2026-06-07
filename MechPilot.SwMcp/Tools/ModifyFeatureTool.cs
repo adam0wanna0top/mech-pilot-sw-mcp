@@ -194,7 +194,12 @@ public static class ModifyFeatureTool
             var dispObj = feature.GetFirstDisplayDimension();
             while (dispObj is IDisplayDimension disp)
             {
+                // Only consider a dimension under its OWNING feature, so a sketch
+                // dim consumed by an extrude isn't mis-named "D1@<extrude>" and
+                // confused with the extrude's own D1 (M46).
                 if (disp.GetDimension2(0) is IDimension dim &&
+                    dim.GetFeatureOwner() is IFeature owner &&
+                    string.Equals(owner.Name, feature.Name, StringComparison.Ordinal) &&
                     string.Equals($"{dim.Name}@{feature.Name}", dimName, StringComparison.Ordinal))
                 {
                     return (disp, dim);

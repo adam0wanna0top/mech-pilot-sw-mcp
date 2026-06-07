@@ -171,7 +171,13 @@ internal static class PartMetadata
         var dispObj = feature.GetFirstDisplayDimension();
         while (dispObj is IDisplayDimension disp)
         {
-            if (disp.GetDimension2(0) is IDimension dim)
+            // Report a dimension only under its OWNING feature: after an extrude
+            // consumes a (now dimensioned) sketch, the sketch's dim is reachable
+            // via both the sketch's and the extrude's walk — owner-filtering keeps
+            // it listed once, under the sketch, with its correct "D1@草图1" name.
+            if (disp.GetDimension2(0) is IDimension dim &&
+                dim.GetFeatureOwner() is IFeature owner &&
+                string.Equals(owner.Name, feature.Name, StringComparison.Ordinal))
             {
                 var (value, unit) = DimensionFormat.ToDisplay(disp.Type2, dim.SystemValue);
                 dims.Add(new Dictionary<string, object>
