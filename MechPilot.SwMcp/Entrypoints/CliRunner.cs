@@ -1260,7 +1260,7 @@ public static class CliRunner
 
     private static Command BuildModifyFeatureCommand()
     {
-        var featureOpt = new Option<string>("--feature") { Description = "Exact feature name from inspect-active / inspect-part.", Required = true };
+        var featureOpt = new Option<string>("--feature") { Description = "A feature name (→ its D1) or a full dimension name from editableDimensions (e.g. 'D1@凸台-拉伸1').", Required = true };
         var valueOpt = new Option<double>("--value") { Description = "New primary dimension: depth (mm) / angle (deg) / radius (mm) by feature type. > 0.", Required = true };
         var partOpt = new Option<string>("--part") { Description = "Optional absolute .sldprt to edit a saved part file instead of the active part." };
         var outOpt = new Option<string>("--out") { Description = "Optional output .sldprt (with --part). Omit to overwrite in place." };

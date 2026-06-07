@@ -79,7 +79,7 @@ profile/path mark 1/4 + 几何 ⊥)**, 通用 layer 5/5 milestone 全完成。**
 | pattern_circular | `mcp__mech_pilot_sw__pattern_circular` | 绕 ±Z 轴圆周阵列特征 (PCD 孔环等) |
 | inspect_part | `mcp__mech_pilot_sw__inspect_part` | 读取零件元数据（bbox / 特征 + **每特征可改维度** D1@feat **M39** / 面+边数） |
 | inspect_active | `mcp__mech_pilot_sw__inspect_active` | 读**活动 doc** 元数据 (bbox/特征/面+边), 不存不关 — 通用 layer 边建边验 (**M36**, E2E 孵出, 共用 PartMetadata) |
-| modify_feature | `mcp__mech_pilot_sw__modify_feature` | 改特征主尺寸 + 重生成 (extrude/cut 深度 / revolve 角度) — 活动 doc (**M38**, Parameter.SystemValue 绕 NoPIA) **或** `partPath` 开存盘零件文件改+存 (**M44** 装配组件 resize 用) |
+| modify_feature | `mcp__mech_pilot_sw__modify_feature` | 改特征**任意已标注尺寸** + 重生成 (全名 `D1@特征` 或裸特征名→D1; 单位按尺寸类型自动判, **M45**) — 活动 doc (**M38**, Parameter.SystemValue 绕 NoPIA) **或** `partPath` 开存盘零件文件改+存 (**M44** 装配组件 resize) |
 | modify_mate | `mcp__mech_pilot_sw__modify_mate` | 改装配体已有 mate 值 + 重生成 (distance mm / angle deg) — modify_feature 的 mate 版, 装配级 resize 用 (**M42**, DisplayDimension.SystemValue + EditRebuild3) |
 | export_part | `mcp__mech_pilot_sw__export_part` | 导出 STEP / STL / IGES / Parasolid |
 | import_step | `mcp__mech_pilot_sw__import_step` | 导入中性 CAD (STEP/IGES/Parasolid) 为 .sldprt 哑件 — 装配体固定锚点 (**M43** LoadFile4 + GetImportFileData; inspect_assembly 归类 imported) |

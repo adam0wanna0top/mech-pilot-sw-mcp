@@ -986,6 +986,33 @@ hemisphere/frustum (revolve 模板) — 后续相同类零件 0.5-1h 可加新�
 `MateHelpers`), 后续相似模式 (例如未来 sketch primitives 共用 / drawing view 选择
 共用) 都可按此模式独立 refactor PR 推进。
 
+### M45 — modify_feature 改任意已标注尺寸 (PR #?, 2026-06-08) — 编辑深度: 从"只改 D1"到"改任何标注尺寸"
+
+**🥇 编辑深度第一步 (用户定方向)。** 之前 modify_feature 写死 `D1@特征` + 只认 extrude/revolve
+类型 → 只能改主尺寸 (深度/角度)。M45 泛化: featureName 可传**完整尺寸名** (inspect surface 的
+`D1@凸台-拉伸1` / `D2@草图1`) 或裸特征名 (→D1); **任意特征类型**; 单位 (mm/度) 按**尺寸自身类型**
+自动判 (复用 M39 的 Type2 reader)。
+
+- **实现 (重组已验机制)**: `FindDisplayDimension(model, dimName)` —— 走每个特征的 display dim
+  (同 M39 GetFirstDisplayDimension walk), 比对 `{dim.Name}@{feature.Name}` == 目标名 → 拿到
+  (IDisplayDimension, IDimension)。`isAngle = DimensionFormat.IsAngular(disp.Type2)` 定单位 →
+  `dim.SystemValue = SI` → EditRebuild3。**去掉 M38 的 feature-type 白名单** (Extrusion/ICE/
+  Revolution/RevCut) —— 现在凡 inspect 能 surface 的尺寸都能改。"@" 检测区分尺寸名 vs 特征名
+  (SW 特征名不含 @)。与 M44 partPath 正交 (活动 doc + 存盘文件两模式都受益)。
+- **顺带发现**: **面-based extrude (M37 在 +z 面上挤) 的特征 typeName = `ICE`** (平面挤是 Extrusion);
+  M45 去类型白名单后两者都能改, 不再依赖类型。
+- **测试**:
+  - L1: 777 unchanged (改的是 SW 侧行为, spec 校验没变)
+  - L2: `M45-modify-any-dim.test.ps1` 9 检查全过: 2-extrude 件 (base Extrusion + boss ICE) →
+    **按全名改 boss `D1@凸台-拉伸2` 15→25** + 按裸名改 base →D1 30→40 (向后兼容) + revolve
+    **按全名改角度 (度自动判) 360→180 = 4 faces** + 未知尺寸友好拒绝
+  - **L3: 待新 session 重启** — featureName 语义扩展; 本 session MCP schema 已缓存。CLI/L2 已端到端验。
+  - build 0 warnings, dotnet format clean
+
+**意义**: 编辑能力从"只能改特征主尺寸 (深度/角度)"跃到"**改任何 inspect 列出的标注尺寸**" ——
+配合 M46 (草图加驱动尺寸) 后 sketch 直径/边长也将可改, 解锁真·几何缩放。**下一步 = M46**:
+草图原语自动加驱动尺寸 (圆→直径、矩形→长宽), 让 ourPart 的关键尺寸真正存在 + 可被 M45 改。
+
 ### M44 — modify_feature FILE mode (--part) (PR #?, 2026-06-08) — 编排执行的最后一块写原语 (E2E 孵出)
 
 **resize 编排 E2E 直接孵出 (dogfooding, 同 M36)。** 跑首个 plan-first 装配 resize E2E 时撞到:
