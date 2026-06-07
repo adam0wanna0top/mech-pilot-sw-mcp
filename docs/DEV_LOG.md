@@ -986,6 +986,41 @@ hemisphere/frustum (revolve 模板) — 后续相同类零件 0.5-1h 可加新�
 `MateHelpers`), 后续相似模式 (例如未来 sketch primitives 共用 / drawing view 选择
 共用) 都可按此模式独立 refactor PR 推进。
 
+### M42 — modify_mate (PR #?, 2026-06-07) — 「装配级 resize 编排」第 4 步: 改 mate 值 (写侧补齐)
+
+**「装配级智能 resize 编排」路线第 4 步 (接 M41), = 用户「第二步: 编辑已有 mate 值」。** 此前只有
+add_mate_* (建) + 读 mate (M41), 无改 mate 值。modify_mate 补上: 给已有 mate (distance/angle) 设
+新值 + 重生成 —— resize 装配体时要同步缩放 distance mate, 是编排的必要写原语。**modify_feature
+的 mate 版**, 连 NoPIA 绕法都一样。
+
+- **实现 (镜像 M38 modify_feature)**: open 装配体 (by path, 同 add_mate_*) → `MateReader.FindMate`
+  (复用 M41 MateGroup 遍历, 按 IFeature.Name 匹配) → `IMate2.DisplayDimension.GetDimension2(0)` →
+  `IDimension.SystemValue = SI 值` (distance mm/1000、angle deg×π/180) → `EditRebuild3` → 保存
+  (Save3 in-place / SaveAs copy, M5 lesson) → finally CloseDoc。**纯读写命名尺寸, 免疫 M38 NoPIA 坑**。
+- **MateReader refactor (M41→M42)**: 抽 `EnumerateMates` 私有迭代器, ReadMates (M41) + FindMate (M42)
+  共用一份 MateGroup 遍历 (object-collapse 防 NoPIA dynamic)。`MateType` +IsAngle(6) 纯/L1。
+- **只改 distance/angle**: 其它 mate 类型 (coincident/concentric/...) 无可改值 → 友好拒绝
+  (MateType.HasValue 守卫)。
+- **测试**:
+  - L1: +13 (= 756): ModifyMateSpecTests (path/name/value 校验, 真临时 .sldasm backing File.Exists)
+  - L2: `M42-modify-mate.test.ps1` 9 检查全过: distance 25→40 (重建+存盘后 inspect 读回 40) +
+    angle 30→45deg (覆盖度路径) + coincident 拒 (no editable value) + 不存在 mate 拒 (cannot find)
+  - **L3: 待新 session 重启抽测** — modify_mate 是**新工具**, MCP client 工具列表在 session 启动时
+    固定; 新工具要 server 重启 (= 新 session 重握手) 才出现在协议层 (同 rib/inspect_active/
+    modify_feature 的 golden rule #13 标准 fallback)。L2 已端到端验 (CLI fresh exe 连共享 SW)。
+  - build 0 warnings, dotnet format clean
+- **脚手架**: ModifyMateSpec + ModifyMateTool + CLI modify-mate + MCP 自动注册; CLAUDE 工具表 +1 (→49)。
+
+**意义**: 机械 Cursor「装配级 resize 编排」**读写原语全部就位**:
+- 看: inspect_active/part 件内可改维度 (M39) + inspect_assembly 组件类别 (M40) + mates (M41)
+- 改: modify_feature 件内尺寸 (M38) + **modify_mate 配合值 (M42)**
+
+**就差最后的编排逻辑** (用户「第三步」): 模糊意图 ("把这个装配体改大") → AI 报方案 (哪些 ourPart
+件的哪些维度 ×k、哪些 imported/standard 不动、哪些 distance mate 同步缩放) → 用户确认 → 执行
+(modify_feature 改件 + modify_mate 调 mate)。所有原语已备齐, 下一步可真跑一个 plan-first resize E2E。
+**下一步候选**: ① resize 编排 E2E (plan-first, 不一定是新工具, 是 AI 编排 workflow) /
+② import_step (真实混合装配 + imported live L2)。
+
 ### M41 — read mates in inspect_assembly (PR #?, 2026-06-07) — 「装配级 resize 编排」第 3 步: 看清怎么连
 
 **「装配级智能 resize 编排」路线第 3 步 (read-first, 接 M40)。** 此前只有 add_mate_* (写)、无读 mate ——

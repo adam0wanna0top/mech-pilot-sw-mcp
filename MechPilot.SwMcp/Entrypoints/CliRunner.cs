@@ -38,6 +38,7 @@ public static class CliRunner
         root.Subcommands.Add(BuildRevolveCutCommand());
         root.Subcommands.Add(BuildRibCommand());
         root.Subcommands.Add(BuildModifyFeatureCommand());
+        root.Subcommands.Add(BuildModifyMateCommand());
         root.Subcommands.Add(BuildCreateCylinderCommand());
         root.Subcommands.Add(BuildCreateHemisphereCommand());
         root.Subcommands.Add(BuildCreateSphereCommand());
@@ -1191,6 +1192,39 @@ public static class CliRunner
             }
         });
 
+        return cmd;
+    }
+
+    private static Command BuildModifyMateCommand()
+    {
+        var asmOpt = new Option<string>("--assembly") { Description = "Absolute path to an existing .sldasm.", Required = true };
+        var mateOpt = new Option<string>("--mate") { Description = "Exact mate name from inspect-assembly's mates list (e.g. '距离1').", Required = true };
+        var valueOpt = new Option<double>("--value") { Description = "New value: distance (mm) or angle (deg) by mate type. > 0.", Required = true };
+        var outOpt = new Option<string>("--out") { Description = "Optional output .sldasm path. Omit to overwrite in place." };
+        var formatOpt = new Option<string>("--output") { Description = "text | json", DefaultValueFactory = _ => "text" };
+        var cmd = new Command("modify-mate", "Edit an existing mate's value (distance mm / angle deg) in an assembly and rebuild.")
+        { asmOpt, mateOpt, valueOpt, outOpt, formatOpt };
+        cmd.SetAction(parseResult =>
+        {
+            try
+            {
+                var spec = new ModifyMateSpec
+                {
+                    AssemblyPath = parseResult.GetValue(asmOpt) ?? string.Empty,
+                    MateName = parseResult.GetValue(mateOpt) ?? string.Empty,
+                    Value = parseResult.GetValue(valueOpt),
+                    OutputPath = parseResult.GetValue(outOpt),
+                };
+                var result = ModifyMateTool.RunWithSpec(spec);
+                WriteResult(result, parseResult.GetValue(formatOpt) ?? "text");
+                return 0;
+            }
+            catch (McpToolException ex)
+            {
+                Console.Error.WriteLine($"[error] {ex.Message}");
+                return 1;
+            }
+        });
         return cmd;
     }
 

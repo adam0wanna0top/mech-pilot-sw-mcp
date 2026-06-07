@@ -31,4 +31,7 @@ internal static class MateType
     /// the mate's display dimension: distance (5, mm) and angle (6, deg).
     /// </summary>
     public static bool HasValue(int swMateType) => swMateType is 5 or 6;
+
+    /// <summary>True for an angle mate (swMateANGLE = 6): its value is degrees, not mm.</summary>
+    public static bool IsAngle(int swMateType) => swMateType == 6;
 }
