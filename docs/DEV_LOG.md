@@ -1057,8 +1057,10 @@ modify_feature 补上: 在活动 doc 上改已有特征的主尺寸 + 重生成�
     - revolve 角度 360→180 → faces 3→4 (半圆柱多出平切面)
     - cut 深度 through(40)→blind(10) → faces 4→5 (盲孔多出平底; 证 cut 也走深度路径)
     - 改不存在特征 → 友好拒绝
-  - **L3: 待新 session 重启** — modify_feature 是新工具, MCP server 启动时注册 (同
-    rib/inspect_active)。dimension 设值 + EditRebuild3 路径 CLI/L2 已端到端验。
+  - **L3: ✓ 已清 zero-bug (2026-06-07)** — 长寿命 MCP server 抽测 (verify-as-you-build
+    E2E): new_part→草图→extrude(30)→inspect_active(bbox Z=30)→**modify_feature 深度
+    30→50**→inspect_active(**bbox Z=50**, doc 仍开)。`Parameter.SystemValue` +
+    EditRebuild3 (NoPIA-safe) 在热 server 上正常, 跨工具组合不挂。
   - build 0 warnings, dotnet format clean
 - **脚手架**: ModifyFeatureSpec + ModifyFeatureTool + CLI modify-feature + MCP 自动注册。
   `FindFeatureByName` (FirstFeature→GetNextFeature 精确名匹配, 名来自 inspect)。
@@ -1129,8 +1131,9 @@ M35 通用 layer E2E 体验验证撞到的真痛点直接催生: 建造途中没
        关了 doc, 后续 start_sketch 会报 "no active doc")
     3. inspect_active #2 反映 cut: 4 faces / 4 edges
     4. inspect_active 与 inspect_part (save 后) 数据**一致** (证 PartMetadata 共用正确)
-  - **L3: 待新 session 重启抽测** — inspect_active 是新工具, MCP server 启动时注册工具,
-    同 rib 待重启 (golden rule #13 fallback)。inspect_part refactor 由 L2 Test 3 回归覆盖。
+  - **L3: ✓ 已清 zero-bug (2026-06-07)** — 长寿命 MCP server 抽测 ×2 (modify_feature E2E +
+    rib E2E): inspect_active 读活动 doc **不关闭** (两次 inspect 之间继续 modify/建特征均成功),
+    bbox/面/边与 L2 一致。inspect_part refactor 由 L2 Test 3 回归覆盖。
   - build 0 warnings, dotnet format clean
 
 **意义**: 通用 layer 的 LLM-友好度补上关键一环 —— **verify-as-you-build**。M35 E2E 我盲建
@@ -1167,10 +1170,10 @@ bracket 赌凸台方向 (赌对了); 有了 inspect_active, LLM 可在每个特�
   - L1: +13 RibSpec 用例 (= 684 total): sketchName + thickness 边界 [0.1, 1000]
   - L2: `M35-rib.test.ps1` 6 检查全过 (rib 成功消息 + 1 body + bbox + 11 faces +
     27 edges + inspect features 含 "Rib" type)
-  - **L3: 待新 session 重启抽测** — rib 是新工具, MCP server 在 session 启动时注册
-    工具列表, 新增工具要 server 重启才出现在协议层 (golden rule #13 标准 fallback)。
-    rib 用的 `RunWithSpec` 路径与已过 L3 的工具相同, L2 已端到端验证 (CLI fresh exe
-    连共享 SW), 仅长寿命 server 维度待补。
+  - **L3: ✓ 已清 zero-bug (2026-06-07)** — 长寿命 MCP server 抽测: L-bracket (Front L 轮廓
+    extrude 30) + 中部平面对角线 rib(t=6) → inspect_active **11 faces / 27 edges / 1 body /
+    bbox 40×40×30 + 筋1(typeName=Rib)**, 与 L2 字节级一致。void-return → 特征 count-delta
+    检测在热 server 上正常。
   - build 0 warnings, dotnet format clean
 - **新工具脚手架**: `Models/AdvancedFeatureSpecs.cs` +RibSpec; `Tools/RibTool.cs`;
   CLI `rib` 子命令; MCP `[McpServerTool(Name="rib")]` 自动注册。

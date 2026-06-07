@@ -124,7 +124,7 @@ four 收口)。**`Tools/Internal/SketchSession`** (M30) 抽出 `RequireActiveDoc
 **下一步候选 (都朝"编辑已有几何"深化)**: ① 更深 inspection (列每个面/边的法向/质心/面积 +
 特征参数, 让 AI 看清以精准改) / ② 精准实体操作 (给指定边/面倒角圆角/切, 而非 add_fillet
 全选) / ③ 特征管理 (suppress/删除/重命名) / ④ modify_feature 扩展 (sketch 尺寸、fillet
-半径、更多类型) / rib + inspect_active + modify_feature L3 抽测 (待新 session 重启) /
+半径、更多类型) / rib + inspect_active + modify_feature L3 已清 zero-bug (2026-06-07, 长寿命 server 抽测) /
 再跑 E2E (inspect_active 边建边验 + face-based sketch + modify_feature 迭代改尺寸)。
 机械 Cursor 读写闭环已成型: inspect_active (看) + modify_feature (改) + 通用 layer (建)。
 **通用 layer 5/5 已收官** (lifecycle + 8 sketch 原语 + extrude/revolve + loft/sweep/
