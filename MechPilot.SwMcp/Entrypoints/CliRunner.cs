@@ -1262,9 +1262,11 @@ public static class CliRunner
     {
         var featureOpt = new Option<string>("--feature") { Description = "Exact feature name from inspect-active / inspect-part.", Required = true };
         var valueOpt = new Option<double>("--value") { Description = "New primary dimension: depth (mm) / angle (deg) / radius (mm) by feature type. > 0.", Required = true };
+        var partOpt = new Option<string>("--part") { Description = "Optional absolute .sldprt to edit a saved part file instead of the active part." };
+        var outOpt = new Option<string>("--out") { Description = "Optional output .sldprt (with --part). Omit to overwrite in place." };
         var formatOpt = new Option<string>("--output") { Description = "text | json", DefaultValueFactory = _ => "text" };
-        var cmd = new Command("modify-feature", "Edit an existing feature's primary dimension on the active part and regenerate.")
-        { featureOpt, valueOpt, formatOpt };
+        var cmd = new Command("modify-feature", "Edit a feature's primary dimension (active part, or a saved part via --part) and regenerate.")
+        { featureOpt, valueOpt, partOpt, outOpt, formatOpt };
         cmd.SetAction(parseResult =>
         {
             try
@@ -1273,6 +1275,8 @@ public static class CliRunner
                 {
                     FeatureName = parseResult.GetValue(featureOpt) ?? string.Empty,
                     Value = parseResult.GetValue(valueOpt),
+                    PartPath = parseResult.GetValue(partOpt),
+                    OutputPath = parseResult.GetValue(outOpt),
                 };
                 WriteResult(ModifyFeatureTool.RunWithSpec(spec), parseResult.GetValue(formatOpt) ?? "text");
                 return 0;
