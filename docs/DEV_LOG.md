@@ -986,6 +986,41 @@ hemisphere/frustum (revolve 模板) — 后续相同类零件 0.5-1h 可加新�
 `MateHelpers`), 后续相似模式 (例如未来 sketch primitives 共用 / drawing view 选择
 共用) 都可按此模式独立 refactor PR 推进。
 
+### M41 — read mates in inspect_assembly (PR #?, 2026-06-07) — 「装配级 resize 编排」第 3 步: 看清怎么连
+
+**「装配级智能 resize 编排」路线第 3 步 (read-first, 接 M40)。** 此前只有 add_mate_* (写)、无读 mate ——
+编排器看不出"谁连谁、什么配合、值多少"。M41 给 inspect_assembly 加 top-level `mates[]` (决策 ②a: 内联
+进 inspect_assembly, 非单开工具 —— 编排器一次拿「组件 + 类别 + 维度 + 配合」全图)。每个 mate:
+- `name` (如 "距离1") + `type` (coincident/concentric/distance/angle/...) + `components` (连的实例名)
+- `value` + `unit` (仅 distance→mm / angle→deg)
+
+- **mate 遍历 (反射确认, golden rule #5)**: walk 顶层特征找 `MateGroup` 文件夹 → 沿
+  `GetFirstSubFeature`/`GetNextSubFeature` 下降 → 每个 sub 的 `GetSpecificFeature2()` 转 `IMate2`。
+  `IMate2.Type` (swMateType_e) + `GetMateEntityCount`/`MateEntity(i).ReferenceComponent` (连的组件)
+  + `DisplayDimension`→GetDimension2→SystemValue (distance/angle 值, 复用 M39 DimensionFormat)。
+- **复用 M40 NoPIA 教训**: GetFirstSubFeature/GetNextSubFeature/GetSpecificFeature2 都返 object→dynamic,
+  先存进显式 `object` 局部再 `is` 转型 (不 var 直传)。
+- **纯函数 (复用 InternalsVisibleTo + L1 模式)**: `Tools/Internal/MateType` (Name 映射 + HasValue) 纯/L1;
+  `Tools/Internal/MateReader` (#if, 真正遍历)。
+- **测试**:
+  - L1: +11 (= 743): MateTypeTests (swMateType→name 映射 + distance/angle HasValue)
+  - L2: `M41-read-mates.test.ps1` 14 检查全过: 2 cyl 实例 + distance(front,25) + coincident(top) →
+    inspect_assembly mateCount=2; distance 读出 value=25mm + 连两实例; coincident 无 value
+  - **L3 (本 session 即验, 已有工具行为扩展同 M37/M39/M40)**: 长寿命 server inspect_assembly 返
+    `mates=[{type=distance, components=[cyl-1,cyl-2], value=25mm}]` + 消息 "1 mate"。
+  - build 0 warnings, dotnet format clean
+- **踩坑 (沉淀, 重要)**: **别并行发 SW MCP 调用**。本 session 把 create_cylinder + new_assembly
+  放一个 response 并行发 → 长寿命 server 的 SW COM (STA) 状态被污染, 之后 add_component 持续抛
+  "An error occurred invoking" (同一 shared SW 的 fresh CLI 却正常 = 证 server in-process 状态坏)。
+  **SW COM 是 STA, MCP 工具调用必须串行**; 撞到后 kill server re-spawn 即恢复。是 golden rule #13
+  "跨工具状态污染" 的具体实例。
+
+**意义**: 机械 Cursor「装配级 resize 编排」的"看"侧**全部就位** —— 组件类别 (M40) + 件内可改维度
+(M39) + 配合关系&值 (M41)。编排器现在 plan 一次协调 resize 所需输入全有:「哪些件能改、各有哪些
+尺寸、件间怎么配合、配合距离多少」。**下一步**: ① 编辑 mate 值 (PR-4, modify_feature 的 mate 版 ——
+resize 要同步缩放 distance mate) / ② resize 编排 (plan-first: 模糊意图→报方案→确认→改我们的件
+modify_feature + 调 mate) / ③ import_step (真实混合装配 + imported live L2)。
+
 ### M40 — component classification in inspect_assembly (PR #?, 2026-06-07) — 「装配级 resize 编排」第 2 步: 看清谁能改
 
 **「装配级智能 resize 编排」路线第 2 步 (read-first, 接 M39)。** inspect_assembly 此前每个
