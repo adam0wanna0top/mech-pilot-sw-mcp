@@ -28,7 +28,8 @@ public static class InspectActiveTool
     [Description(
         "Inspect the part you are CURRENTLY building (the active document) " +
         "without saving or closing it. Returns the same metadata as " +
-        "inspect_part — title, top-level feature count + list, total face / " +
+        "inspect_part — title, top-level feature count + list (each feature " +
+        "with its editable dimensions modify_feature can change), total face / " +
         "edge count, and a bounding box in mm — read live from the active " +
         "part. Use it mid-build to verify geometry before continuing: e.g. " +
         "confirm a boss extruded in the +Z direction (check bbox), that a cut " +

@@ -10,8 +10,9 @@ namespace MechPilot.SwMcp.Tools.Internal;
 /// Shared part-metadata reader for the two inspect tools (M36 refactor,
 /// rule-of-two): <see cref="InspectPartTool"/> (opens a .sldprt read-only)
 /// and <see cref="InspectActiveTool"/> (reads the active doc in place). Both
-/// produce the identical bbox / feature-list / face+edge-count
-/// <see cref="ToolResult"/>; only the doc source + lifecycle differ.
+/// produce the identical bbox / feature-list (each feature carries its editable
+/// dimensions) / face+edge-count <see cref="ToolResult"/>; only the doc source
+/// + lifecycle differ.
 ///
 /// This helper neither opens nor closes documents — the caller owns the doc
 /// lifecycle (open+close for inspect_part, leave-open for inspect_active).
@@ -36,6 +37,8 @@ internal static class PartMetadata
         var boundingBox = ReadBoundingBoxMm(part);
         var (bodyCount, totalFaceCount, totalEdgeCount) = CountBodyEntities(part);
         var features = ReadTopLevelFeatures(model);
+        var editableDimCount = features.Sum(
+            f => ((List<Dictionary<string, object>>)f["dimensions"]).Count);
 
         var sizeXMm = boundingBox is null ? 0 : boundingBox["maxX"] - boundingBox["minX"];
         var sizeYMm = boundingBox is null ? 0 : boundingBox["maxY"] - boundingBox["minY"];
@@ -57,6 +60,7 @@ internal static class PartMetadata
             ["bodyCount"] = bodyCount,
             ["totalFaceCount"] = totalFaceCount,
             ["totalEdgeCount"] = totalEdgeCount,
+            ["editableDimensionCount"] = editableDimCount,
             ["features"] = features,
             ["sizeMm"] = new Dictionary<string, double>
             {
@@ -73,7 +77,8 @@ internal static class PartMetadata
         return ToolResult.Ok(
             message:
                 $"'{title}': {sizeLabel}; {bodyCount} body, {featureLabel}, " +
-                $"{totalFaceCount} faces, {totalEdgeCount} edges",
+                $"{totalFaceCount} faces, {totalEdgeCount} edges, " +
+                $"{editableDimCount} editable dims",
             data: data);
     }
 
@@ -143,11 +148,42 @@ internal static class PartMetadata
                     ["name"] = feature.Name ?? "",
                     ["typeName"] = typeName,
                     ["suppressed"] = feature.IsSuppressed(),
+                    ["dimensions"] = ReadFeatureDimensions(feature),
                 });
             }
             feature = feature.GetNextFeature() as IFeature;
         }
         return features;
+    }
+
+    /// <summary>
+    /// Reads a feature's display dimensions as {name, value, unit} dicts so an
+    /// LLM can see what is editable before calling modify_feature. <c>name</c>
+    /// is the "D1@&lt;feature&gt;" handle modify_feature consumes; <c>value</c>
+    /// is mm for length dimensions and degrees for angular ones; <c>unit</c> is
+    /// "mm" / "deg". Undimensioned features (e.g. our generic sketches) yield an
+    /// empty list. Pure read walk (GetFirstDisplayDimension → GetNextDisplayDimension):
+    /// no GetDefinition/ModifyDefinition round-trip, so immune to the M38 NoPIA trap.
+    /// </summary>
+    private static List<Dictionary<string, object>> ReadFeatureDimensions(IFeature feature)
+    {
+        var dims = new List<Dictionary<string, object>>();
+        var dispObj = feature.GetFirstDisplayDimension();
+        while (dispObj is IDisplayDimension disp)
+        {
+            if (disp.GetDimension2(0) is IDimension dim)
+            {
+                var (value, unit) = DimensionFormat.ToDisplay(disp.Type2, dim.SystemValue);
+                dims.Add(new Dictionary<string, object>
+                {
+                    ["name"] = $"{dim.Name}@{feature.Name}",
+                    ["value"] = value,
+                    ["unit"] = unit,
+                });
+            }
+            dispObj = feature.GetNextDisplayDimension(dispObj);
+        }
+        return dims;
     }
 }
 #endif

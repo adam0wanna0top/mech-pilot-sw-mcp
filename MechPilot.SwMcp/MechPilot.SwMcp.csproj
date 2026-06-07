@@ -16,6 +16,11 @@
     <PackageReference Include="System.CommandLine" Version="3.0.0-preview.4.26230.115" />
   </ItemGroup>
 
+  <!-- Expose internal pure helpers (e.g. DimensionFormat) to the L1 test project. -->
+  <ItemGroup>
+    <InternalsVisibleTo Include="MechPilot.SwMcp.Tests" />
+  </ItemGroup>
+
   <!-- SolidWorks 官方预编译 .NET Interop DLL (决策 #14) -->
   <!-- HintPath 绝对路径仅本机用; CI 上跳过该 ItemGroup (HasSolidWorks=false) -->
   <PropertyGroup>
