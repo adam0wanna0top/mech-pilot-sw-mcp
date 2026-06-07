@@ -986,6 +986,48 @@ hemisphere/frustum (revolve 模板) — 后续相同类零件 0.5-1h 可加新�
 `MateHelpers`), 后续相似模式 (例如未来 sketch primitives 共用 / drawing view 选择
 共用) 都可按此模式独立 refactor PR 推进。
 
+### M39 — editable dimensions in inspect_part / inspect_active (PR #?, 2026-06-07) — 让 AI 看清"能改什么"
+
+**「装配级智能 resize 编排」路线的第 1 步 (read-first)。** 此前 inspect 只返特征
+name/typeName/suppressed —— LLM 知道"有个凸台"但不知道"它有哪个可改尺寸、现值多少",
+要 modify_feature 得先猜尺寸。M39 给 `PartMetadata` 的每个特征补一个 `dimensions` 列表
+({name, value, unit}); inspect_part + inspect_active **同时**升级 (共用 PartMetadata) ——
+直接接通「看 ↔ 改」。
+
+- **dimension 枚举 (反射确认, golden rule #5)**: `IFeature.GetFirstDisplayDimension()` →
+  `GetNextDisplayDimension(dispIn)` 遍历; 每个 `IDisplayDimension.GetDimension2(0)` →
+  `IDimension`, 读 `Name`(短名 "D1") + `SystemValue`(SI: 米/弧度); 角度判定用
+  `IDisplayDimension.Type2` (swDimensionType_e: 3/16=角度, 其余=长度)。
+- **name = "D1@&lt;特征名&gt;" 与 modify_feature 严丝合缝**: 用 `{dim.Name}@{feature.Name}`
+  构造 —— 正好是 modify_feature 的 `Parameter("D1@<特征名>")` handle, inspect 看到的名字
+  可直接喂 modify_feature。单位: 长度→mm (×1000), 角度→deg (×180/π)。
+- **纯函数抽出 + 项目首个 InternalsVisibleTo**: 单位换算/角度分类放
+  `Tools/Internal/DimensionFormat` (SW-free), 主项目加
+  `InternalsVisibleTo(MechPilot.SwMcp.Tests)` 让它可 L1 单测 (为后续 orchestration
+  抽更多纯 helper 铺路)。
+- **天然免疫 M38 NoPIA 坑**: 纯读遍历, 不走 GetDefinition/ModifyDefinition、不回传 COM
+  对象。`GetNextDisplayDimension(object)` 实测在 NoPIA 下正常 (与 ModifyDefinition 不同 ——
+  印证 M38 的坑是 ModifyDefinition 特有, 非所有 object 形参)。
+- **测试**:
+  - L1: +10 `DimensionFormatTests` (= 707): IsAngular 类型分类 + SI→display 换算 + 舍入
+  - L2: `M39-part-dimensions.test.ps1` 14 检查全过:
+    - extrude 深度 dim `D1@凸台-拉伸1`=30mm; **用该 handle 的特征喂 modify_feature 改 50 →
+      重读 dim=50** (see ↔ edit 闭环, PR 核心)
+    - revolve 角度 dim=360deg (角度→度, 非 mm); 未标注草图 → dims 空 [];
+      inspect_part(存盘) 与 inspect_active 一致
+  - **L3 (本 session 即验, 同 M37)**: inspect_part/inspect_active 是**已有工具** (仅行为
+    扩展, MCP 接口不变), server 重启即生效 —— 长寿命 MCP server 抽测: cylinder D40×30 →
+    inspect_active 返 `D1@凸台-拉伸1=30mm` + `editableDimensionCount=1` → modify 50 →
+    重读 50 + bbox Z 50。旧描述缓存但返回带 dimensions = 新码已加载 (同 M34 注记)。
+  - build 0 warnings, dotnet format clean
+- **脚手架**: `Tools/Internal/DimensionFormat.cs` (纯) + `PartMetadata.ReadFeatureDimensions`
+  + 两个 inspect 工具描述更新 + csproj InternalsVisibleTo。
+
+**意义**: 机械 Cursor 读写闭环再深一层 —— 从"看得见特征"到"看得见每个特征的**可改尺寸 +
+现值 + 单位 + 能直接喂 modify_feature 的 handle**"。这是「装配级 resize 编排」的地基:
+编排器要先看清每个零件的参数化维度才能规划协调改动。**下一步 (PR-2)**: 装配 inspection 加
+component 分类 (我们的参数化件 vs 导入哑件) + 每件维度 (复用本 helper) + 标准件信号。
+
 ### M38 — modify_feature (PR #?, 2026-06-06) — 机械 Cursor 第一个"编辑已有几何"原语
 
 **项目方向定调后 ([[project-vision-mechanical-cursor]]): 机械版 Cursor = 建→看→精准改→

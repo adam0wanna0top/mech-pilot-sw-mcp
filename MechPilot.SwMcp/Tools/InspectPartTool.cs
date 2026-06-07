@@ -33,8 +33,10 @@ public static class InspectPartTool
     [McpServerTool(Name = "inspect_part")]
     [Description(
         "Read metadata from an existing SolidWorks part (read-only). Returns " +
-        "the part's title, top-level feature count and list, total face / " +
-        "edge count across solid bodies, and a bounding box in millimeters. " +
+        "the part's title, top-level feature count and list — each feature with " +
+        "its editable dimensions (name like 'D1@凸台-拉伸1', value, and unit " +
+        "'mm'/'deg') that modify_feature can change — total face / edge count " +
+        "across solid bodies, and a bounding box in millimeters. " +
         "Use this to 'see' a part before editing it — e.g. check the diameter " +
         "before drilling a hole that's too large for the part. inputPath must " +
         "be an absolute path to an existing .sldprt. (To inspect the part you " +
