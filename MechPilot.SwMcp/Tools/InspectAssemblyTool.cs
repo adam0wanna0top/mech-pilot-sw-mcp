@@ -40,8 +40,12 @@ public static class InspectAssemblyTool
         "neutral body that must NOT be edited, 'subassembly', or 'unknown'), a " +
         "'standardCandidate' flag (file name looks like a standard fastener/" +
         "bearing), and 'editableDimensions' (modify_feature handles, for " +
-        "ourPart components). Use this BEFORE add_mate to learn instance names, " +
-        "and before any resize to see which components are editable vs fixed. " +
+        "ourPart components). Also returns a 'mates' list — each with its name, " +
+        "type (coincident / concentric / distance / angle / ...), the component " +
+        "instance names it connects, and value+unit for distance/angle mates — " +
+        "so you can see how components are constrained before a resize. Use this " +
+        "BEFORE add_mate to learn instance names, and before any resize to see " +
+        "which components are editable vs fixed and how they are mated. " +
         "inputPath must be an absolute path to an existing .sldasm. " +
         "For parts (.sldprt) use inspect_part instead.")]
     public static ToolResult Run(
@@ -122,7 +126,10 @@ public static class InspectAssemblyTool
                 }
             }
 
-            // ── 3. Build human summary + structured payload ────────────────
+            // ── 3. Read mates (who connects to whom + distance/angle value) ─
+            var mates = Internal.MateReader.ReadMates(model);
+
+            // ── 4. Build human summary + structured payload ────────────────
             var countLabel = components.Count switch
             {
                 0 => "no components",
@@ -133,15 +140,18 @@ public static class InspectAssemblyTool
                 components.GroupBy(c => (string)c["kind"])
                           .OrderBy(g => g.Key)
                           .Select(g => $"{g.Count()} {g.Key}"));
+            var mateLabel = mates.Count switch { 0 => "", 1 => "; 1 mate", _ => $"; {mates.Count} mates" };
             var summary = components.Count == 0
                 ? $"'{title}': empty assembly"
-                : $"'{title}': {countLabel} ({kindSummary}) — {string.Join(", ", components.ConvertAll(c => (string)c["name"]))}";
+                : $"'{title}': {countLabel} ({kindSummary}) — {string.Join(", ", components.ConvertAll(c => (string)c["name"]))}{mateLabel}";
 
             var data = new Dictionary<string, object>
             {
                 ["title"] = title,
                 ["componentCount"] = components.Count,
+                ["mateCount"] = mates.Count,
                 ["components"] = components,
+                ["mates"] = mates,
             };
 
             return ToolResult.Ok(message: summary, data: data);
