@@ -986,6 +986,36 @@ hemisphere/frustum (revolve 模板) — 后续相同类零件 0.5-1h 可加新�
 `MateHelpers`), 后续相似模式 (例如未来 sketch primitives 共用 / drawing view 选择
 共用) 都可按此模式独立 refactor PR 推进。
 
+### M44 — modify_feature FILE mode (--part) (PR #?, 2026-06-08) — 编排执行的最后一块写原语 (E2E 孵出)
+
+**resize 编排 E2E 直接孵出 (dogfooding, 同 M36)。** 跑首个 plan-first 装配 resize E2E 时撞到:
+modify_feature 只作用**活动 doc**, 编辑不了装配体引用的**已存盘零件文件** → 当时只能用
+create_cylinder 覆盖重生成 (catalog 形状够用, 复杂件不行)。M44 补 FILE mode: 传 partPath
+开零件文件 → 改 → 重生成 → 存 → 关。**编排执行现在能真·原地改任意 ourPart 组件**。
+
+- **设计 (扩展非新建)**: modify_feature 加可选 `partPath` (+ `outputPath`)。partPath 空 = 活动 doc
+  (M38 原样, 不存); 给 = open .sldprt → 改 → Save3(in-place)/SaveAs(copy) → close。两条路共用
+  `ApplyModification` (FindFeatureByName + `Parameter("D1@feat").SystemValue` + EditRebuild3) —
+  M38 核心一字未改, 只多套一层文件 open/save/close (同 add_fillet/modify_mate 的 path 模式)。
+  向后兼容 (旧调用 partPath 默认空 = 活动 doc)。
+- **E2E 结果 (编排验证, 本里程碑动机)**: 搭混合装配 (column/cap = ourPart 圆柱 + import_step
+  导入 anchor 哑件 + 2 distance mate) → inspect_assembly 看全图 → "改大 1.5×" → **plan-first 报方案**
+  (column/cap 长度 ×1.5、距离1 ours↔ours ×1.5; **anchor 不动、距离2 ours↔imported 接口保持**) →
+  用户确认 → 执行 → inspect 验证: column L60→90、cap L10→15、距离1 60→90; **anchor + 距离2 纹丝不动**。
+  编排判断力 (动我们的、避开导入/接口) 跑通。**唯一缺陷 = 当时部件缩放靠 create_cylinder 重生成 → M44 修掉**。
+- **测试**:
+  - L1: +6 (= 777): ModifyFeatureSpec partPath/outputPath 校验 (rooted/.sldprt/exists)
+  - L2: `M44-modify-feature-path.test.ps1` 10 检查全过: --part 原地改 L60→90 (dim + bbox z) +
+    --out 出副本 (副本 50 / 原件保持 90) + 负例 (缺文件 / 未知特征)
+  - **L3: 待新 session 重启抽测** — partPath 是**新参数**, MCP client schema 在 session 启动时固定
+    (同新工具的 golden rule #13 fallback)。CLI/L2 已端到端验。
+  - build 0 warnings, dotnet format clean
+
+**意义**: 机械 Cursor「装配级 resize 编排」**读写原语 100% 闭合** —— 看 (M39/40/41) + 改件
+(M38 活动 doc + **M44 存盘件**) + 改 mate (M42) + 建/导入 (通用 layer + M43)。编排执行不再靠
+重生成, 可对任意 ourPart 组件原地改特征。**下一步**: 把编排封成可复用 workflow / 更智能的 plan
+(比例推断、接口维度自动识别) / 扩 modify_feature 维度类型 (现仅 D1 主尺寸, 不含 sketch 直径等)。
+
 ### M43 — import_step (PR #?, 2026-06-08) — 装配体固定锚点 (导入哑件), 编排 E2E 的真实场景前置
 
 **为 resize 编排 E2E 备真实场景 (用户混合装配: 我们的参数化件 + 导入哑件锚点)。** 新工具

@@ -3,24 +3,25 @@ using MechPilot.SwMcp.Exceptions;
 namespace MechPilot.SwMcp.Models;
 
 /// <summary>
-/// Specification for editing an existing feature's primary dimension on the
-/// ACTIVE part (M38) — the "mechanical Cursor" edit primitive: build → inspect
-/// → tweak a dimension → regenerate, all on the live doc.
+/// Specification for editing an existing feature's primary dimension and
+/// regenerating. Two modes (M38 + M44):
+///   • ACTIVE-doc mode (<see cref="PartPath"/> null/empty): edits the live part
+///     the generic layer is building — the original "mechanical Cursor" tweak
+///     loop. Does not save (the caller saves later with save_part).
+///   • FILE mode (<see cref="PartPath"/> set): opens that .sldprt, edits,
+///     rebuilds, and SAVES (in place, or to <see cref="OutputPath"/>) — so an
+///     assembly's component parts can be resized in place (the part-side
+///     counterpart of modify_mate).
 ///
-/// <see cref="Value"/> is applied to the feature's natural primary dimension,
-/// which depends on the feature type:
+/// <see cref="Value"/> is the feature's natural primary dimension:
 ///   • extrude / cut  → blind depth in mm
 ///   • revolve / revolve-cut → angle in degrees
-///
-/// LLM workflow:
-///   ... build ... → inspect_active (read feature names) →
-///   modify_feature("凸台-拉伸2", 25) → inspect_active (see the change)
 /// </summary>
 public sealed record ModifyFeatureSpec
 {
     /// <summary>
-    /// Exact feature name to edit, as reported by inspect_active / inspect_part
-    /// (e.g. "凸台-拉伸1" / "旋转1" / "圆角1").
+    /// Exact feature name to edit, as reported by inspect_active / inspect_part /
+    /// inspect_assembly's editableDimensions (e.g. "凸台-拉伸1" / "旋转1").
     /// </summary>
     public required string FeatureName { get; init; }
 
@@ -29,6 +30,19 @@ public sealed record ModifyFeatureSpec
     /// degrees for revolve angle. Must be a finite number &gt; 0.
     /// </summary>
     public required double Value { get; init; }
+
+    /// <summary>
+    /// Optional absolute .sldprt path. Null/empty = edit the ACTIVE part (M38).
+    /// Set = open this saved part file, edit, and save (M44) — e.g. an assembly
+    /// component during a resize.
+    /// </summary>
+    public string? PartPath { get; init; }
+
+    /// <summary>
+    /// Optional output .sldprt (FILE mode only). Null/empty = overwrite
+    /// <see cref="PartPath"/> in place.
+    /// </summary>
+    public string? OutputPath { get; init; }
 
     private const double MaxValue = 100_000.0;
 
@@ -50,6 +64,26 @@ public sealed record ModifyFeatureSpec
         {
             throw new McpToolException(
                 $"value {Value} is implausibly large (> {MaxValue}).");
+        }
+        if (!string.IsNullOrWhiteSpace(PartPath))
+        {
+            if (!Path.IsPathRooted(PartPath))
+            {
+                throw new McpToolException($"partPath must be absolute (got '{PartPath}').");
+            }
+            if (!PartPath.EndsWith(".sldprt", StringComparison.OrdinalIgnoreCase))
+            {
+                throw new McpToolException($"partPath must end in .sldprt (got '{PartPath}').");
+            }
+            if (!File.Exists(PartPath))
+            {
+                throw new McpToolException($"partPath does not exist: '{PartPath}'.");
+            }
+        }
+        if (!string.IsNullOrWhiteSpace(OutputPath) &&
+            !OutputPath!.EndsWith(".sldprt", StringComparison.OrdinalIgnoreCase))
+        {
+            throw new McpToolException($"outputPath must end in .sldprt (got '{OutputPath}').");
         }
     }
 }
