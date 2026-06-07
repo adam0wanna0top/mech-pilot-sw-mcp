@@ -986,6 +986,52 @@ hemisphere/frustum (revolve 模板) — 后续相同类零件 0.5-1h 可加新�
 `MateHelpers`), 后续相似模式 (例如未来 sketch primitives 共用 / drawing view 选择
 共用) 都可按此模式独立 refactor PR 推进。
 
+### M40 — component classification in inspect_assembly (PR #?, 2026-06-07) — 「装配级 resize 编排」第 2 步: 看清谁能改
+
+**「装配级智能 resize 编排」路线第 2 步 (read-first, 接 M39)。** inspect_assembly 此前每个
+component 只返 name/sourcePath/suppressed/positionMm —— 编排器看不出"哪个零件是我们的
+参数化件 (可改) vs 导入哑件 (固定锚点, 绝不能碰)"。M40 给每个 component 补:
+- `kind`: ourPart / imported / subassembly / unknown
+- `fileName` + `standardCandidate` (名字像标准件 fastener/bearing 的提示)
+- `editableDimensions` (ourPart 的 modify_feature handle 列表, 复用 M39 的 dim walk)
+
+- **导入检测信号 (抛弃式诊断探针确认, M34 playbook)**: 临时 probe-import CLI verb 开一个 STEP
+  导入件 walk 特征树 → 真因: 导入哑件特征树含 **`MBimport`** 节点 (而非 ProfileFeature/
+  Extrusion)。分类逻辑: 含 MBimport → imported; 否则有 build 特征 → ourPart; 空 → unknown。
+  探针用完即删 (git revert, 不进 PR)。
+- **STEP 导入 recipe (探针副产, 留给未来 import_step)**: `Path.GetFullPath` (反斜杠规范化,
+  golden rule #14 —— 正斜杠路径 LoadFile4 直接 err=1) + `GetImportFileData` + `LoadFile4(full,
+  "r", importData, ref err)`。**OpenDoc6(swDocPART) 不能导入中性格式** (返
+  swFileRequiresRepairError = 0x200000)。
+- **NoPIA 再深一坑 (M38 教训精化)**: `EmbedInteropTypes` 下 COM 方法返回 `object` 会被 C#
+  编译器当 **dynamic** → 整个后续调用变 dynamic dispatch → `TYPE_E_ELEMENTNOTFOUND`。
+  解: `object x = sw.GetImportFileData(...)` 显式声明 object (而非 var) 收回 dynamic。
+  **规律: GetXxx 返 object 的 COM 调用, 结果用前先存进 object/typed 变量, 别 var 直传下一个
+  COM 调用。**
+- **纯函数抽出 (复用 M39 的 InternalsVisibleTo + L1 模式)**: `Tools/Internal/PartKind`
+  (IsImportFeatureType + ClassifyPart) + `StandardPartNames` (IsStandardCandidate 正则:
+  ISO/GB/DIN/... 标准号 + fastener/bearing 关键词 EN+中)。都 SW-free, L1 测。
+  `PartMetadata.ReadTopLevelFeatures` 改 internal 供 InspectAssembly 复用 (一次 walk 拿
+  features+dims → 推导 kind → 摊平 dims)。
+- **测试**:
+  - L1: +25 (= 732): PartKindTests (import 检测 + 4 分类分支) + StandardPartNamesTests
+    (15 例: ISO/GB·T/DIN912/螺栓/轴承 命中, my_bracket/isometric/din_bracket 不误命中)
+  - L2: `M40-assembly-classify.test.ps1` 14 检查全过: 我们的 cyl→ourPart + D1@凸台-拉伸1=40mm +
+    standardCandidate=false; ISO_4762 命名件→ourPart 但 standardCandidate=true (证名字提示独立
+    于 kind); sub-assembly→subassembly + 0 dims
+  - **L3 (本 session 即验, 同 M37/M39 已有工具行为扩展)**: 长寿命 server 抽测:
+    create_cylinder + new_assembly + add_component → inspect_assembly 返 `kind=ourPart` +
+    `editableDimensions=[D1@凸台-拉伸1=40mm]` + 消息 "1 ourPart"。
+  - build 0 warnings, dotnet format clean
+- **③ 决策 (导入件 L2 夹具)**: 采用 lean ③c —— imported kind 由 L1 (ClassifyPart[MBimport]) +
+  探针端到端确认; L2 不造 live 导入件 (需 import_step, 暂未建)。
+
+**意义**: 机械 Cursor「装配级 resize 编排」的"看"侧成型 —— AI 打开装配体能一眼看出每个
+component 是「我们的可改件 (带可改维度 handle)」还是「导入/标准 固定锚点」。配合 M38
+modify_feature (改) + M39 part dims (看件内), 编排器具备了 plan 一次协调 resize 的全部输入。
+**下一步**: ① import_step (让 imported 路径有 live L2 + 支持真实混合装配) / ② 读+改 mate
+(PR-3, resize 要同步调 mate 距离) / ③ resize 编排 (plan-first)。
+
 ### M39 — editable dimensions in inspect_part / inspect_active (PR #?, 2026-06-07) — 让 AI 看清"能改什么"
 
 **「装配级智能 resize 编排」路线的第 1 步 (read-first)。** 此前 inspect 只返特征
