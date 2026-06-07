@@ -20,8 +20,9 @@ namespace MechPilot.SwMcp.Models;
 public sealed record ModifyFeatureSpec
 {
     /// <summary>
-    /// Exact feature name to edit, as reported by inspect_active / inspect_part /
-    /// inspect_assembly's editableDimensions (e.g. "凸台-拉伸1" / "旋转1").
+    /// What to edit: a bare feature name (→ its primary dimension "D1@&lt;feature&gt;")
+    /// or a full dimension name from inspect_* editableDimensions (e.g.
+    /// "D1@凸台-拉伸1" / "D2@草图1"). M45.
     /// </summary>
     public required string FeatureName { get; init; }
 

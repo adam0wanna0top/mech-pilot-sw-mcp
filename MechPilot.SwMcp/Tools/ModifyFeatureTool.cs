@@ -20,28 +20,30 @@ namespace MechPilot.SwMcp.Tools;
 ///     part-side counterpart of modify_mate; driven by the inspect_assembly
 ///     component sourcePath + editableDimensions handle).
 ///
-/// Both share the same NoPIA-safe edit: set the named dimension
-/// "D1@&lt;featureName&gt;" via <c>IModelDoc2.Parameter(...).SystemValue</c> +
-/// EditRebuild3 (no GetDefinition/ModifyDefinition; M38 finding). "D1" is the
-/// primary dimension: extrude / cut → depth (mm); revolve / revolve-cut → angle
-/// (deg). SystemValue is SI (metres / radians).
+/// Both share the same NoPIA-safe edit (M38): set a named dimension's
+/// <c>SystemValue</c> + EditRebuild3 (no GetDefinition/ModifyDefinition). The
+/// target is "D1@&lt;feature&gt;" for a bare feature name, or ANY full dimension
+/// name from inspect_* editableDimensions (M45) — any feature type, not just the
+/// primary; its unit (mm / degrees) is taken from the dimension's own type via
+/// the M39 display-dimension reader. SystemValue is SI (metres / radians).
 /// </summary>
 [McpServerToolType]
 public static class ModifyFeatureTool
 {
     [McpServerTool(Name = "modify_feature")]
     [Description(
-        "Edit an existing feature's primary dimension and regenerate. featureName " +
-        "is the EXACT name from inspect_active / inspect_part / inspect_assembly's " +
-        "editableDimensions (e.g. '凸台-拉伸2'). value is the new dimension: extrude " +
-        "/ cut → depth in mm; revolve / revolve-cut → angle in degrees. By default " +
-        "edits the ACTIVE part (the one being built). To edit a SAVED part file " +
-        "instead — e.g. an assembly component during a resize — pass partPath (an " +
-        "absolute .sldprt); it is opened, edited, saved (in place, or to " +
-        "outputPath) and closed. Use inspect_active / inspect_assembly to get the " +
-        "names first, then inspect again to confirm.")]
+        "Edit an existing dimension and regenerate. featureName is EITHER a bare " +
+        "feature name (edits that feature's primary dimension 'D1@<feature>') OR a " +
+        "full dimension name from inspect_* editableDimensions (e.g. 'D1@凸台-拉伸1', " +
+        "'D2@草图1') — so ANY surfaced dimension is editable, not just the primary, " +
+        "and any feature type. value is the new value in the dimension's own unit: " +
+        "mm for a length, degrees for an angle (auto-detected from the dimension). " +
+        "By default edits the ACTIVE part; pass partPath (an absolute .sldprt) to " +
+        "edit a SAVED part file instead — e.g. an assembly component during a " +
+        "resize — saved in place (or to outputPath). Use inspect_active / " +
+        "inspect_assembly to get the names first, then inspect again to confirm.")]
     public static ToolResult Run(
-        [Description("Exact feature name (e.g. '凸台-拉伸2').")]
+        [Description("A feature name (→ its 'D1@<feature>') or a full dimension name from editableDimensions (e.g. 'D1@凸台-拉伸1').")]
         string featureName,
         [Description("New primary dimension: depth in mm (extrude/cut) or angle in degrees (revolve). > 0.")]
         double value,
@@ -146,56 +148,58 @@ public static class ModifyFeatureTool
     /// </summary>
     private static string ApplyModification(IModelDoc2 model, ModifyFeatureSpec spec)
     {
-        var feature = FindFeatureByName(model, spec.FeatureName)
-            ?? throw new McpToolException(
-                $"Cannot find a feature named '{spec.FeatureName}'. " +
-                "Call inspect_active / inspect_part to list the feature names.");
+        // featureName may be a full dimension name (contains '@', as surfaced by
+        // inspect_* editableDimensions, e.g. "D1@凸台-拉伸1" / "D2@草图1") or a bare
+        // feature name (→ its primary dimension "D1@<feature>").
+        var dimName = spec.FeatureName.Contains('@') ? spec.FeatureName : $"D1@{spec.FeatureName}";
 
-        var typeName = feature.GetTypeName2() ?? string.Empty;
-        var isAngle = typeName is "Revolution" or "RevCut";
-        var isDepth = typeName is "Extrusion" or "ICE";
-        if (!isAngle && !isDepth)
+        var found = FindDisplayDimension(model, dimName);
+        if (found is null)
         {
             throw new McpToolException(
-                $"modify_feature does not support feature '{spec.FeatureName}' " +
-                $"(type '{typeName}') yet. Supported: extrude / cut (depth, mm) and " +
-                "revolve / revolve-cut (angle, degrees).");
+                $"No editable dimension '{dimName}' on the part. Call inspect_active / " +
+                "inspect_part and use a name from a feature's editableDimensions " +
+                "(e.g. 'D1@凸台-拉伸1'), or a bare feature name for its primary dimension.");
         }
+        var (disp, dim) = found.Value;
 
-        // The feature's primary dimension is "D1@<featureName>". SystemValue is
-        // SI (metres for length, radians for angle), so convert from mm / degrees.
-        var dimName = $"D1@{spec.FeatureName}";
-        if (model.Parameter(dimName) is not IDimension dim)
-        {
-            throw new McpToolException(
-                $"Could not access dimension '{dimName}'. The feature may not expose a " +
-                "primary dimension by that name.");
-        }
+        // Unit comes from the dimension's own type (angular → degrees, else mm), so
+        // ANY dimension is editable — not just a feature's primary, any feature type
+        // (reuses the M39 display-dimension reader). SystemValue is SI (m / rad).
+        var isAngle = Internal.DimensionFormat.IsAngular(disp.Type2);
         dim.SystemValue = isAngle ? spec.Value * Math.PI / 180.0 : spec.Value / 1000.0;
 
         if (!model.EditRebuild3())
         {
             throw new McpToolException(
-                $"Rebuild failed after modifying '{spec.FeatureName}' to {spec.Value}. " +
-                "The value may be geometrically invalid (breaks this feature or a " +
-                "downstream feature).");
+                $"Rebuild failed after setting '{dimName}' to {spec.Value}. The value may " +
+                "be geometrically invalid (breaks this feature or a downstream feature).");
         }
 
-        return isAngle ? $"angle → {spec.Value}°" : $"depth → {spec.Value} mm";
+        return isAngle ? $"{dimName} → {spec.Value}°" : $"{dimName} → {spec.Value} mm";
     }
 
     /// <summary>
-    /// Returns the first feature whose Name matches exactly, walking
-    /// FirstFeature → GetNextFeature. Names come from inspect_active / inspect_part.
+    /// Finds the display dimension whose "{shortName}@{feature}" equals dimName,
+    /// walking every feature's display dimensions — the inverse of the M39 reader,
+    /// so anything inspect surfaces in editableDimensions is editable here.
+    /// Returns the display dimension + its underlying IDimension, or null.
     /// </summary>
-    private static IFeature? FindFeatureByName(IModelDoc2 model, string name)
+    private static (IDisplayDimension disp, IDimension dim)? FindDisplayDimension(
+        IModelDoc2 model, string dimName)
     {
         var feature = model.FirstFeature() as IFeature;
         while (feature != null)
         {
-            if (string.Equals(feature.Name, name, StringComparison.Ordinal))
+            var dispObj = feature.GetFirstDisplayDimension();
+            while (dispObj is IDisplayDimension disp)
             {
-                return feature;
+                if (disp.GetDimension2(0) is IDimension dim &&
+                    string.Equals($"{dim.Name}@{feature.Name}", dimName, StringComparison.Ordinal))
+                {
+                    return (disp, dim);
+                }
+                dispObj = feature.GetNextDisplayDimension(dispObj);
             }
             feature = feature.GetNextFeature() as IFeature;
         }
