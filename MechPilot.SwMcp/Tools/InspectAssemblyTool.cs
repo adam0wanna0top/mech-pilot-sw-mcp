@@ -34,9 +34,14 @@ public static class InspectAssemblyTool
         "Read metadata from an existing SolidWorks assembly (read-only). " +
         "Returns the assembly's title, top-level component count, and a list " +
         "of components with their instance name (e.g. 'asm_cyl_123-1'), " +
-        "source file path, world position in mm, and suppression state. " +
-        "Use this BEFORE calling add_mate to learn the instance names — " +
-        "add_mate's component arguments expect those exact strings. " +
+        "source file path + file name, world position in mm, suppression " +
+        "state, and — for the resize/edit workflow — a 'kind' ('ourPart' = a " +
+        "parametric part we built and can edit, 'imported' = a dumb STEP/" +
+        "neutral body that must NOT be edited, 'subassembly', or 'unknown'), a " +
+        "'standardCandidate' flag (file name looks like a standard fastener/" +
+        "bearing), and 'editableDimensions' (modify_feature handles, for " +
+        "ourPart components). Use this BEFORE add_mate to learn instance names, " +
+        "and before any resize to see which components are editable vs fixed. " +
         "inputPath must be an absolute path to an existing .sldasm. " +
         "For parts (.sldprt) use inspect_part instead.")]
     public static ToolResult Run(
@@ -124,9 +129,13 @@ public static class InspectAssemblyTool
                 1 => "1 component",
                 _ => $"{components.Count} components",
             };
+            var kindSummary = string.Join(", ",
+                components.GroupBy(c => (string)c["kind"])
+                          .OrderBy(g => g.Key)
+                          .Select(g => $"{g.Count()} {g.Key}"));
             var summary = components.Count == 0
                 ? $"'{title}': empty assembly"
-                : $"'{title}': {countLabel} — {string.Join(", ", components.ConvertAll(c => (string)c["name"]))}";
+                : $"'{title}': {countLabel} ({kindSummary}) — {string.Join(", ", components.ConvertAll(c => (string)c["name"]))}";
 
             var data = new Dictionary<string, object>
             {
@@ -165,11 +174,19 @@ public static class InspectAssemblyTool
     /// </remarks>
     private static Dictionary<string, object> ReadComponent(IComponent2 comp)
     {
+        var sourcePath = comp.GetPathName() ?? string.Empty;
+        var fileName = Path.GetFileName(sourcePath);
+        var (kind, dimensions) = ClassifyComponent(comp);
+
         var info = new Dictionary<string, object>
         {
             ["name"] = comp.Name2 ?? string.Empty,
-            ["sourcePath"] = comp.GetPathName() ?? string.Empty,
+            ["sourcePath"] = sourcePath,
+            ["fileName"] = fileName,
             ["suppressed"] = comp.IsSuppressed(),
+            ["kind"] = kind,
+            ["standardCandidate"] = Internal.StandardPartNames.IsStandardCandidate(fileName),
+            ["editableDimensions"] = dimensions,
         };
 
         if (comp.GetXform() is double[] xform && xform.Length >= 12)
@@ -182,6 +199,51 @@ public static class InspectAssemblyTool
             };
         }
         return info;
+    }
+
+    /// <summary>
+    /// Classifies a component as ourPart / imported / subassembly / unknown and,
+    /// for our parametric parts, returns the editable dimensions (the
+    /// modify_feature handles, reused from <see cref="Internal.PartMetadata"/>).
+    /// "imported" = the part's feature tree carries an import node (e.g. MBimport
+    /// from a STEP) — a fixed anchor the resize orchestrator must never edit;
+    /// "ourPart" = it has parametric build features. Suppressed / unloaded
+    /// components and non-part/non-assembly docs are "unknown".
+    /// </summary>
+    private static (string kind, List<Dictionary<string, object>> dimensions) ClassifyComponent(IComponent2 comp)
+    {
+        var empty = new List<Dictionary<string, object>>();
+        if (comp.IsSuppressed())
+        {
+            return (Internal.PartKind.Unknown, empty);
+        }
+        if (comp.GetModelDoc2() is not IModelDoc2 model)
+        {
+            return (Internal.PartKind.Unknown, empty);
+        }
+        if (model is IAssemblyDoc)
+        {
+            return ("subassembly", empty);
+        }
+        if (model is not IPartDoc)
+        {
+            return (Internal.PartKind.Unknown, empty);
+        }
+
+        var features = Internal.PartMetadata.ReadTopLevelFeatures(model);
+        var typeNames = features.ConvertAll(f => (string)f["typeName"]);
+        var kind = Internal.PartKind.ClassifyPart(typeNames);
+        if (kind != Internal.PartKind.OurPart)
+        {
+            return (kind, empty);
+        }
+
+        var dims = new List<Dictionary<string, object>>();
+        foreach (var f in features)
+        {
+            dims.AddRange((List<Dictionary<string, object>>)f["dimensions"]);
+        }
+        return (kind, dims);
     }
 #endif
 }

@@ -134,7 +134,7 @@ internal static class PartMetadata
     /// features (boot nodes filtered via
     /// <see cref="PartGeometryHelpers.IsBootFeature"/>).
     /// </summary>
-    private static List<Dictionary<string, object>> ReadTopLevelFeatures(IModelDoc2 model)
+    internal static List<Dictionary<string, object>> ReadTopLevelFeatures(IModelDoc2 model)
     {
         var features = new List<Dictionary<string, object>>();
         var feature = model.FirstFeature() as IFeature;
