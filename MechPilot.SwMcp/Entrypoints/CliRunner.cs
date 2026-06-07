@@ -49,6 +49,7 @@ public static class CliRunner
         root.Subcommands.Add(BuildAddFilletCommand());
         root.Subcommands.Add(BuildAddChamferCommand());
         root.Subcommands.Add(BuildExportPartCommand());
+        root.Subcommands.Add(BuildImportStepCommand());
         root.Subcommands.Add(BuildAddAxialHoleCommand());
         root.Subcommands.Add(BuildInspectPartCommand());
         root.Subcommands.Add(BuildInspectActiveCommand());
@@ -1192,6 +1193,35 @@ public static class CliRunner
             }
         });
 
+        return cmd;
+    }
+
+    private static Command BuildImportStepCommand()
+    {
+        var inputOpt = new Option<string>("--input") { Description = "Absolute path to a neutral CAD file (.step/.stp/.iges/.igs/.x_t/.x_b).", Required = true };
+        var outOpt = new Option<string>("--out") { Description = "Absolute output .sldprt path.", Required = true };
+        var formatOpt = new Option<string>("--output") { Description = "text | json", DefaultValueFactory = _ => "text" };
+        var cmd = new Command("import-step", "Import a neutral CAD file (STEP / IGES / Parasolid) as a .sldprt (dumb body).")
+        { inputOpt, outOpt, formatOpt };
+        cmd.SetAction(parseResult =>
+        {
+            try
+            {
+                var spec = new ImportStepSpec
+                {
+                    InputPath = parseResult.GetValue(inputOpt) ?? string.Empty,
+                    OutputPath = parseResult.GetValue(outOpt) ?? string.Empty,
+                };
+                var result = ImportStepTool.RunWithSpec(spec);
+                WriteResult(result, parseResult.GetValue(formatOpt) ?? "text");
+                return 0;
+            }
+            catch (McpToolException ex)
+            {
+                Console.Error.WriteLine($"[error] {ex.Message}");
+                return 1;
+            }
+        });
         return cmd;
     }
 

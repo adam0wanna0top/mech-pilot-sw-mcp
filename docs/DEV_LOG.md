@@ -986,6 +986,35 @@ hemisphere/frustum (revolve 模板) — 后续相同类零件 0.5-1h 可加新�
 `MateHelpers`), 后续相似模式 (例如未来 sketch primitives 共用 / drawing view 选择
 共用) 都可按此模式独立 refactor PR 推进。
 
+### M43 — import_step (PR #?, 2026-06-08) — 装配体固定锚点 (导入哑件), 编排 E2E 的真实场景前置
+
+**为 resize 编排 E2E 备真实场景 (用户混合装配: 我们的参数化件 + 导入哑件锚点)。** 新工具
+import_step: 把中性 CAD (STEP/IGES/Parasolid) 导入为 .sldprt 哑件; inspect_assembly 归类
+imported (M40 的 imported 路径首次有 live 件)。**全程用 M40 探针已验证的 recipe, 零新探索**。
+
+- **导入 recipe (M40 探针沉淀, 直接落地)**: `Path.GetFullPath` (反斜杠规范化, golden rule #14)
+  → `GetImportFileData(full)` 存进**显式 object** (NoPIA: COM 返 object = dynamic, 不收回会令
+  LoadFile4 dynamic-dispatch 崩 TYPE_E_ELEMENTNOTFOUND) → `LoadFile4(full, "r", importData,
+  ref err)` 返 IModelDoc2 → `Extension.SaveAs(.sldprt)` → finally CloseDoc。
+  (OpenDoc6(swDocPART) 不导中性格式, 返 swFileRequiresRepairError = 0x200000。)
+- **支持格式**: STEP (.step/.stp) + IGES (.iges/.igs) + Parasolid (.x_t/.x_b) — export_part 的实体
+  中性格式镜像; STL (mesh) 不支持。
+- **测试**:
+  - L1: +15 (= 771): ImportStepSpecTests (输入存在/中性扩展名 + 输出 .sldprt 校验)
+  - L2: `M43-import-step.test.ps1` 13 检查全过: create_cylinder → export STEP → **import_step 回 .sldprt**
+    → inspect_part (**1 body + MBimport 特征 + 0 可改维度** = 哑件) → 插入装配体 →
+    **inspect_assembly 归类 kind=imported + 0 dims** (补上 M40 推迟的 imported live L2!) +
+    负例 (缺文件 / .sldprt 错扩展名拒)
+  - **L3: 待新 session 重启抽测** — import_step 是新工具 (同 modify_mate, golden rule #13 fallback;
+    本 session 工具列表已固定)。
+  - build 0 warnings, dotnet format clean
+- **脚手架**: ImportStepSpec + ImportStepTool + CLI import-step + MCP 自动注册; CLAUDE 工具表 →50。
+
+**意义**: resize 编排 E2E 的最后一块拼图 (真·混合装配)。现在可搭「我们的参数化件 + import_step 导入的
+固定锚点」混合装配, 跑 plan-first resize: AI 改 ourPart 维度 (modify_feature) + 调 distance mate
+(modify_mate), **不碰 imported 锚点** (M40 已能识别)。**下一步 = 用户第三步: 编排 E2E** (新 session
+modify_mate/import_step 都注册后: 搭混合装配 → "改大 1.5×" → plan-first 报方案 → 确认 → 执行 → 验证)。
+
 ### M42 — modify_mate (PR #?, 2026-06-07) — 「装配级 resize 编排」第 4 步: 改 mate 值 (写侧补齐)
 
 **「装配级智能 resize 编排」路线第 4 步 (接 M41), = 用户「第二步: 编辑已有 mate 值」。** 此前只有
