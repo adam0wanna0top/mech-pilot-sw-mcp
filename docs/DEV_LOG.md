@@ -986,6 +986,50 @@ hemisphere/frustum (revolve 模板) — 后续相同类零件 0.5-1h 可加新�
 `MateHelpers`), 后续相似模式 (例如未来 sketch primitives 共用 / drawing view 选择
 共用) 都可按此模式独立 refactor PR 推进。
 
+### M38 — modify_feature (PR #?, 2026-06-06) — 机械 Cursor 第一个"编辑已有几何"原语
+
+**项目方向定调后 ([[project-vision-mechanical-cursor]]): 机械版 Cursor = 建→看→精准改→
+重生成。** inspect_active (M36) 是"看", 通用 layer 是"加", **缺的是"改已有几何"** ——
+modify_feature 补上: 在活动 doc 上改已有特征的主尺寸 + 重生成。这是项目首个编辑已有
+几何的工具 (vs 之前全是"追加特征")。
+
+- **撞 NoPIA bug + 绕法 (本里程碑核心 SW 教训)**:
+  - 第一版走教科书路径 `IFeature.GetDefinition() → IExtrudeFeatureData.SetDepth →
+    feature.ModifyDefinition(def, model, null)` → **`ArgumentException: Could not
+    convert argument 0 for call to ModifyDefinition`**。
+  - 根因: `EmbedInteropTypes=true` (NoPIA, golden rule #4)。`ModifyDefinition` 三个参数
+    都是 `object`; 把 GetDefinition 返回的 COM 对象 (RCW) 当 `object` 参数传回去, NoPIA
+    marshaling 失败。这是项目首次撞到"已有工具都没事但这个炸"的 NoPIA 边界 (其他工具
+    都是传 typed COM 对象, 没有把 object 往 object 参数回传的)。
+  - **绕法 (更干净且免疫)**: 不走 GetDefinition/ModifyDefinition, 直接设命名尺寸 ——
+    `IModelDoc2.Parameter("D1@<特征名>")` → `IDimension.SystemValue = SI 值` →
+    `EditRebuild3()`。SystemValue 是 SI (米/弧度), 按类型从 mm/度换算。这反而更贴
+    "改这个数字"的 Cursor 语义。
+- **支持类型 (D1 = 主尺寸)**: extrude/cut (Extrusion/ICE) → D1=深度 (mm);
+  revolve/revolve-cut (Revolution/RevCut) → D1=角度 (度)。fillet 暂不 claim (活动 doc
+  造不出 fillet — add_fillet 是 file-based; 其 dim 名也待确认)。
+- **测试**:
+  - L1: +12 ModifyFeatureSpec 用例 (= 697): featureName 非空 + value 有限 > 0
+  - L2: `M38-modify-feature.test.ps1` 11 检查全过:
+    - extrude 深度 30→50 → **bbox Z 30→50** (决定性的 tweak-and-see)
+    - revolve 角度 360→180 → faces 3→4 (半圆柱多出平切面)
+    - cut 深度 through(40)→blind(10) → faces 4→5 (盲孔多出平底; 证 cut 也走深度路径)
+    - 改不存在特征 → 友好拒绝
+  - **L3: 待新 session 重启** — modify_feature 是新工具, MCP server 启动时注册 (同
+    rib/inspect_active)。dimension 设值 + EditRebuild3 路径 CLI/L2 已端到端验。
+  - build 0 warnings, dotnet format clean
+- **脚手架**: ModifyFeatureSpec + ModifyFeatureTool + CLI modify-feature + MCP 自动注册。
+  `FindFeatureByName` (FirstFeature→GetNextFeature 精确名匹配, 名来自 inspect)。
+
+**意义**: **机械 Cursor 的"读写闭环"成型** —— inspect_active (看) + modify_feature (改)
++ 通用 layer (建)。LLM 现在能 "把那个凸台改成 50mm 深" / "把孔的角度改成 180°" 看着改。
+这是项目从"按指令一次性建模"迈向"交互式迭代编辑"的第一步, 直接服务机械 Cursor 愿景。
+
+**最大 SW 教训 (沉淀)**: **EmbedInteropTypes 下别把 GetDefinition 的 COM 对象回传给
+ModifyDefinition(object) — 会 NoPIA marshaling 失败。参数化改尺寸优先用
+`Parameter(name).SystemValue` 直设命名尺寸 + EditRebuild3** (免疫 NoPIA + 更直接)。
+建议补进 SW_API_REFERENCE。
+
 ### M37 — face-based start_sketch (PR #?, 2026-06-06) — E2E 缺口 #2: 草图直接选面, 不用 ref plane
 
 **M35 E2E 暴露的第 2 个缺口闭合** (#1 是 inspect_active/M36): start_sketch 现在除

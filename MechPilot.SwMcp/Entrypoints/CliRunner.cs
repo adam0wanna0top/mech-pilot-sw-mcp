@@ -37,6 +37,7 @@ public static class CliRunner
         root.Subcommands.Add(BuildExtrudeCutCommand());
         root.Subcommands.Add(BuildRevolveCutCommand());
         root.Subcommands.Add(BuildRibCommand());
+        root.Subcommands.Add(BuildModifyFeatureCommand());
         root.Subcommands.Add(BuildCreateCylinderCommand());
         root.Subcommands.Add(BuildCreateHemisphereCommand());
         root.Subcommands.Add(BuildCreateSphereCommand());
@@ -1190,6 +1191,30 @@ public static class CliRunner
             }
         });
 
+        return cmd;
+    }
+
+    private static Command BuildModifyFeatureCommand()
+    {
+        var featureOpt = new Option<string>("--feature") { Description = "Exact feature name from inspect-active / inspect-part.", Required = true };
+        var valueOpt = new Option<double>("--value") { Description = "New primary dimension: depth (mm) / angle (deg) / radius (mm) by feature type. > 0.", Required = true };
+        var formatOpt = new Option<string>("--output") { Description = "text | json", DefaultValueFactory = _ => "text" };
+        var cmd = new Command("modify-feature", "Edit an existing feature's primary dimension on the active part and regenerate.")
+        { featureOpt, valueOpt, formatOpt };
+        cmd.SetAction(parseResult =>
+        {
+            try
+            {
+                var spec = new ModifyFeatureSpec
+                {
+                    FeatureName = parseResult.GetValue(featureOpt) ?? string.Empty,
+                    Value = parseResult.GetValue(valueOpt),
+                };
+                WriteResult(ModifyFeatureTool.RunWithSpec(spec), parseResult.GetValue(formatOpt) ?? "text");
+                return 0;
+            }
+            catch (McpToolException ex) { Console.Error.WriteLine($"[error] {ex.Message}"); return 1; }
+        });
         return cmd;
     }
 
