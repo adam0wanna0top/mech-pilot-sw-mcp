@@ -986,6 +986,26 @@ hemisphere/frustum (revolve 模板) — 后续相同类零件 0.5-1h 可加新�
 `MateHelpers`), 后续相似模式 (例如未来 sketch primitives 共用 / drawing view 选择
 共用) 都可按此模式独立 refactor PR 推进。
 
+### fix(extrude) — reverse 真正翻转方向 (Dir 不是 Flip) (PR #?, 2026-06-09) — 风扇 E2E 孵出
+
+**E2E dogfooding 孵出 (同 M36/M44)。** 画台式电风扇时发现 `extrude` 的 `reverse` 参数**完全无效**:
+拉伸永远朝草图面 **+法向** (front→+Z / top→+Y), `reverse=true` 在前平面、Top 面、甚至首特征上都不翻向
+→ 通用层只能朝 +法向生长, 做不出朝后/朝下的凸起 (画风扇被迫 3 次重建 + 自底向上绕开)。
+
+- **根因**: `ExtrudeTool` 把 `reverse` 接到了 `FeatureExtrusion3` 的 **`Flip`** 参 (thin-wall 翻转,
+  对实体 boss 是 no-op), 真正反转拉伸方向的是 **`Dir`**。catalog 工具 (create_cylinder/flange/
+  rectangular_block) 一直是 `Flip:false, Dir:false` 才正常。修: `Flip:false, Dir:spec.Reverse`
+  (反射确认签名 `[0]Sd [1]Flip [2]Dir`, golden rule #5)。
+- **测试**:
+  - L1: 777 不变 (纯 bool 实参互换, spec 没动)
+  - L2: 新 `M47-extrude-reverse.test.ps1` —— front 面圆拉 30mm: `reverse=false`→bbox z[0,30] (+Z),
+    `reverse=true`→z[-30,0] (-Z), 互为镜像 = reverse 真翻转 (修前两者都是 [0,30])。
+  - build 0 warnings, dotnet format clean
+- **follow-up (单独 PR)**: `extrude_cut` 同样把方向接到 `Flip` (FeatureCut2), 但被 "两方向都试、
+  非 null 者胜" 的兜底掩盖 (净效果只能朝 +法向切, reverse 形同虚设) → 改了要重验 M34 cut happy, 故拆出。
+- **规律沉淀**: 之前 memory [[extrude-reverse-noop]] 记的"reverse 是 no-op、要自底向上/面选" 是**症状**;
+  本 PR 是**根因修复**。修后通用层可直接朝任意方向拉伸, 不必再靠面选绕。
+
 ### M46 — 草图驱动尺寸 (PR #?, 2026-06-08) — 🥇 第 2 半: 圆直径/矩形长宽真正可改 (解锁真·几何缩放)
 
 **🥇 编辑深度第二半 (接 M45)。** 此前通用草图原语画的几何无驱动尺寸 → 圆直径、矩形长宽根本不

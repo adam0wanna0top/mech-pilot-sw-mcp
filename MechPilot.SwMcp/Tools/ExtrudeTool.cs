@@ -98,8 +98,8 @@ public static class ExtrudeTool
         var depthM = spec.DepthMm / 1000.0;
         var feature = fm.FeatureExtrusion3(
             Sd: true,                                                   // single-direction
-            Flip: spec.Reverse,
-            Dir: false,
+            Flip: false,                                                // thin-wall flip — NOT the extrude direction
+            Dir: spec.Reverse,                                          // reverse extrude direction (M47 fix: was wired to Flip, a no-op for solid bosses)
             T1: (int)swEndConditions_e.swEndCondBlind,                  // = 0
             T2: (int)swEndConditions_e.swEndCondBlind,
             D1: depthM,
