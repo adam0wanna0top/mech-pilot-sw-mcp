@@ -986,6 +986,30 @@ hemisphere/frustum (revolve 模板) — 后续相同类零件 0.5-1h 可加新�
 `MateHelpers`), 后续相似模式 (例如未来 sketch primitives 共用 / drawing view 选择
 共用) 都可按此模式独立 refactor PR 推进。
 
+### fix(extrude_cut) — reverse 接 Dir + 解除"基准面不能切"限制 (PR #?, 2026-06-09) — 接 fix(extrude)
+
+**fix(extrude) 的姊妹修复 + 一个意外收获。** `extrude_cut` 同样把 `reverse` 接到 `FeatureCut2` 的
+**`Flip`** 而非 **`Dir`**。它有"两方向都试、非 null 者胜"的兜底, 看似掩盖了问题——但因为**两次 try
+其实都是 `Dir:false`** (只变 Flip = 切的边而非方向), 兜底是**假的**: 永远只能朝反法向 (anti-normal) 切。
+
+- **根因 + 修复**: `TryCut` 的 `Flip:flip, Dir:false` → `Flip:false, Dir:reverseDir` (反射确认 `FeatureCut2`
+  同样 `[0]Sd [1]Flip [2]Dir`)。两个调用点 `TryCut(spec.Reverse)` / `TryCut(!spec.Reverse)` 不变, 但现在
+  **真正试两个方向** (Dir true/false), 兜底变成真的。
+- **意外收获 — 解除 M34 的"基准面不能切"限制**: M34 当年断言"草图画在 base 构造面上、**任何方向都不切**",
+  并据此写了 Test 3 (断言被拒) + 一堆"必须画在 bounding ref plane 上、cut back through"的文档/错误消息。
+  **那其实全是本 bug 的症状**: 旧码两次 try 都是 `Dir:false` = 反法向 = 朝实体外切空气 → 都 null → 报
+  "base plane" 错。修后兜底真正试 `Dir:true` = 朝实体内切 → **base 面草图直接切成同样的方 through 孔**。
+- **测试**:
+  - L1: 777 不变 (spec 没动)
+  - L2: `M34-cut-happy` Test 3 **从"断言被拒"改成"断言切成功 + 几何验证"**: cylinder D40×30 + front(base)
+    面 10×10 方草图 → extrude_cut 50 → **7 faces / 14 edges / bbox 40×40×30 = 跟 ref-plane 切割 (Test 1)
+    完全一致**。Test 1 (ref plane) + Test 2 (revolve_cut) 不受影响, 全绿。
+  - 文档同步: ExtrudeCutTool 的 Description / 类注释 / 错误消息 / 内部注释 全撤掉"base plane 不切"旧说法,
+    改成"方向真·双向自动探测, 草图可在任何接触实体的面 (含 base 面) 上"。
+  - build 0 warnings, dotnet format clean
+- **沉淀**: M34 把 cut 失败归因为"几何/草图必须在 bounding 面"是**对症状的合理化** (rationalization);
+  真因一直是这个 reverse→Flip 接错。fix(extrude)+本 PR 一起把 FeatureExtrusion3/FeatureCut2 的方向参数彻底接对。
+
 ### fix(extrude) — reverse 真正翻转方向 (Dir 不是 Flip) (PR #?, 2026-06-09) — 风扇 E2E 孵出
 
 **E2E dogfooding 孵出 (同 M36/M44)。** 画台式电风扇时发现 `extrude` 的 `reverse` 参数**完全无效**:

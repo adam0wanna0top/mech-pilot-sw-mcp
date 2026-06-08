@@ -10,8 +10,9 @@
 #       (ref plane at the top face, cut back down). Verify 7 faces / 14 edges.
 #   Test 2 revolve_cut: cylinder D40x30 (revolve about Y) + circumferential V
 #       groove (revolve_cut 360). Verify 6 faces / 5 edges, bbox 40x30x40.
-#   Test 3 extrude_cut on the body's BASE plane is rejected with a geometry hint
-#       (documents the real constraint; guards the error message).
+#   Test 3 extrude_cut on the body's BASE plane now cuts into the body — the old
+#       "base plane won't cut" limit was a symptom of the reverse->Flip mis-wiring
+#       (both tries were Dir:false); Dir-based auto-detect now cuts the same hole.
 #
 # Requires SolidWorks. Run:
 #   powershell -NoProfile -ExecutionPolicy Bypass -File tests/integration/M34-cut-happy.test.ps1
@@ -27,6 +28,7 @@ New-Item -ItemType Directory -Force -Path $tmpDir | Out-Null
 $rand = Get-Random
 $extrudeCutPart = Join-Path $tmpDir ("m34_extrude_cut_{0}.sldprt" -f $rand)
 $revolveCutPart = Join-Path $tmpDir ("m34_revolve_cut_{0}.sldprt" -f $rand)
+$basePlaneCutPart = Join-Path $tmpDir ("m34_baseplane_cut_{0}.sldprt" -f $rand)
 
 $script:fail = 0
 function Check([string]$label, [bool]$cond, [string]$detail = '') {
@@ -102,9 +104,14 @@ try {
     Check "revolve_cut: 5 edges" ($i2.totalEdgeCount -eq 5) "got $($i2.totalEdgeCount)"
 
     # ═══════════════════════════════════════════════════════════════════════
-    # Test 3 — extrude_cut on the body's BASE plane is rejected (geometry hint)
+    # Test 3 — base-plane cut now cuts INTO the body (fixed: Dir-based auto-detect)
+    #   Pre-fix this was rejected ("base plane won't cut, in any direction"). That
+    #   was a symptom of the reverse→Flip mis-wiring: both tries were Dir:false
+    #   (anti-normal = away from the body). With reverse wired to Dir, the
+    #   auto-detect's 2nd try (Dir:true) cuts +Z into the body, so a base-plane
+    #   sketch now makes the SAME square through hole as the ref-plane cut (Test 1).
     # ═══════════════════════════════════════════════════════════════════════
-    Write-Host "== Test 3: base-plane cut rejected with guidance =="
+    Write-Host "== Test 3: base-plane cut now cuts into the body =="
     Run @('new-part') | Out-Null
     Run @('start-sketch','--plane','front') | Out-Null
     Run @('sketch-circle','--cx','0','--cy','0','--radius','20') | Out-Null
@@ -113,19 +120,20 @@ try {
     Run @('start-sketch','--plane','front') | Out-Null
     Run @('sketch-rectangle-center','--cx','0','--cy','0','--corner-x','5','--corner-y','5') | Out-Null
     $b2 = SK (Run @('end-sketch'))
-    $bad = TryRun @('extrude-cut','--sketch',$b2,'--depth','50')
-    Check "base-plane cut exits non-zero" ($bad.Code -ne 0) "code=$($bad.Code)"
-    Check "base-plane cut error mentions base plane" ($bad.Out -match 'base plane') $bad.Out
-    # close the leaked doc from Test 3 (cut failed, nothing saved)
-    $discard = Join-Path $tmpDir ("m34_discard_{0}.sldprt" -f $rand)
-    TryRun @('save-part','--out',$discard) | Out-Null
-    if (Test-Path $discard) { Remove-Item $discard -Force -EA SilentlyContinue }
+    $bcut = Run @('extrude-cut','--sketch',$b2,'--depth','50')   # base-plane sketch; auto-detect cuts +Z through the body
+    Check "base-plane cut returns a feature" ($bcut.message -match 'feature') $bcut.message
+    Run @('save-part','--out',$basePlaneCutPart) | Out-Null
+    $i3 = (Run @('inspect-part','--input',$basePlaneCutPart)).data
+    Check "base-plane cut: 1 solid body" ($i3.bodyCount -eq 1) "got $($i3.bodyCount)"
+    Check "base-plane cut: bbox 40x40x30" (($i3.sizeMm.x -eq 40) -and ($i3.sizeMm.y -eq 40) -and ($i3.sizeMm.z -eq 30)) "got $($i3.sizeMm.x)x$($i3.sizeMm.y)x$($i3.sizeMm.z)"
+    Check "base-plane cut: 7 faces (same through-hole as the ref-plane cut)" ($i3.totalFaceCount -eq 7) "got $($i3.totalFaceCount)"
+    Check "base-plane cut: 14 edges" ($i3.totalEdgeCount -eq 14) "got $($i3.totalEdgeCount)"
 
     Write-Host ""
     if ($script:fail -eq 0) { Write-Host "[PASS] M34 cut happy cases -- all checks green" }
     else { Write-Host "[FAILED] $($script:fail) check(s) failed"; exit 1 }
 } finally {
-    foreach ($f in @($extrudeCutPart, $revolveCutPart)) {
+    foreach ($f in @($extrudeCutPart, $revolveCutPart, $basePlaneCutPart)) {
         if (Test-Path $f) { Remove-Item $f -Force -ErrorAction SilentlyContinue }
     }
 }
