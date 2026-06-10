@@ -986,6 +986,26 @@ hemisphere/frustum (revolve 模板) — 后续相同类零件 0.5-1h 可加新�
 `MateHelpers`), 后续相似模式 (例如未来 sketch primitives 共用 / drawing view 选择
 共用) 都可按此模式独立 refactor PR 推进。
 
+### fix(mcp) — McpToolException 消息在 MCP 层被吞 (PR #?, 2026-06-10) — L3 抽测撞出的全局 bug, 一行修复
+
+**L3 抽测撞出 (golden rule #13 又一次证明价值, 同 M5 模式)。** M47 错误路径 L3 复测时发现: MCP 客户端
+收到的是裸 `An error occurred invoking 'insert_toolbox_fastener'.` — **精心设计的引导文本 (可用配置列表/
+几何提示/"先 new_assembly") 全部不可见**。对照实验 (spec 级拒绝, 纯 C# 不碰 SW) 同样被吞 → **全 51 工具
+的 MCP 错误路径都受影响**; CLI 层一直正常 (L2 只测 CLI), 且此前 L3 从未专测错误路径, 所以潜伏至今。
+
+- **根因 (UTF-16 字符串考古 + 实证)**: ModelContextProtocol.Core 1.3.0 的错误模板是
+  `An error occurred invoking '{tool}': {detail}` — **detail 槽只给 `McpException` 类型的异常**;
+  普通 Exception 走无详情句号版 (防意外泄漏内部细节, 合理设计)。我们的 `McpToolException : Exception`
+  → 消息被吞。(PS 5.1 反射加载不了 net8 程序集 → 改用 UTF-16 解码搜 DLL 字符串定位模板。)
+- **修复 (一行)**: `McpToolException` 改继承 SDK 的 **`ModelContextProtocol.McpException`**。
+  CLI 路径零影响 (按类型 catch 不变); L1 零影响 (Assert.Throws 精确类型仍命中)。
+- **L3 实证 (修复后)**: spec 级拒绝透出 `...': assemblyPath does not exist: ... Create the assembly
+  first with new_assembly.`; 全链路 SW 配置发现透出 `...': Configuration 'M6X30' not found ...
+  Available configurations (2 of 2): 'Default', 'PreviewCfg'. ...` — LLM 引导式错误在协议层活了。
+- **测试**: L1 795 不变; L2 M47 复跑全绿 (CLI happy+negative 都不受继承改动影响); format clean。
+- **沉淀**: MCP 业务异常**必须**继承 SDK `McpException` 才能把消息带给客户端 — "CLI/MCP 双入口行为
+  必须双验" (golden rule #2) 的错误路径版; 新错误消息设计 (M47 的配置发现列表) 都依赖此修复才生效。
+
 ### M47 — insert_toolbox_fastener (PR #?, 2026-06-09) — 风扇 dogfooding 孵出: Toolbox 标准件进装配体
 
 **风扇 dogfooding 直接孵出 (同 M36/M44; 用户判词"看着像风扇但不是风扇"三层根因之一 = 无标准件
