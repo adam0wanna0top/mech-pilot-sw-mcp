@@ -68,6 +68,8 @@ public static class CliRunner
         root.Subcommands.Add(BuildAddAngleMateCommand());
         root.Subcommands.Add(BuildAddShellCommand());
         root.Subcommands.Add(BuildInsertToolboxFastenerCommand());
+        root.Subcommands.Add(BuildDeleteFeatureCommand());
+        root.Subcommands.Add(BuildSuppressFeatureCommand());
 
         var parseResult = root.Parse(args);
         return await parseResult.InvokeAsync();
@@ -1767,6 +1769,116 @@ public static class CliRunner
                 };
                 var result = NewAssemblyTool.RunWithSpec(spec);
                 WriteResult(result, parseResult.GetValue(formatOpt) ?? "text");
+                return 0;
+            }
+            catch (McpToolException ex)
+            {
+                Console.Error.WriteLine($"[error] {ex.Message}");
+                return 1;
+            }
+        });
+
+        return cmd;
+    }
+
+    private static Command BuildDeleteFeatureCommand()
+    {
+        var featureOpt = new Option<string>("--feature")
+        {
+            Description = "Exact feature name from inspect_* (e.g. 凸台-拉伸2).",
+            Required = true,
+        };
+        var partOpt = new Option<string?>("--part")
+        {
+            Description = "Optional absolute .sldprt to edit a saved part file (default: active part).",
+            DefaultValueFactory = _ => null,
+        };
+        var outOpt = new Option<string?>("--out")
+        {
+            Description = "Optional output .sldprt (only with --part). Empty = in place.",
+            DefaultValueFactory = _ => null,
+        };
+        var formatOpt = new Option<string>("--output")
+        {
+            Description = "Output format: text | json",
+            DefaultValueFactory = _ => "text",
+        };
+
+        var cmd = new Command("delete-feature",
+            "Delete a feature by exact name (cascades to absorbed sketch / children).")
+        {
+            featureOpt, partOpt, outOpt, formatOpt,
+        };
+
+        cmd.SetAction(parseResult =>
+        {
+            try
+            {
+                var spec = new DeleteFeatureSpec
+                {
+                    FeatureName = parseResult.GetValue(featureOpt) ?? string.Empty,
+                    PartPath = parseResult.GetValue(partOpt),
+                    OutputPath = parseResult.GetValue(outOpt),
+                };
+                WriteResult(DeleteFeatureTool.RunWithSpec(spec), parseResult.GetValue(formatOpt) ?? "text");
+                return 0;
+            }
+            catch (McpToolException ex)
+            {
+                Console.Error.WriteLine($"[error] {ex.Message}");
+                return 1;
+            }
+        });
+
+        return cmd;
+    }
+
+    private static Command BuildSuppressFeatureCommand()
+    {
+        var featureOpt = new Option<string>("--feature")
+        {
+            Description = "Exact feature name from inspect_* (e.g. 凸台-拉伸2).",
+            Required = true,
+        };
+        var unsuppressOpt = new Option<bool>("--unsuppress")
+        {
+            Description = "Restore (unsuppress) instead of suppressing.",
+            DefaultValueFactory = _ => false,
+        };
+        var partOpt = new Option<string?>("--part")
+        {
+            Description = "Optional absolute .sldprt to edit a saved part file (default: active part).",
+            DefaultValueFactory = _ => null,
+        };
+        var outOpt = new Option<string?>("--out")
+        {
+            Description = "Optional output .sldprt (only with --part). Empty = in place.",
+            DefaultValueFactory = _ => null,
+        };
+        var formatOpt = new Option<string>("--output")
+        {
+            Description = "Output format: text | json",
+            DefaultValueFactory = _ => "text",
+        };
+
+        var cmd = new Command("suppress-feature",
+            "Suppress (default) or unsuppress (--unsuppress) a feature by exact name.")
+        {
+            featureOpt, unsuppressOpt, partOpt, outOpt, formatOpt,
+        };
+
+        cmd.SetAction(parseResult =>
+        {
+            try
+            {
+                var spec = new SuppressFeatureSpec
+                {
+                    FeatureName = parseResult.GetValue(featureOpt) ?? string.Empty,
+                    Suppress = !parseResult.GetValue(unsuppressOpt),
+                    PartPath = parseResult.GetValue(partOpt),
+                    OutputPath = parseResult.GetValue(outOpt),
+                };
+                WriteResult(SuppressFeatureTool.RunWithSpec(spec), parseResult.GetValue(formatOpt) ?? "text");
                 return 0;
             }
             catch (McpToolException ex)

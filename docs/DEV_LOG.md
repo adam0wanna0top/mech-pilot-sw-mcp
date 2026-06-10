@@ -986,6 +986,36 @@ hemisphere/frustum (revolve 模板) — 后续相同类零件 0.5-1h 可加新�
 `MateHelpers`), 后续相似模式 (例如未来 sketch primitives 共用 / drawing view 选择
 共用) 都可按此模式独立 refactor PR 推进。
 
+### M48 — delete_feature + suppress_feature (PR #?, 2026-06-10) — 机械 Cursor 的"删/回退"原语
+
+**风扇 dogfooding 最痛缺口的根治: 建错了删不掉 → 3 次整件重建。** M48 补上特征管理双原语:
+`delete_feature` (永久删, 级联吸收草图/子特征) + `suppress_feature` (可逆压缩/恢复 — "没有它会
+怎样"试错)。两者都镜像 modify_feature 的双模式 (M38 活动 doc 不存 / M44 `partPath` 文件模式
+开-改-存-关), 装配组件也能用。迭代成本从"整件重来"降到"一步回退"。
+
+- **反射先行 (golden rule #5)**: `IModelDocExtension.DeleteSelection2(int)` —
+  `swDelete_Children(1) | swDelete_Absorbed(2)` = 静默级联 (无 SW 对话框);
+  `IFeature.SetSuppression2(state, swThisConfiguration=1, null)` — state 0=压缩/1=恢复,
+  直接打在 feature 对象上, 不需要 selection dance; `IFeature.Select2(bool, int)`。
+- **安全守卫**: 复用 `PartGeometryHelpers.IsBootFeature` — 参考/启动几何 (默认基准面/原点/
+  CoordSys/文件夹/**所有 RefPlane** 含 add_ref_plane 产物) 一律拒删拒压缩 (删 RefPlane 会级联
+  毁掉其上的草图)。新共享 helper `Tools/Internal/FeatureLookup` (精确名查找 + boot 守卫,
+  两工具共用)。
+- **测试**:
+  - L1: +17 (= 812): FeatureManageSpecTests (双 spec; outputPath 必须配 partPath 等)
+  - L2: `M48-feature-management.test.ps1` **17 检查全绿一次过**: base(30)+boss(10) →
+    ACTIVE 压缩 boss → **bbox z 40→30 + suppressed=true** → 恢复 → 40; FILE 模式同套往返 +
+    删 boss → **特征 4→2 (吸收草图同删) + bbox 30**; 负例: 未知特征友好拒 + **前视基准面拒删
+    (boot 守卫)**; ACTIVE 删除独立验证。
+  - **L3: 待新 session 重启抽测** (新工具×2, golden rule #13)
+- **踩坑 (沉淀)**: **PowerShell 5.1 把无 BOM UTF-8 测试脚本当 GBK 读** — 中文字面量的 UTF-8
+  尾字节会跟后面的引号配成 GBK 字符把引号吞掉 (`'前视基准面'` 必炸, `'凸台-拉伸2'` 因尾随数字
+  侥幸活着 — 既有 L2 全是侥幸)。**含中文的 .ps1 必须存 UTF-8 with BOM**。
+- build 0 warnings, dotnet format clean; CLAUDE 工具表 →53。
+
+**意义**: 机械 Cursor 编辑闭环补上"结构编辑"维度 — 之前只能改尺寸 (modify_feature), 现在能
+**删/压缩/恢复特征**。建→看→改尺寸→改结构→重生成, 交互式迭代编辑的核心动词集齐了。
+
 ### fix(mcp) — McpToolException 消息在 MCP 层被吞 (PR #?, 2026-06-10) — L3 抽测撞出的全局 bug, 一行修复
 
 **L3 抽测撞出 (golden rule #13 又一次证明价值, 同 M5 模式)。** M47 错误路径 L3 复测时发现: MCP 客户端

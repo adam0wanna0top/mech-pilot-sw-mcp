@@ -38,7 +38,7 @@ profile/path mark 1/4 + 几何 ⊥)**, 通用 layer 5/5 milestone 全完成。**
 **M36 inspect_active (边建边验) — E2E 验证撞到的"盲建"痛点直接孵出, 项目首个 dogfooding-born 工具**。
 **M37 face-based start_sketch (+z/-z/+x/-x/+y/-y 直接选极值平面建草图 — E2E 缺口 #2 闭合, 不用 ref plane)**。
 **M38 modify_feature (改已有特征主尺寸 + 重生成 — 机械 Cursor 第一个"编辑已有几何"原语; 绕开 NoPIA ModifyDefinition bug 改用 Parameter.SystemValue)**。
-**51 工具**:
+**53 工具**:
 
 | Tool | LLM-facing name | 用途 |
 |---|---|---|
@@ -92,6 +92,8 @@ profile/path mark 1/4 + 几何 ⊥)**, 通用 layer 5/5 milestone 全完成。**
 | add_mate_angle | `mcp__mech_pilot_sw__add_mate_angle` | 两组件 reference plane 角度 N° 配合 (机械臂关节摆角/摇头风扇) |
 | add_shell | `mcp__mech_pilot_sw__add_shell` | 抽壳 (电机壳/泵壳/容器, 修正 v1 "API 不存在") |
 | insert_toolbox_fastener | `mcp__mech_pilot_sw__insert_toolbox_fastener` | 插 Toolbox 标准件进装配体, 按配置选尺寸 (**M47**, 风扇 dogfooding 孵出; 尺寸配置须已生成) |
+| delete_feature | `mcp__mech_pilot_sw__delete_feature` | 删特征 (级联吸收草图/子特征; 活动 doc 或 `partPath` 文件; 参考几何拒删) — 机械 Cursor 回退原语 (**M48**) |
+| suppress_feature | `mcp__mech_pilot_sw__suppress_feature` | 压缩/恢复特征 (可逆的 delete; inspect 列 suppressed 状态) — "没有它会怎样" 试错原语 (**M48**) |
 
 **L1 / L2 验证通过** (671/671 单元测试 + PowerShell L2 集成, **M34-cut-happy 12 检查几何验证全过**); 后 10 工具
 + create_flange L3 抽测 zero bug (M15); **装配家族 6 工具 (new_assembly +
