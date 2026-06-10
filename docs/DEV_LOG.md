@@ -986,6 +986,40 @@ hemisphere/frustum (revolve 模板) — 后续相同类零件 0.5-1h 可加新�
 `MateHelpers`), 后续相似模式 (例如未来 sketch primitives 共用 / drawing view 选择
 共用) 都可按此模式独立 refactor PR 推进。
 
+### M47 — insert_toolbox_fastener (PR #?, 2026-06-09) — 风扇 dogfooding 孵出: Toolbox 标准件进装配体
+
+**风扇 dogfooding 直接孵出 (同 M36/M44; 用户判词"看着像风扇但不是风扇"三层根因之一 = 无标准件
+接口)。** 用户在 SW 装了 Toolbox/Design Library 后问"能调用了吗" — 反射+探针核实后立项: 新工具
+`insert_toolbox_fastener` 把 Toolbox 标准件 (螺栓/螺钉/螺母/垫圈/轴承/销...) 插进装配体并**按配置
+选尺寸** (plain add_component 只能插默认配置 = 默认尺寸)。
+
+- **反射+探针核实 (golden rule #5, 全程零盲调)**:
+  - Toolbox 数据根在注册表 `HKCU\...\SOLIDWORKS 2026\General\Toolbox Data Location`
+    (本机 `G:\solidwork\SOLIDWORKS Data2026`), 树 = `browser/<标准>/<分类>/<子类>/*.sldprt`,
+    GB 标准在 `browser/GB/` (注意 GB 用 "bolts and studs", 非 "bolts and screws")。
+  - `swbrowser.dll` 是 **PDM** 接口非 Toolbox (M47 纠正项)。真正机制: 尺寸 = 主零件的
+    **configuration**; `swAddComponentConfigOptions_e` **没有** "existing config" 成员 —
+    选已有配置 = `ConfigOption=0 (CurrentSelectedConfig) + ExistingConfigName=配置名`。
+  - **零代码 spike 先行**: 现有 add_component 插 GB 六角螺栓 → 成功不卡、standardCandidate=true
+    → 才立项写码 (插入路径风险先排除)。
+- **实现**: ToolboxFastenerSpec (.sldasm/.sldprt 存在性 + config ≤256 字符 + 位置 sanity) +
+  InsertToolboxFastenerTool (AddComponentTool 管线复用: M20 normalize + v1#9 预加载 + M5 Save3 +
+  finally CloseDoc; 新增: `GetConfigurationNames` 枚举 (NoPIA: 显式 object 收) → 精确/忽略大小写
+  解析 → 未命中报错**列出可用配置** (引导 LLM 重选) → AddComponent5 → **ReferencedConfiguration
+  读回验证 + 不符则直接设置+重建 (双保险)** → message 带 `config='...'`) + CLI
+  insert-toolbox-fastener + MCP 注册。
+- **测试**:
+  - L1: +18 (= 795): ToolboxFastenerSpecTests
+  - L2: `M47-toolbox-fastener.test.ps1` 9 检查全过, **自举式设计** (不硬编码配置名): 默认插入读出
+    default config → 假配置名收割真配置列表 → 挑非默认真配置插入 → 断言 `config='<它>'` (决定性)
+  - **L3: 待新 session 重启抽测** (新工具, golden rule #13)
+- **诚实边界 (L2 自举测试揭示)**: 全新 Toolbox 主零件只有 `Default`+`PreviewCfg` — **尺寸配置是
+  add-in 在 SW UI 首次使用该尺寸时按需生成的**。所以"按 M6X30 配置名直插"只对已生成尺寸/厂商多配置
+  件有效; 全新库上工具仍可插默认尺寸 + 发现机制列真实配置。**Phase 2 候选**: Toolbox add-in API
+  (GetAddInObject / sldtoolboxconfigureaddin 的 IToolBoxConfiguratorApplication) 按需生成尺寸配置 —
+  晚绑定领域, 需单独探针。
+- build 0 warnings, dotnet format clean; CLAUDE 工具表 →51。
+
 ### fix(extrude_cut) — reverse 接 Dir + 解除"基准面不能切"限制 (PR #?, 2026-06-09) — 接 fix(extrude)
 
 **fix(extrude) 的姊妹修复 + 一个意外收获。** `extrude_cut` 同样把 `reverse` 接到 `FeatureCut2` 的
