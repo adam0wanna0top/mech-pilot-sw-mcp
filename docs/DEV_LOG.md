@@ -1007,7 +1007,10 @@ hemisphere/frustum (revolve 模板) — 后续相同类零件 0.5-1h 可加新�
     ACTIVE 压缩 boss → **bbox z 40→30 + suppressed=true** → 恢复 → 40; FILE 模式同套往返 +
     删 boss → **特征 4→2 (吸收草图同删) + bbox 30**; 负例: 未知特征友好拒 + **前视基准面拒删
     (boot 守卫)**; ACTIVE 删除独立验证。
-  - **L3: 待新 session 重启抽测** (新工具×2, golden rule #13)
+  - **L3: ✓ 已清 zero-bug (2026-06-11)** — 长寿命 MCP server 抽测全过: 建 base(Ø40×30)+boss(Ø20×10)
+    → suppress (bbox z 40→30 + 树内 suppressed=true) → unsuppress (z 回 40) → delete (特征 4→2 连
+    吸收草图, z=30); **boot 守卫拒删前视基准面且完整引导消息透出 MCP 层** (= #58 错误透传修复在
+    新工具上的首次实战确认)。
 - **踩坑 (沉淀)**: **PowerShell 5.1 把无 BOM UTF-8 测试脚本当 GBK 读** — 中文字面量的 UTF-8
   尾字节会跟后面的引号配成 GBK 字符把引号吞掉 (`'前视基准面'` 必炸, `'凸台-拉伸2'` 因尾随数字
   侥幸活着 — 既有 L2 全是侥幸)。**含中文的 .ps1 必须存 UTF-8 with BOM**。
