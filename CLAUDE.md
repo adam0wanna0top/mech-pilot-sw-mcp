@@ -61,9 +61,9 @@ profile/path mark 1/4 + 几何 ⊥)**, 通用 layer 5/5 milestone 全完成。**
 | extrude_cut | `mcp__mech_pilot_sw__extrude_cut` | sketch 拉伸切除 (FeatureCut2, **M34 happy ✓** Blind-to-depth + 草图须在 body 入口面非 base 面 + 方向自动回退) |
 | revolve_cut | `mcp__mech_pilot_sw__revolve_cut` | sketch 绕 centerline 旋转切除 (FeatureRevolve2 IsCut=true, **M34 happy ✓** profile 须重叠 body + 含 centerline) |
 | rib | `mcp__mech_pilot_sw__rib` | 加强筋/gusset (**M35 ✓** InsertRib 返 void→数 Rib 特征检测 + 方向自动回退; 草图开放轮廓跨壁, 2sided/parallel) |
-| create_cylinder | `mcp__mech_pilot_sw__create_cylinder` | 圆柱零件 |
-| create_flange | `mcp__mech_pilot_sw__create_flange` | 法兰 / 端盖 / 周向孔板 |
-| create_rectangular_block | `mcp__mech_pilot_sw__create_rectangular_block` | 长方体零件 (L×W×H 居中) |
+| create_cylinder | `mcp__mech_pilot_sw__create_cylinder` | 圆柱零件 (**M49** Ø 驱动尺寸可改) |
+| create_flange | `mcp__mech_pilot_sw__create_flange` | 法兰 / 端盖 / 周向孔板 (**M49** OD+中心孔 Ø 驱动尺寸; 螺栓孔不标) |
+| create_rectangular_block | `mcp__mech_pilot_sw__create_rectangular_block` | 长方体零件 (L×W×H 居中, **M49** 长宽驱动尺寸可改) |
 | create_hemisphere | `mcp__mech_pilot_sw__create_hemisphere` | 实心半球 (axis +Y, 首个 revolve 几何) |
 | create_sphere | `mcp__mech_pilot_sw__create_sphere` | 实心球 (球阀芯/滚珠/装饰球, M23 框架复刻) |
 | create_frustum | `mcp__mech_pilot_sw__create_frustum` | 实心圆锥台 (axis +Y, 漏斗/机械臂关节 taper) |

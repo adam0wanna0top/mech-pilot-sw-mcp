@@ -109,10 +109,13 @@ public static class CreateCylinderTool
 
         // ── 5. Draw the circle. SW units are meters — convert mm → m. ───────
         var radiusM = spec.DiameterMm / 2000.0;
-        var circle = skMgr.CreateCircleByRadius(0.0, 0.0, 0.0, radiusM)
+        var circle = skMgr.CreateCircleByRadius(0.0, 0.0, 0.0, radiusM) as ISketchSegment
             ?? throw new McpToolException(
                 $"CreateCircleByRadius returned null for radius {radiusM} m.");
-        _ = circle; // discard SketchSegment ref — we just needed the side effect
+
+        // ── 5b. Driving Ø dimension (M49) — so resize orchestration can change
+        //   the DIAMETER via modify_feature, not just the extrude length. ─────
+        Internal.SketchDimensioner.AddDiameter(model, circle, 0.0, 0.0, spec.DiameterMm / 2.0);
 
         // ── 6. Exit sketch (InsertSketch is a toggle) ───────────────────────
         skMgr.InsertSketch(true);

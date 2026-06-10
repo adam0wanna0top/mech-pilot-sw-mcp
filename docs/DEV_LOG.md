@@ -986,6 +986,36 @@ hemisphere/frustum (revolve 模板) — 后续相同类零件 0.5-1h 可加新�
 `MateHelpers`), 后续相似模式 (例如未来 sketch primitives 共用 / drawing view 选择
 共用) 都可按此模式独立 refactor PR 推进。
 
+### M49 — catalog 驱动尺寸 (PR #?, 2026-06-11) — resize 编排最后缺口收口 (原"开干 1", 被岔路推迟三次)
+
+**M46 的 follow-up, resize E2E 实撞缺口的根治。** catalog helper (create_cylinder/flange/
+rectangular_block) 直接调 CreateCircleByRadius/CreateCenterRectangle, 圆/矩形无驱动尺寸 →
+resize 编排对 catalog 件**只能缩长度 (extrude D1) 不能缩直径/底面**。M49: 把 M46 的加尺寸
+recipe 抽成共享 helper, 三个 catalog 工具接入。
+
+- **`Tools/Internal/SketchDimensioner`** (新共享 helper, M46 recipe 固化): `DisableModifyDialog`
+  (swInputDimValOnCreate 关 — M46 模态死锁坑) + `AddDiameter` (Select2 → AddDimension2 →
+  Diametric=true) + `AddLength`/`AddRectangle` (segs[0]=X 边, segs[1]=Y 边)。
+  SketchCircleTool/SketchRectangleCenterTool 重构复用 (行为不变), rule-of-five 收口。
+- **接入**: create_cylinder (Ø) / create_rectangular_block (长+宽) / create_flange (**OD +
+  中心孔 Ø**; **螺栓孔故意不标** — 每孔单独 Ø 会让单孔被改出 pattern 不对称, 螺栓圈改动走
+  create_flange 重生成)。hemisphere/sphere/frustum/lofted 是 revolve/loft 轮廓, 无简单
+  Ø/长宽语义, 不在范围。
+- **爆炸半径核查**: 受影响 L2 断言逐个核 — M40 (`D1@*` like + `-ge 1` 宽容) / M44 (按
+  Extrusion typeName 过滤, owner 隔离) / M43 (imported 0 dims 不变) / M11 (仅注释) →
+  **零既有 L2 需要改**。
+- **测试**:
+  - L1: 812 不变 (纯 SW 侧, spec 没动)
+  - L2: 新 `M49-catalog-dims.test.ps1` 7 检查全绿一次过 — **三类件全部原地真缩放**:
+    cylinder Ø 40→70 (--part) → bbox 70×70×60; block L 80→100 → 100×50×20; flange OD
+    80→100 → 100×100×10 + **cut 草图恰 1 尺寸守卫** (螺栓孔不标的回归锚)。
+  - 回归: M46 (重构件) + M2/M11/M3 (catalog 三件套) + M44 全绿。
+  - **L3: 待新 session 重启抽测** — 已有工具行为扩展 (server 重启即生效, 同 M39 模式);
+    抽测内容: create_cylinder → inspect editableDimensionCount=2 → modify Ø。
+  - build 0 warnings, dotnet format clean
+- **意义**: 「装配级 resize 编排」对 **catalog 件和通用层件一视同仁** — 直径/底面/长度全可
+  原地改, resize E2E 当年"只能 create_cylinder 重生成"的缺口正式收口。M46→M49 配套完成。
+
 ### M48 — delete_feature + suppress_feature (PR #?, 2026-06-10) — 机械 Cursor 的"删/回退"原语
 
 **风扇 dogfooding 最痛缺口的根治: 建错了删不掉 → 3 次整件重建。** M48 补上特征管理双原语:
