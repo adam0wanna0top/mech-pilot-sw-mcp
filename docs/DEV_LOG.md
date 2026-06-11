@@ -986,6 +986,28 @@ hemisphere/frustum (revolve 模板) — 后续相同类零件 0.5-1h 可加新�
 `MateHelpers`), 后续相似模式 (例如未来 sketch primitives 共用 / drawing view 选择
 共用) 都可按此模式独立 refactor PR 推进。
 
+### M51 — inspect_topology (PR #?, 2026-06-12) — 深度 inspection: 面/边的几何"地址"
+
+**精准实体操作 (指定边 fillet / 指定面 cut) 的 read-first 前置 (同 M39-41 模式)。** inspect_part/
+active 只有面/边**计数**, LLM 看不见"哪个面朝上/哪条边是孔口" — M51 新工具 `inspect_topology` 按需
+返回完整拓扑图, inspect 家族保持轻量:
+- **每面**: index + 类型 (plane/cylinder/cone/sphere/torus, 经 `ISurface.Is*` 布尔族 — 零魔法常量)
+  + 面积 mm² + bbox 中心 (识别锚, 非真质心) + 法向 (平面) / 轴+半径 (圆柱)。
+- **每边**: index + 类型 (line/circle) + 长度 mm (`GetEndParams` out 参 + `GetLength3`) + 端点 (线)
+  / 圆心+半径 (圆)。
+- 双模式 (modify_feature 形状): 活动 doc (默认, 不存不关) / `partPath` 只读 (开-读-finally 关)。
+- 防洪: faces/edges 数组各截 200 条 + `truncated` 标志 (计数始终精确)。
+- **NoPIA 纪律全程**: 所有返 object 的 COM getter 先收显式 object 局部再 cast。
+- **测试**:
+  - L1: +8 (= 841): InspectTopologySpecTests
+  - L2: `M51-inspect-topology.test.ps1` **16 检查一次过全绿, 数学级精确**: 圆柱 D40 L30 → 2 平面
+    (法向 ±Z, 面积 π·r²=1256.64) + 1 圆柱面 (r=20, 面积 π·D·L=3769.91, 轴 ±Z) + 2 圆边 (r20,
+    周长 2πr=125.66); 方块 30×20×10 → 6 平面 (面积配对 600/300/200×2) + 12 线边 (总长 240 + 端点)。
+  - **L3: 待新 session 重启抽测** (新工具, golden rule #13)
+- build 0 warnings, dotnet format clean; CLAUDE 工具表 →56。
+- **意义**: AI 第一次能"看清"几何拓扑 — "顶面" = 法向 +Z 且中心 z 最大的平面, "孔壁" = 半径匹配的
+  圆柱面。下一步 (M52 候选) 精准实体操作: 按 index/几何签名选边 fillet/chamfer、选面 cut。
+
 ### M50 — 曲线增强: sketch_spline + insert_helix (PR #?, 2026-06-12) — 解锁自由轮廓与弹簧/真螺纹
 
 **曲面能力盘点直接立项 (用户问"曲面能画吗")。** 此前草图只有线/弧/圆/矩形 → loft/sweep 画不了

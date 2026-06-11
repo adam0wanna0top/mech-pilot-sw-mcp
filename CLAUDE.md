@@ -38,7 +38,7 @@ profile/path mark 1/4 + 几何 ⊥)**, 通用 layer 5/5 milestone 全完成。**
 **M36 inspect_active (边建边验) — E2E 验证撞到的"盲建"痛点直接孵出, 项目首个 dogfooding-born 工具**。
 **M37 face-based start_sketch (+z/-z/+x/-x/+y/-y 直接选极值平面建草图 — E2E 缺口 #2 闭合, 不用 ref plane)**。
 **M38 modify_feature (改已有特征主尺寸 + 重生成 — 机械 Cursor 第一个"编辑已有几何"原语; 绕开 NoPIA ModifyDefinition bug 改用 Parameter.SystemValue)**。
-**55 工具**:
+**56 工具**:
 
 | Tool | LLM-facing name | 用途 |
 |---|---|---|
@@ -80,6 +80,7 @@ profile/path mark 1/4 + 几何 ⊥)**, 通用 layer 5/5 milestone 全完成。**
 | pattern_linear | `mcp__mech_pilot_sw__pattern_linear` | 1D / 2D 线性阵列特征 |
 | pattern_circular | `mcp__mech_pilot_sw__pattern_circular` | 绕 ±Z 轴圆周阵列特征 (PCD 孔环等) |
 | inspect_part | `mcp__mech_pilot_sw__inspect_part` | 读取零件元数据（bbox / 特征 + **每特征可改维度** D1@feat **M39** / 面+边数） |
+| inspect_topology | `mcp__mech_pilot_sw__inspect_topology` | 深度拓扑: 每**面** (类型/法向·轴/中心/面积/半径) + 每**边** (类型/长度/端点·圆心) — 精准实体操作的"地址" (**M51**; 活动 doc 或 `partPath`) |
 | inspect_active | `mcp__mech_pilot_sw__inspect_active` | 读**活动 doc** 元数据 (bbox/特征/面+边), 不存不关 — 通用 layer 边建边验 (**M36**, E2E 孵出, 共用 PartMetadata) |
 | modify_feature | `mcp__mech_pilot_sw__modify_feature` | 改特征**任意已标注尺寸** + 重生成 (全名 `D1@特征` 或裸特征名→D1; 单位按尺寸类型自动判, **M45**) — 活动 doc (**M38**, Parameter.SystemValue 绕 NoPIA) **或** `partPath` 开存盘零件文件改+存 (**M44** 装配组件 resize) |
 | modify_mate | `mcp__mech_pilot_sw__modify_mate` | 改装配体已有 mate 值 + 重生成 (distance mm / angle deg) — modify_feature 的 mate 版, 装配级 resize 用 (**M42**, DisplayDimension.SystemValue + EditRebuild3) |
