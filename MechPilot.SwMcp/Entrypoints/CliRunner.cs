@@ -70,6 +70,8 @@ public static class CliRunner
         root.Subcommands.Add(BuildInsertToolboxFastenerCommand());
         root.Subcommands.Add(BuildDeleteFeatureCommand());
         root.Subcommands.Add(BuildSuppressFeatureCommand());
+        root.Subcommands.Add(BuildSketchSplineCommand());
+        root.Subcommands.Add(BuildInsertHelixCommand());
 
         var parseResult = root.Parse(args);
         return await parseResult.InvokeAsync();
@@ -1769,6 +1771,111 @@ public static class CliRunner
                 };
                 var result = NewAssemblyTool.RunWithSpec(spec);
                 WriteResult(result, parseResult.GetValue(formatOpt) ?? "text");
+                return 0;
+            }
+            catch (McpToolException ex)
+            {
+                Console.Error.WriteLine($"[error] {ex.Message}");
+                return 1;
+            }
+        });
+
+        return cmd;
+    }
+
+    private static Command BuildSketchSplineCommand()
+    {
+        var pointsOpt = new Option<double[]>("--points")
+        {
+            Description = "Flat list x1 y1 x2 y2 ... in mm (>= 3 points).",
+            Required = true,
+            AllowMultipleArgumentsPerToken = true,
+        };
+        var formatOpt = new Option<string>("--output")
+        {
+            Description = "Output format: text | json",
+            DefaultValueFactory = _ => "text",
+        };
+
+        var cmd = new Command("sketch-spline",
+            "Add a smooth spline through 3+ points to the active sketch.")
+        {
+            pointsOpt, formatOpt,
+        };
+
+        cmd.SetAction(parseResult =>
+        {
+            try
+            {
+                var spec = new SketchSplineSpec
+                {
+                    Points = parseResult.GetValue(pointsOpt) ?? Array.Empty<double>(),
+                };
+                WriteResult(SketchSplineTool.RunWithSpec(spec), parseResult.GetValue(formatOpt) ?? "text");
+                return 0;
+            }
+            catch (McpToolException ex)
+            {
+                Console.Error.WriteLine($"[error] {ex.Message}");
+                return 1;
+            }
+        });
+
+        return cmd;
+    }
+
+    private static Command BuildInsertHelixCommand()
+    {
+        var pitchOpt = new Option<double>("--pitch")
+        {
+            Description = "Axial distance per revolution in mm (> 0).",
+            Required = true,
+        };
+        var revolutionsOpt = new Option<double>("--revolutions")
+        {
+            Description = "Number of revolutions (> 0, fractions allowed).",
+            Required = true,
+        };
+        var reverseOpt = new Option<bool>("--reverse")
+        {
+            Description = "Grow against the sketch plane's normal.",
+            DefaultValueFactory = _ => false,
+        };
+        var ccwOpt = new Option<bool>("--ccw")
+        {
+            Description = "Counter-clockwise winding (default clockwise).",
+            DefaultValueFactory = _ => false,
+        };
+        var startAngleOpt = new Option<double>("--start-angle")
+        {
+            Description = "Start angle on the base circle in degrees [0, 360). Default 0.",
+            DefaultValueFactory = _ => 0.0,
+        };
+        var formatOpt = new Option<string>("--output")
+        {
+            Description = "Output format: text | json",
+            DefaultValueFactory = _ => "text",
+        };
+
+        var cmd = new Command("insert-helix",
+            "Turn the active sketch's single circle into a helix curve (sweep path).")
+        {
+            pitchOpt, revolutionsOpt, reverseOpt, ccwOpt, startAngleOpt, formatOpt,
+        };
+
+        cmd.SetAction(parseResult =>
+        {
+            try
+            {
+                var spec = new InsertHelixSpec
+                {
+                    PitchMm = parseResult.GetValue(pitchOpt),
+                    Revolutions = parseResult.GetValue(revolutionsOpt),
+                    Reverse = parseResult.GetValue(reverseOpt),
+                    Clockwise = !parseResult.GetValue(ccwOpt),
+                    StartAngleDeg = parseResult.GetValue(startAngleOpt),
+                };
+                WriteResult(InsertHelixTool.RunWithSpec(spec), parseResult.GetValue(formatOpt) ?? "text");
                 return 0;
             }
             catch (McpToolException ex)

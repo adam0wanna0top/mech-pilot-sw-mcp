@@ -38,7 +38,7 @@ profile/path mark 1/4 + 几何 ⊥)**, 通用 layer 5/5 milestone 全完成。**
 **M36 inspect_active (边建边验) — E2E 验证撞到的"盲建"痛点直接孵出, 项目首个 dogfooding-born 工具**。
 **M37 face-based start_sketch (+z/-z/+x/-x/+y/-y 直接选极值平面建草图 — E2E 缺口 #2 闭合, 不用 ref plane)**。
 **M38 modify_feature (改已有特征主尺寸 + 重生成 — 机械 Cursor 第一个"编辑已有几何"原语; 绕开 NoPIA ModifyDefinition bug 改用 Parameter.SystemValue)**。
-**53 工具**:
+**55 工具**:
 
 | Tool | LLM-facing name | 用途 |
 |---|---|---|
@@ -52,12 +52,14 @@ profile/path mark 1/4 + 几何 ⊥)**, 通用 layer 5/5 milestone 全完成。**
 | sketch_arc_center | `mcp__mech_pilot_sw__sketch_arc_center` | 中心+起终画弧 (CCW/CW) |
 | sketch_circle | `mcp__mech_pilot_sw__sketch_circle` | 画圆 (cx, cy, r) + **驱动 Ø 尺寸** (**M46** 可被 modify_feature 改) |
 | sketch_centerline | `mcp__mech_pilot_sw__sketch_centerline` | 画中心线 (revolve axis 用) |
+| sketch_spline | `mcp__mech_pilot_sw__sketch_spline` | 3+ 点样条曲线 (自由轮廓: 翼型/瓶身/凸轮, **M50**; 无驱动尺寸) |
 | sketch_rectangle_center | `mcp__mech_pilot_sw__sketch_rectangle_center` | 画中心矩形 (center + corner) + **驱动 长/宽 尺寸** (**M46**) |
 | extrude | `mcp__mech_pilot_sw__extrude` | 拉伸 sketch 成实体 (FeatureExtrusion3) |
 | revolve | `mcp__mech_pilot_sw__revolve` | 绕 sketch centerline 旋转 (FeatureRevolve2) |
 | add_ref_plane | `mcp__mech_pilot_sw__add_ref_plane` | 创建偏移参考平面 (InsertRefPlane Distance=8) |
 | loft | `mcp__mech_pilot_sw__loft` | 任意 2+ sketch loft (InsertProtrusionBlend) |
-| sweep | `mcp__mech_pilot_sw__sweep` | 路径扫掠 (**M34 happy ✓** InsertProtrusionSwept + profile mark=1/path mark=4 + profile⊥path; 弯管/扇叶路径) |
+| sweep | `mcp__mech_pilot_sw__sweep` | 路径扫掠 (**M34 happy ✓** profile mark=1/path mark=4 + profile⊥path; 路径可为草图**或曲线特征如螺旋线 M50**) |
+| insert_helix | `mcp__mech_pilot_sw__insert_helix` | 活动草图单圆 → 螺旋线 (弹簧/真螺纹扫掠路径, **M50**; pitch×rev, 返特征名喂 sweep) |
 | extrude_cut | `mcp__mech_pilot_sw__extrude_cut` | sketch 拉伸切除 (FeatureCut2, **M34 happy ✓** Blind-to-depth + 草图须在 body 入口面非 base 面 + 方向自动回退) |
 | revolve_cut | `mcp__mech_pilot_sw__revolve_cut` | sketch 绕 centerline 旋转切除 (FeatureRevolve2 IsCut=true, **M34 happy ✓** profile 须重叠 body + 含 centerline) |
 | rib | `mcp__mech_pilot_sw__rib` | 加强筋/gusset (**M35 ✓** InsertRib 返 void→数 Rib 特征检测 + 方向自动回退; 草图开放轮廓跨壁, 2sided/parallel) |
