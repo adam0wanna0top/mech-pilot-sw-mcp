@@ -38,7 +38,7 @@ profile/path mark 1/4 + 几何 ⊥)**, 通用 layer 5/5 milestone 全完成。**
 **M36 inspect_active (边建边验) — E2E 验证撞到的"盲建"痛点直接孵出, 项目首个 dogfooding-born 工具**。
 **M37 face-based start_sketch (+z/-z/+x/-x/+y/-y 直接选极值平面建草图 — E2E 缺口 #2 闭合, 不用 ref plane)**。
 **M38 modify_feature (改已有特征主尺寸 + 重生成 — 机械 Cursor 第一个"编辑已有几何"原语; 绕开 NoPIA ModifyDefinition bug 改用 Parameter.SystemValue)**。
-**56 工具**:
+**58 工具**:
 
 | Tool | LLM-facing name | 用途 |
 |---|---|---|
@@ -71,7 +71,9 @@ profile/path mark 1/4 + 几何 ⊥)**, 通用 layer 5/5 milestone 全完成。**
 | create_frustum | `mcp__mech_pilot_sw__create_frustum` | 实心圆锥台 (axis +Y, 漏斗/机械臂关节 taper) |
 | create_lofted_round_to_square | `mcp__mech_pilot_sw__create_lofted_round_to_square` | 圆-方过渡 loft (风管接头/出风口, 首个多平面 sketch 工具) |
 | add_fillet | `mcp__mech_pilot_sw__add_fillet` | 给已有零件全边加等半径圆角 |
-| add_chamfer | `mcp__mech_pilot_sw__add_chamfer` | 给已有零件全边加等距倒角 (45°) |
+| fillet_edges | `mcp__mech_pilot_sw__fillet_edges` | **指定边**圆角 (按 inspect_topology 边 index, 多边批量; 活动 doc 或 `partPath`) — 拓扑级编辑 (**M52**) |
+| chamfer_edges | `mcp__mech_pilot_sw__chamfer_edges` | **指定边** 45° 倒角 (同上; 含退化倒角面数守卫) — 拓扑级编辑 (**M52**) |
+| add_chamfer | `mcp__mech_pilot_sw__add_chamfer` | 给已有零件全边加 45° 倒角 (**M52 修复**: 原 EqualDistance(16) 调用自 M6 起退化 no-op, 改 AngleDistance+π/4) |
 | add_axial_hole | `mcp__mech_pilot_sw__add_axial_hole` | 在 ±Z 端面加 Φ 通孔 / 盲孔 |
 | add_threaded_hole | `mcp__mech_pilot_sw__add_threaded_hole` | GB 螺纹孔 M3-M12 (真螺纹特征) |
 | add_counterbore | `mcp__mech_pilot_sw__add_counterbore` | GB/T 152.3 柱形沉头孔 (内六角圆柱头螺钉) M3-M12 |

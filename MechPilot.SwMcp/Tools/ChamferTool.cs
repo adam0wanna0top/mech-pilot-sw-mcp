@@ -121,17 +121,18 @@ public static class ChamferTool
                     "No edges found on any solid body in the part — nothing to chamfer.");
             }
 
-            // ── 3. Equal-distance chamfer on all selected edges ─────────────
-            //   ChamferType = swChamferEqualDistance (16): single-distance
-            //   constant-width chamfer. Width carries the size; OtherDist is
-            //   ignored in this mode but passed equal as a safety belt in case
-            //   SW 2026 cross-validates the two.
+            // ── 3. 45° equal-leg chamfer on all selected edges ──────────────
+            //   M52 root-cause fix: swChamferEqualDistance (16) builds a
+            //   DEGENERATE feature via InsertFeatureChamfer in SW 2026 (in the
+            //   tree, zero geometry change, no error) — this tool was a silent
+            //   geometric no-op since M6. swChamferAngleDistance (1) with
+            //   Angle = π/4 produces the intended 45° equal-leg chamfer.
             var chamferFeature = fm.InsertFeatureChamfer(
                 Options: 0,
-                ChamferType: (int)swChamferType_e.swChamferEqualDistance,
+                ChamferType: (int)swChamferType_e.swChamferAngleDistance,
                 Width: distanceM,
-                Angle: 0.0,
-                OtherDist: distanceM,
+                Angle: Math.PI / 4.0,
+                OtherDist: 0.0,
                 VertexChamDist1: 0.0,
                 VertexChamDist2: 0.0,
                 VertexChamDist3: 0.0);
