@@ -1007,7 +1007,11 @@ sweep 路径扩展:
     → 1 体 38×39×44) + 负例 (2 点样条提示 sketch_line / 无圆 helix 报单圆契约)
   - **几何发现 (沉淀)**: sweep 沿 helix 时 **wire profile 以边缘穿刺路径** (非圆心) → 弹簧包络 =
     helix R + 2×wire r (38 非 34), x 恰 38.0 证实; 不影响弹簧成立, 精确制径留 polish。
-  - **L3: 待新 session 重启抽测** (新工具×2 + sweep 行为扩展, golden rule #13)
+  - **L3: ✓ 已清 zero-bug (2026-06-12)** — 长寿命 MCP server 抽测: 样条波浪块 (数组参数协议层
+    直绑 → bbox 30×12×10 与 L2 一致) + **弹簧全链路** (圆 Ø30 → insert_helix 8×5 →
+    sweep 沿 `螺旋线/涡状线1` REFERENCECURVES 回退 → 1 体 38×38.98×44 与 L2 一致)。
+    **意外收获: Helix 特征自带可改尺寸 (D4@螺旋线=螺距 8mm / D3=高 40mm) — modify_feature
+    理论上可直接改弹簧螺距** (未来 polish 候选)。
 - build 0 warnings, dotnet format clean; CLAUDE 工具表 →55。
 - **流程事故 (同日沉淀, 重要)**: stacked PR 链 #56→#60 各自 merge 进了**上一级 stack 分支**, master
   只收到 #55 — GitHub 仅在 base 分支被删除时才自动 retarget, 本仓库不删分支 → 合并火车没进站。
