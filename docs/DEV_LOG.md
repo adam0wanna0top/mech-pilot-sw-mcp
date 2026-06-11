@@ -1010,8 +1010,9 @@ recipe 抽成共享 helper, 三个 catalog 工具接入。
     cylinder Ø 40→70 (--part) → bbox 70×70×60; block L 80→100 → 100×50×20; flange OD
     80→100 → 100×100×10 + **cut 草图恰 1 尺寸守卫** (螺栓孔不标的回归锚)。
   - 回归: M46 (重构件) + M2/M11/M3 (catalog 三件套) + M44 全绿。
-  - **L3: 待新 session 重启抽测** — 已有工具行为扩展 (server 重启即生效, 同 M39 模式);
-    抽测内容: create_cylinder → inspect editableDimensionCount=2 → modify Ø。
+  - **L3: ✓ 已清 zero-bug (2026-06-11)** — 长寿命 MCP server 抽测: create_cylinder D40 L60 →
+    inspect_part **editableDimensionCount=2** (D1@草图1=Ø40 新增 + 深度 60) →
+    modify_feature --part Ø 40→70 → inspect **bbox 70×70×60** (catalog 件直径协议层原地真缩放)。
   - build 0 warnings, dotnet format clean
 - **意义**: 「装配级 resize 编排」对 **catalog 件和通用层件一视同仁** — 直径/底面/长度全可
   原地改, resize E2E 当年"只能 create_cylinder 重生成"的缺口正式收口。M46→M49 配套完成。
