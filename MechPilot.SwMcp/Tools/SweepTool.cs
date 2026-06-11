@@ -40,10 +40,11 @@ public static class SweepTool
 {
     [McpServerTool(Name = "sweep")]
     [Description(
-        "Sweep a profile sketch along a path sketch into a solid body. " +
+        "Sweep a profile sketch along a path into a solid body. " +
         "profileSketchName must be a single closed-contour sketch (the cross-" +
-        "section); pathSketchName must be a single continuous open-curve sketch " +
-        "(the trajectory, straight or curved). Both names from end_sketch. " +
+        "section); pathSketchName is a single continuous open-curve sketch " +
+        "(from end_sketch) OR a curve feature name — e.g. a helix from " +
+        "insert_helix (M50) for springs / swept threads. " +
         "GEOMETRY: put the profile on a plane PERPENDICULAR to the path's start " +
         "direction and start the path at the profile center — e.g. profile circle " +
         "on the Top plane (normal +Y) + path line/arc on the Front plane starting " +
@@ -98,11 +99,15 @@ public static class SweepTool
                 $"Cannot select profile sketch '{spec.ProfileSketchName}'. " +
                 "Verify the name returned by end_sketch.");
         }
-        if (!ext.SelectByID2(spec.PathSketchName, "SKETCH", 0.0, 0.0, 0.0, true, 4, null, 0))
+        // Path may be a sketch OR a curve feature (M50: a helix from
+        // insert_helix) — try the sketch type first, then REFERENCECURVES.
+        if (!ext.SelectByID2(spec.PathSketchName, "SKETCH", 0.0, 0.0, 0.0, true, 4, null, 0) &&
+            !ext.SelectByID2(spec.PathSketchName, "REFERENCECURVES", 0.0, 0.0, 0.0, true, 4, null, 0))
         {
             throw new McpToolException(
-                $"Cannot select path sketch '{spec.PathSketchName}'. " +
-                "Verify the name returned by end_sketch.");
+                $"Cannot select path '{spec.PathSketchName}' as a sketch or a curve " +
+                "feature. Verify the name from end_sketch (sketch path) or " +
+                "insert_helix (helix path).");
         }
 
         // 14-arg InsertProtrusionSwept with educated defaults: follow-path

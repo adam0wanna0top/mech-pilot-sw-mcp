@@ -986,6 +986,34 @@ hemisphere/frustum (revolve 模板) — 后续相同类零件 0.5-1h 可加新�
 `MateHelpers`), 后续相似模式 (例如未来 sketch primitives 共用 / drawing view 选择
 共用) 都可按此模式独立 refactor PR 推进。
 
+### M50 — 曲线增强: sketch_spline + insert_helix (PR #?, 2026-06-12) — 解锁自由轮廓与弹簧/真螺纹
+
+**曲面能力盘点直接立项 (用户问"曲面能画吗")。** 此前草图只有线/弧/圆/矩形 → loft/sweep 画不了
+自由轮廓 (翼型/瓶身/凸轮), 也没有螺旋路径 (弹簧/真螺纹/螺旋叶全不可做)。M50 双工具补上 +
+sweep 路径扩展:
+- **sketch_spline**: 3+ 点样条 (`CreateSpline2(扁平 XYZ 米数组, naturalEnds=true)` 反射确认)。
+  注意: **自然端点样条在点间会过冲** (峰值点 8mm 实测鼓到 12mm) — 过每个输入点但中间更鼓, L2 按
+  包络断言。无驱动尺寸 (样条没有"单一尺寸", M46 范围外)。
+- **insert_helix**: 活动草图单圆 → 螺旋线 (`IModelDoc2.InsertHelix` 10 参反射确认;
+  Helixdef=0 PitchAndRevolution)。**返 void → M35 rib 式特征树 diff 检测** (新特征 typeName 含
+  "Helix"); 工作流 start_sketch → sketch_circle → insert_helix (**不要 end_sketch**, helix 吃掉
+  活动草图); 返特征名 (中文 UI = `螺旋线/涡状线1`) 喂 sweep。
+- **sweep 路径吃曲线特征**: SelectByID2 "SKETCH" 失败后回退 **"REFERENCECURVES"** → helix 可作
+  sweep 路径。
+- **测试**:
+  - L1: +21 (= 833): CurveSpecsTests (扁平点列奇偶/重复点/螺距界等)
+  - L2: `M50-curves.test.ps1` 12 检查全绿: 样条波浪块 (3 点样条+闭合线 extrude, 过冲包络断言) +
+    **弹簧 landmark** (front 圆 Ø30 → helix pitch8×5rev → top 线径 Ø4 profile → **sweep 沿螺旋线**
+    → 1 体 38×39×44) + 负例 (2 点样条提示 sketch_line / 无圆 helix 报单圆契约)
+  - **几何发现 (沉淀)**: sweep 沿 helix 时 **wire profile 以边缘穿刺路径** (非圆心) → 弹簧包络 =
+    helix R + 2×wire r (38 非 34), x 恰 38.0 证实; 不影响弹簧成立, 精确制径留 polish。
+  - **L3: 待新 session 重启抽测** (新工具×2 + sweep 行为扩展, golden rule #13)
+- build 0 warnings, dotnet format clean; CLAUDE 工具表 →55。
+- **流程事故 (同日沉淀, 重要)**: stacked PR 链 #56→#60 各自 merge 进了**上一级 stack 分支**, master
+  只收到 #55 — GitHub 仅在 base 分支被删除时才自动 retarget, 本仓库不删分支 → 合并火车没进站。
+  修复 = 链顶开交付 PR #61 直送 master。**教训: stacked PR 合并后必须验证
+  `git log master..链顶` 为空才算交付**; 已入 memory。
+
 ### M49 — catalog 驱动尺寸 (PR #?, 2026-06-11) — resize 编排最后缺口收口 (原"开干 1", 被岔路推迟三次)
 
 **M46 的 follow-up, resize E2E 实撞缺口的根治。** catalog helper (create_cylinder/flange/
