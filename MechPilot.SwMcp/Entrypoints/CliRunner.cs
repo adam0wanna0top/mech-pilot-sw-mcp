@@ -72,6 +72,7 @@ public static class CliRunner
         root.Subcommands.Add(BuildSuppressFeatureCommand());
         root.Subcommands.Add(BuildSketchSplineCommand());
         root.Subcommands.Add(BuildInsertHelixCommand());
+        root.Subcommands.Add(BuildInspectTopologyCommand());
 
         var parseResult = root.Parse(args);
         return await parseResult.InvokeAsync();
@@ -1771,6 +1772,46 @@ public static class CliRunner
                 };
                 var result = NewAssemblyTool.RunWithSpec(spec);
                 WriteResult(result, parseResult.GetValue(formatOpt) ?? "text");
+                return 0;
+            }
+            catch (McpToolException ex)
+            {
+                Console.Error.WriteLine($"[error] {ex.Message}");
+                return 1;
+            }
+        });
+
+        return cmd;
+    }
+
+    private static Command BuildInspectTopologyCommand()
+    {
+        var partOpt = new Option<string?>("--part")
+        {
+            Description = "Optional absolute .sldprt to inspect (default: active part).",
+            DefaultValueFactory = _ => null,
+        };
+        var formatOpt = new Option<string>("--output")
+        {
+            Description = "Output format: text | json",
+            DefaultValueFactory = _ => "text",
+        };
+
+        var cmd = new Command("inspect-topology",
+            "Deep-inspect a part's faces and edges (type / normal / center / area / radius / length).")
+        {
+            partOpt, formatOpt,
+        };
+
+        cmd.SetAction(parseResult =>
+        {
+            try
+            {
+                var spec = new InspectTopologySpec
+                {
+                    PartPath = parseResult.GetValue(partOpt),
+                };
+                WriteResult(InspectTopologyTool.RunWithSpec(spec), parseResult.GetValue(formatOpt) ?? "text");
                 return 0;
             }
             catch (McpToolException ex)
