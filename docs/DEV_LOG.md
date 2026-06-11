@@ -986,6 +986,148 @@ hemisphere/frustum (revolve 模板) — 后续相同类零件 0.5-1h 可加新�
 `MateHelpers`), 后续相似模式 (例如未来 sketch primitives 共用 / drawing view 选择
 共用) 都可按此模式独立 refactor PR 推进。
 
+### M49 — catalog 驱动尺寸 (PR #?, 2026-06-11) — resize 编排最后缺口收口 (原"开干 1", 被岔路推迟三次)
+
+**M46 的 follow-up, resize E2E 实撞缺口的根治。** catalog helper (create_cylinder/flange/
+rectangular_block) 直接调 CreateCircleByRadius/CreateCenterRectangle, 圆/矩形无驱动尺寸 →
+resize 编排对 catalog 件**只能缩长度 (extrude D1) 不能缩直径/底面**。M49: 把 M46 的加尺寸
+recipe 抽成共享 helper, 三个 catalog 工具接入。
+
+- **`Tools/Internal/SketchDimensioner`** (新共享 helper, M46 recipe 固化): `DisableModifyDialog`
+  (swInputDimValOnCreate 关 — M46 模态死锁坑) + `AddDiameter` (Select2 → AddDimension2 →
+  Diametric=true) + `AddLength`/`AddRectangle` (segs[0]=X 边, segs[1]=Y 边)。
+  SketchCircleTool/SketchRectangleCenterTool 重构复用 (行为不变), rule-of-five 收口。
+- **接入**: create_cylinder (Ø) / create_rectangular_block (长+宽) / create_flange (**OD +
+  中心孔 Ø**; **螺栓孔故意不标** — 每孔单独 Ø 会让单孔被改出 pattern 不对称, 螺栓圈改动走
+  create_flange 重生成)。hemisphere/sphere/frustum/lofted 是 revolve/loft 轮廓, 无简单
+  Ø/长宽语义, 不在范围。
+- **爆炸半径核查**: 受影响 L2 断言逐个核 — M40 (`D1@*` like + `-ge 1` 宽容) / M44 (按
+  Extrusion typeName 过滤, owner 隔离) / M43 (imported 0 dims 不变) / M11 (仅注释) →
+  **零既有 L2 需要改**。
+- **测试**:
+  - L1: 812 不变 (纯 SW 侧, spec 没动)
+  - L2: 新 `M49-catalog-dims.test.ps1` 7 检查全绿一次过 — **三类件全部原地真缩放**:
+    cylinder Ø 40→70 (--part) → bbox 70×70×60; block L 80→100 → 100×50×20; flange OD
+    80→100 → 100×100×10 + **cut 草图恰 1 尺寸守卫** (螺栓孔不标的回归锚)。
+  - 回归: M46 (重构件) + M2/M11/M3 (catalog 三件套) + M44 全绿。
+  - **L3: ✓ 已清 zero-bug (2026-06-11)** — 长寿命 MCP server 抽测: create_cylinder D40 L60 →
+    inspect_part **editableDimensionCount=2** (D1@草图1=Ø40 新增 + 深度 60) →
+    modify_feature --part Ø 40→70 → inspect **bbox 70×70×60** (catalog 件直径协议层原地真缩放)。
+  - build 0 warnings, dotnet format clean
+- **意义**: 「装配级 resize 编排」对 **catalog 件和通用层件一视同仁** — 直径/底面/长度全可
+  原地改, resize E2E 当年"只能 create_cylinder 重生成"的缺口正式收口。M46→M49 配套完成。
+
+### M48 — delete_feature + suppress_feature (PR #?, 2026-06-10) — 机械 Cursor 的"删/回退"原语
+
+**风扇 dogfooding 最痛缺口的根治: 建错了删不掉 → 3 次整件重建。** M48 补上特征管理双原语:
+`delete_feature` (永久删, 级联吸收草图/子特征) + `suppress_feature` (可逆压缩/恢复 — "没有它会
+怎样"试错)。两者都镜像 modify_feature 的双模式 (M38 活动 doc 不存 / M44 `partPath` 文件模式
+开-改-存-关), 装配组件也能用。迭代成本从"整件重来"降到"一步回退"。
+
+- **反射先行 (golden rule #5)**: `IModelDocExtension.DeleteSelection2(int)` —
+  `swDelete_Children(1) | swDelete_Absorbed(2)` = 静默级联 (无 SW 对话框);
+  `IFeature.SetSuppression2(state, swThisConfiguration=1, null)` — state 0=压缩/1=恢复,
+  直接打在 feature 对象上, 不需要 selection dance; `IFeature.Select2(bool, int)`。
+- **安全守卫**: 复用 `PartGeometryHelpers.IsBootFeature` — 参考/启动几何 (默认基准面/原点/
+  CoordSys/文件夹/**所有 RefPlane** 含 add_ref_plane 产物) 一律拒删拒压缩 (删 RefPlane 会级联
+  毁掉其上的草图)。新共享 helper `Tools/Internal/FeatureLookup` (精确名查找 + boot 守卫,
+  两工具共用)。
+- **测试**:
+  - L1: +17 (= 812): FeatureManageSpecTests (双 spec; outputPath 必须配 partPath 等)
+  - L2: `M48-feature-management.test.ps1` **17 检查全绿一次过**: base(30)+boss(10) →
+    ACTIVE 压缩 boss → **bbox z 40→30 + suppressed=true** → 恢复 → 40; FILE 模式同套往返 +
+    删 boss → **特征 4→2 (吸收草图同删) + bbox 30**; 负例: 未知特征友好拒 + **前视基准面拒删
+    (boot 守卫)**; ACTIVE 删除独立验证。
+  - **L3: ✓ 已清 zero-bug (2026-06-11)** — 长寿命 MCP server 抽测全过: 建 base(Ø40×30)+boss(Ø20×10)
+    → suppress (bbox z 40→30 + 树内 suppressed=true) → unsuppress (z 回 40) → delete (特征 4→2 连
+    吸收草图, z=30); **boot 守卫拒删前视基准面且完整引导消息透出 MCP 层** (= #58 错误透传修复在
+    新工具上的首次实战确认)。
+- **踩坑 (沉淀)**: **PowerShell 5.1 把无 BOM UTF-8 测试脚本当 GBK 读** — 中文字面量的 UTF-8
+  尾字节会跟后面的引号配成 GBK 字符把引号吞掉 (`'前视基准面'` 必炸, `'凸台-拉伸2'` 因尾随数字
+  侥幸活着 — 既有 L2 全是侥幸)。**含中文的 .ps1 必须存 UTF-8 with BOM**。
+- build 0 warnings, dotnet format clean; CLAUDE 工具表 →53。
+
+**意义**: 机械 Cursor 编辑闭环补上"结构编辑"维度 — 之前只能改尺寸 (modify_feature), 现在能
+**删/压缩/恢复特征**。建→看→改尺寸→改结构→重生成, 交互式迭代编辑的核心动词集齐了。
+
+### fix(mcp) — McpToolException 消息在 MCP 层被吞 (PR #?, 2026-06-10) — L3 抽测撞出的全局 bug, 一行修复
+
+**L3 抽测撞出 (golden rule #13 又一次证明价值, 同 M5 模式)。** M47 错误路径 L3 复测时发现: MCP 客户端
+收到的是裸 `An error occurred invoking 'insert_toolbox_fastener'.` — **精心设计的引导文本 (可用配置列表/
+几何提示/"先 new_assembly") 全部不可见**。对照实验 (spec 级拒绝, 纯 C# 不碰 SW) 同样被吞 → **全 51 工具
+的 MCP 错误路径都受影响**; CLI 层一直正常 (L2 只测 CLI), 且此前 L3 从未专测错误路径, 所以潜伏至今。
+
+- **根因 (UTF-16 字符串考古 + 实证)**: ModelContextProtocol.Core 1.3.0 的错误模板是
+  `An error occurred invoking '{tool}': {detail}` — **detail 槽只给 `McpException` 类型的异常**;
+  普通 Exception 走无详情句号版 (防意外泄漏内部细节, 合理设计)。我们的 `McpToolException : Exception`
+  → 消息被吞。(PS 5.1 反射加载不了 net8 程序集 → 改用 UTF-16 解码搜 DLL 字符串定位模板。)
+- **修复 (一行)**: `McpToolException` 改继承 SDK 的 **`ModelContextProtocol.McpException`**。
+  CLI 路径零影响 (按类型 catch 不变); L1 零影响 (Assert.Throws 精确类型仍命中)。
+- **L3 实证 (修复后)**: spec 级拒绝透出 `...': assemblyPath does not exist: ... Create the assembly
+  first with new_assembly.`; 全链路 SW 配置发现透出 `...': Configuration 'M6X30' not found ...
+  Available configurations (2 of 2): 'Default', 'PreviewCfg'. ...` — LLM 引导式错误在协议层活了。
+- **测试**: L1 795 不变; L2 M47 复跑全绿 (CLI happy+negative 都不受继承改动影响); format clean。
+- **沉淀**: MCP 业务异常**必须**继承 SDK `McpException` 才能把消息带给客户端 — "CLI/MCP 双入口行为
+  必须双验" (golden rule #2) 的错误路径版; 新错误消息设计 (M47 的配置发现列表) 都依赖此修复才生效。
+
+### M47 — insert_toolbox_fastener (PR #?, 2026-06-09) — 风扇 dogfooding 孵出: Toolbox 标准件进装配体
+
+**风扇 dogfooding 直接孵出 (同 M36/M44; 用户判词"看着像风扇但不是风扇"三层根因之一 = 无标准件
+接口)。** 用户在 SW 装了 Toolbox/Design Library 后问"能调用了吗" — 反射+探针核实后立项: 新工具
+`insert_toolbox_fastener` 把 Toolbox 标准件 (螺栓/螺钉/螺母/垫圈/轴承/销...) 插进装配体并**按配置
+选尺寸** (plain add_component 只能插默认配置 = 默认尺寸)。
+
+- **反射+探针核实 (golden rule #5, 全程零盲调)**:
+  - Toolbox 数据根在注册表 `HKCU\...\SOLIDWORKS 2026\General\Toolbox Data Location`
+    (本机 `G:\solidwork\SOLIDWORKS Data2026`), 树 = `browser/<标准>/<分类>/<子类>/*.sldprt`,
+    GB 标准在 `browser/GB/` (注意 GB 用 "bolts and studs", 非 "bolts and screws")。
+  - `swbrowser.dll` 是 **PDM** 接口非 Toolbox (M47 纠正项)。真正机制: 尺寸 = 主零件的
+    **configuration**; `swAddComponentConfigOptions_e` **没有** "existing config" 成员 —
+    选已有配置 = `ConfigOption=0 (CurrentSelectedConfig) + ExistingConfigName=配置名`。
+  - **零代码 spike 先行**: 现有 add_component 插 GB 六角螺栓 → 成功不卡、standardCandidate=true
+    → 才立项写码 (插入路径风险先排除)。
+- **实现**: ToolboxFastenerSpec (.sldasm/.sldprt 存在性 + config ≤256 字符 + 位置 sanity) +
+  InsertToolboxFastenerTool (AddComponentTool 管线复用: M20 normalize + v1#9 预加载 + M5 Save3 +
+  finally CloseDoc; 新增: `GetConfigurationNames` 枚举 (NoPIA: 显式 object 收) → 精确/忽略大小写
+  解析 → 未命中报错**列出可用配置** (引导 LLM 重选) → AddComponent5 → **ReferencedConfiguration
+  读回验证 + 不符则直接设置+重建 (双保险)** → message 带 `config='...'`) + CLI
+  insert-toolbox-fastener + MCP 注册。
+- **测试**:
+  - L1: +18 (= 795): ToolboxFastenerSpecTests
+  - L2: `M47-toolbox-fastener.test.ps1` 9 检查全过, **自举式设计** (不硬编码配置名): 默认插入读出
+    default config → 假配置名收割真配置列表 → 挑非默认真配置插入 → 断言 `config='<它>'` (决定性)
+  - **L3: 待新 session 重启抽测** (新工具, golden rule #13)
+- **诚实边界 (L2 自举测试揭示)**: 全新 Toolbox 主零件只有 `Default`+`PreviewCfg` — **尺寸配置是
+  add-in 在 SW UI 首次使用该尺寸时按需生成的**。所以"按 M6X30 配置名直插"只对已生成尺寸/厂商多配置
+  件有效; 全新库上工具仍可插默认尺寸 + 发现机制列真实配置。**Phase 2 候选**: Toolbox add-in API
+  (GetAddInObject / sldtoolboxconfigureaddin 的 IToolBoxConfiguratorApplication) 按需生成尺寸配置 —
+  晚绑定领域, 需单独探针。
+- build 0 warnings, dotnet format clean; CLAUDE 工具表 →51。
+
+### fix(extrude_cut) — reverse 接 Dir + 解除"基准面不能切"限制 (PR #?, 2026-06-09) — 接 fix(extrude)
+
+**fix(extrude) 的姊妹修复 + 一个意外收获。** `extrude_cut` 同样把 `reverse` 接到 `FeatureCut2` 的
+**`Flip`** 而非 **`Dir`**。它有"两方向都试、非 null 者胜"的兜底, 看似掩盖了问题——但因为**两次 try
+其实都是 `Dir:false`** (只变 Flip = 切的边而非方向), 兜底是**假的**: 永远只能朝反法向 (anti-normal) 切。
+
+- **根因 + 修复**: `TryCut` 的 `Flip:flip, Dir:false` → `Flip:false, Dir:reverseDir` (反射确认 `FeatureCut2`
+  同样 `[0]Sd [1]Flip [2]Dir`)。两个调用点 `TryCut(spec.Reverse)` / `TryCut(!spec.Reverse)` 不变, 但现在
+  **真正试两个方向** (Dir true/false), 兜底变成真的。
+- **意外收获 — 解除 M34 的"基准面不能切"限制**: M34 当年断言"草图画在 base 构造面上、**任何方向都不切**",
+  并据此写了 Test 3 (断言被拒) + 一堆"必须画在 bounding ref plane 上、cut back through"的文档/错误消息。
+  **那其实全是本 bug 的症状**: 旧码两次 try 都是 `Dir:false` = 反法向 = 朝实体外切空气 → 都 null → 报
+  "base plane" 错。修后兜底真正试 `Dir:true` = 朝实体内切 → **base 面草图直接切成同样的方 through 孔**。
+- **测试**:
+  - L1: 777 不变 (spec 没动)
+  - L2: `M34-cut-happy` Test 3 **从"断言被拒"改成"断言切成功 + 几何验证"**: cylinder D40×30 + front(base)
+    面 10×10 方草图 → extrude_cut 50 → **7 faces / 14 edges / bbox 40×40×30 = 跟 ref-plane 切割 (Test 1)
+    完全一致**。Test 1 (ref plane) + Test 2 (revolve_cut) 不受影响, 全绿。
+  - 文档同步: ExtrudeCutTool 的 Description / 类注释 / 错误消息 / 内部注释 全撤掉"base plane 不切"旧说法,
+    改成"方向真·双向自动探测, 草图可在任何接触实体的面 (含 base 面) 上"。
+  - build 0 warnings, dotnet format clean
+- **沉淀**: M34 把 cut 失败归因为"几何/草图必须在 bounding 面"是**对症状的合理化** (rationalization);
+  真因一直是这个 reverse→Flip 接错。fix(extrude)+本 PR 一起把 FeatureExtrusion3/FeatureCut2 的方向参数彻底接对。
+
 ### fix(extrude) — reverse 真正翻转方向 (Dir 不是 Flip) (PR #?, 2026-06-09) — 风扇 E2E 孵出
 
 **E2E dogfooding 孵出 (同 M36/M44)。** 画台式电风扇时发现 `extrude` 的 `reverse` 参数**完全无效**:

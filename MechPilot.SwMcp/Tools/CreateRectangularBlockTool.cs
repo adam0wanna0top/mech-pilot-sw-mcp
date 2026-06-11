@@ -126,7 +126,11 @@ public static class CreateRectangularBlockTool
             X2: halfLengthM, Y2: halfWidthM, Z2: 0.0)
             ?? throw new McpToolException(
                 $"CreateCenterRectangle returned null for L={spec.LengthMm} W={spec.WidthMm} mm.");
-        _ = rect; // discard sketch-segment array — we just needed the side effect
+
+        // ── 5b. Driving L + W dimensions (M49) — so resize orchestration can
+        //   change the footprint via modify_feature, not just the height. ─────
+        Internal.SketchDimensioner.AddRectangle(
+            model, rect, 0.0, 0.0, spec.LengthMm, spec.WidthMm);
 
         // ── 6. Exit sketch ──────────────────────────────────────────────────
         skMgr.InsertSketch(true);

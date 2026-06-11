@@ -132,8 +132,11 @@ public static class CreateFlangeTool
                 $"Cannot select Front Plane. Tried: {string.Join(" / ", FrontPlaneAliases)}.");
         }
         skMgr.InsertSketch(true);
-        _ = skMgr.CreateCircleByRadius(0.0, 0.0, 0.0, outerRadiusM)
+        var outerCircle = skMgr.CreateCircleByRadius(0.0, 0.0, 0.0, outerRadiusM) as ISketchSegment
             ?? throw new McpToolException($"Failed to draw outer circle (r={outerRadiusM} m).");
+        // Driving outer-Ø dimension (M49) — flange OD editable via modify_feature.
+        Internal.SketchDimensioner.AddDiameter(
+            model, outerCircle, 0.0, 0.0, spec.OuterDiameterMm / 2.0);
         skMgr.InsertSketch(true); // exit sketch
 
         model.ClearSelection2(true);
@@ -190,9 +193,15 @@ public static class CreateFlangeTool
         if (hasCenterHole)
         {
             var centerRadiusM = spec.CenterHoleDiameterMm / 2000.0;
-            _ = skMgr.CreateCircleByRadius(0.0, 0.0, 0.0, centerRadiusM)
+            var centerCircle = skMgr.CreateCircleByRadius(0.0, 0.0, 0.0, centerRadiusM) as ISketchSegment
                 ?? throw new McpToolException(
                     $"Failed to draw center hole (r={centerRadiusM} m).");
+            // Driving center-hole Ø (M49). Bolt circles are deliberately NOT
+            // dimensioned — a per-hole Ø would let one hole be edited out of
+            // sync with its siblings; bolt-pattern changes go through
+            // create_flange regeneration instead.
+            Internal.SketchDimensioner.AddDiameter(
+                model, centerCircle, 0.0, 0.0, spec.CenterHoleDiameterMm / 2.0);
         }
 
         if (hasBoltHoles)

@@ -57,21 +57,9 @@ public static class SketchCircleTool
                 $"CreateCircleByRadius returned null for center ({spec.Cx}, {spec.Cy}) " +
                 $"radius {spec.RadiusMm} mm.");
 
-        // Add a DRIVING diameter dimension so the size is parametric / editable
-        // (modify_feature can then change it). Select the circle, place the dim
-        // annotation offset from it, and set Diametric so it reads as Ø not radius.
-        // swInputDimValOnCreate must be OFF or AddDimension2 pops a modal "Modify"
-        // dialog that blocks the API call (M46 finding).
-        SwConnection.Instance.GetApp().SetUserPreferenceToggle(
-            (int)swUserPreferenceToggle_e.swInputDimValOnCreate, false);
-        model.ClearSelection2(true);
-        seg.Select2(false, 0);
-        var placeX = (spec.Cx + spec.RadiusMm) / 1000.0 + 0.010;
-        object dispObj = model.AddDimension2(placeX, spec.Cy / 1000.0, 0.0);
-        if (dispObj is IDisplayDimension disp)
-        {
-            disp.Diametric = true;
-        }
+        // Driving Ø dimension so the size is parametric / editable by
+        // modify_feature (M46 recipe, shared via SketchDimensioner since M49).
+        Internal.SketchDimensioner.AddDiameter(model, seg, spec.Cx, spec.Cy, spec.RadiusMm);
 
         return ToolResult.Ok(
             message: $"Added circle center=({spec.Cx}, {spec.Cy}) Ø{2 * spec.RadiusMm} mm (driving dimension) to active sketch",

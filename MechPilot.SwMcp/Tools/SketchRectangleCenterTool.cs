@@ -71,16 +71,10 @@ public static class SketchRectangleCenterTool
         var width = 2.0 * Math.Abs(spec.CornerX - spec.Cx);
         var height = 2.0 * Math.Abs(spec.CornerY - spec.Cy);
 
-        // Driving width + height dimensions on two adjacent sides so the size is
-        // parametric / editable. swInputDimValOnCreate must be OFF or AddDimension2
-        // pops a modal "Modify" dialog that blocks the API call (M46 finding).
-        SwConnection.Instance.GetApp().SetUserPreferenceToggle(
-            (int)swUserPreferenceToggle_e.swInputDimValOnCreate, false);
-        if (segsObj is object[] segs && segs.Length >= 2)
-        {
-            DimensionSegment(model, segs[0], spec.Cx, spec.Cy + height / 2.0 + 15.0);
-            DimensionSegment(model, segs[1], spec.Cx + width / 2.0 + 15.0, spec.Cy);
-        }
+        // Driving width + height dimensions on two adjacent sides so the size
+        // is parametric / editable (M46 recipe, shared via SketchDimensioner
+        // since M49).
+        Internal.SketchDimensioner.AddRectangle(model, segsObj, spec.Cx, spec.Cy, width, height);
 
         return ToolResult.Ok(
             message: $"Added centered rectangle: center=({spec.Cx}, {spec.Cy}), " +
@@ -88,17 +82,5 @@ public static class SketchRectangleCenterTool
             path: null);
     }
 
-    /// <summary>Selects a sketch line segment and adds a driving length dimension
-    /// (annotation placed at the given mm point; the value is the line's length).</summary>
-    private static void DimensionSegment(IModelDoc2 model, object segObj, double placeXMm, double placeYMm)
-    {
-        if (segObj is not ISketchSegment seg)
-        {
-            return;
-        }
-        model.ClearSelection2(true);
-        seg.Select2(false, 0);
-        _ = model.AddDimension2(placeXMm / 1000.0, placeYMm / 1000.0, 0.0);
-    }
 #endif
 }
