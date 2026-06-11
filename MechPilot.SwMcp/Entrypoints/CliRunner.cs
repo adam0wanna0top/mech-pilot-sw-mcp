@@ -73,6 +73,8 @@ public static class CliRunner
         root.Subcommands.Add(BuildSketchSplineCommand());
         root.Subcommands.Add(BuildInsertHelixCommand());
         root.Subcommands.Add(BuildInspectTopologyCommand());
+        root.Subcommands.Add(BuildFilletEdgesCommand());
+        root.Subcommands.Add(BuildChamferEdgesCommand());
 
         var parseResult = root.Parse(args);
         return await parseResult.InvokeAsync();
@@ -1772,6 +1774,124 @@ public static class CliRunner
                 };
                 var result = NewAssemblyTool.RunWithSpec(spec);
                 WriteResult(result, parseResult.GetValue(formatOpt) ?? "text");
+                return 0;
+            }
+            catch (McpToolException ex)
+            {
+                Console.Error.WriteLine($"[error] {ex.Message}");
+                return 1;
+            }
+        });
+
+        return cmd;
+    }
+
+    private static Command BuildFilletEdgesCommand()
+    {
+        var edgesOpt = new Option<int[]>("--edges")
+        {
+            Description = "Edge indexes from inspect-topology, e.g. --edges 4 7.",
+            Required = true,
+            AllowMultipleArgumentsPerToken = true,
+        };
+        var radiusOpt = new Option<double>("--radius")
+        {
+            Description = "Fillet radius in mm.",
+            Required = true,
+        };
+        var partOpt = new Option<string?>("--part")
+        {
+            Description = "Optional absolute .sldprt to edit a saved part file (default: active part).",
+            DefaultValueFactory = _ => null,
+        };
+        var outOpt = new Option<string?>("--out")
+        {
+            Description = "Optional output .sldprt (only with --part). Empty = in place.",
+            DefaultValueFactory = _ => null,
+        };
+        var formatOpt = new Option<string>("--output")
+        {
+            Description = "Output format: text | json",
+            DefaultValueFactory = _ => "text",
+        };
+
+        var cmd = new Command("fillet-edges",
+            "Round SPECIFIC edges (by inspect-topology index) with a constant radius.")
+        {
+            edgesOpt, radiusOpt, partOpt, outOpt, formatOpt,
+        };
+
+        cmd.SetAction(parseResult =>
+        {
+            try
+            {
+                var spec = new FilletEdgesSpec
+                {
+                    EdgeIndexes = parseResult.GetValue(edgesOpt) ?? Array.Empty<int>(),
+                    RadiusMm = parseResult.GetValue(radiusOpt),
+                    PartPath = parseResult.GetValue(partOpt),
+                    OutputPath = parseResult.GetValue(outOpt),
+                };
+                WriteResult(FilletEdgesTool.RunWithSpec(spec), parseResult.GetValue(formatOpt) ?? "text");
+                return 0;
+            }
+            catch (McpToolException ex)
+            {
+                Console.Error.WriteLine($"[error] {ex.Message}");
+                return 1;
+            }
+        });
+
+        return cmd;
+    }
+
+    private static Command BuildChamferEdgesCommand()
+    {
+        var edgesOpt = new Option<int[]>("--edges")
+        {
+            Description = "Edge indexes from inspect-topology, e.g. --edges 4 7.",
+            Required = true,
+            AllowMultipleArgumentsPerToken = true,
+        };
+        var distanceOpt = new Option<double>("--distance")
+        {
+            Description = "Equal chamfer distance in mm.",
+            Required = true,
+        };
+        var partOpt = new Option<string?>("--part")
+        {
+            Description = "Optional absolute .sldprt to edit a saved part file (default: active part).",
+            DefaultValueFactory = _ => null,
+        };
+        var outOpt = new Option<string?>("--out")
+        {
+            Description = "Optional output .sldprt (only with --part). Empty = in place.",
+            DefaultValueFactory = _ => null,
+        };
+        var formatOpt = new Option<string>("--output")
+        {
+            Description = "Output format: text | json",
+            DefaultValueFactory = _ => "text",
+        };
+
+        var cmd = new Command("chamfer-edges",
+            "Chamfer SPECIFIC edges (by inspect-topology index) at equal distance (45°).")
+        {
+            edgesOpt, distanceOpt, partOpt, outOpt, formatOpt,
+        };
+
+        cmd.SetAction(parseResult =>
+        {
+            try
+            {
+                var spec = new ChamferEdgesSpec
+                {
+                    EdgeIndexes = parseResult.GetValue(edgesOpt) ?? Array.Empty<int>(),
+                    DistanceMm = parseResult.GetValue(distanceOpt),
+                    PartPath = parseResult.GetValue(partOpt),
+                    OutputPath = parseResult.GetValue(outOpt),
+                };
+                WriteResult(ChamferEdgesTool.RunWithSpec(spec), parseResult.GetValue(formatOpt) ?? "text");
                 return 0;
             }
             catch (McpToolException ex)

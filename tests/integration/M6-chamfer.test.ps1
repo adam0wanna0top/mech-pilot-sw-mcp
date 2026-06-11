@@ -45,7 +45,15 @@ try {
     if (-not (Test-Path $cylA))         { throw "source should be preserved when saving a copy: $cylA" }
     $size = (Get-Item $chamferedA).Length
     if ($size -lt 1024)                 { throw "chamfered .sldprt suspiciously small: $size bytes" }
-    Write-Host ("[ok] chamfer D2 -> copy {0} ({1:N0} bytes), source preserved" -f $chamferedA, $size)
+    # M52 regression guard: the chamfer must CHANGE GEOMETRY. With the original
+    # swChamferEqualDistance(16)+Angle=0 call the feature was degenerate (in
+    # the tree, zero geometry) and this tool was a silent no-op since M6 —
+    # a chamfered cylinder must have 5 faces (3 + 2 conical rings), not 3.
+    $topo = (& $exe inspect-part --input $chamferedA --output json 2>$errFile) | ConvertFrom-Json
+    if ($topo.data.totalFaceCount -ne 5) {
+        throw "chamfer did not change geometry: expected 5 faces, got $($topo.data.totalFaceCount)"
+    }
+    Write-Host ("[ok] chamfer D2 -> copy {0} ({1:N0} bytes, 5 faces), source preserved" -f $chamferedA, $size)
 
     # ── happy path: in-place overwrite (no --out) ───────────────────────────
     New-SourceCylinder $cylB 40 60

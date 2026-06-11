@@ -986,6 +986,33 @@ hemisphere/frustum (revolve 模板) — 后续相同类零件 0.5-1h 可加新�
 `MateHelpers`), 后续相似模式 (例如未来 sketch primitives 共用 / drawing view 选择
 共用) 都可按此模式独立 refactor PR 推进。
 
+### M52 — fillet_edges + chamfer_edges (PR #?, 2026-06-12) — 拓扑级编辑 + 挖出 M6 add_chamfer 自出生即 no-op
+
+**"建→看→精准改"的临门一脚: 消费 M51 的边地址, 指定边圆角/倒角 (多边批量), 告别 add_fillet/chamfer
+全边大水漫灌。** 新共享 `Tools/Internal/EdgeSelector` — 与 TopologyReader **严格同序**重枚举
+(bodies→GetEdges flat, 该序即 inspect_topology 发给 LLM 的地址空间), 按 index 选边 (Select2 mark 参数化),
+返回边签名 ("#3 line 30 mm") 进成功消息供 LLM 交叉核对; 越界 index 友好报有效范围+引导重 inspect。
+双模式 (modify_feature 形状)。
+
+- **🐛 连带挖出 M6 大鱼 (L2 面数断言立功)**: chamfer 特征进树但**几何零变化** — 矩阵探针
+  (type×angle×mark 五格) 定位唯一根因: **`swChamferEqualDistance`(16, 枚举跳号的新型号) 经
+  `InsertFeatureChamfer` 在 SW 2026 产出退化特征**; `swChamferAngleDistance`(1)+Angle=π/4
+  (= 45° 等边倒角) 才工作, mark 0/1 无关。**M6 的 add_chamfer 自出生就是几何 no-op** —
+  其 L2 只验文件/退出码从未验面数 (M6 笔记 "D=1000 silent 接受/退化 chamfer" 当年已是线索)。
+  同 PR 修复 + M6 L2 补 5 面断言 (圆柱 3→5 面) 防回归。
+- **防御沉淀**: ChamferEdgesTool 内置**面数 delta 守卫** — 特征建了但面数不增 → 抛错
+  (静默退化 → 响亮失败)。
+- **测试**:
+  - L1: +16 (= 857): EdgeOpSpecsTests (index 非空/去重/非负 + 半径/距离界 + 路径)
+  - L2: `M52-edge-ops.test.ps1` 13 检查全绿: ACTIVE 单边 fillet (7 面+恰 1 圆柱 r3+其余 11 边
+    不动+签名回显) / ACTIVE 单边 chamfer (7 面全平面) / FILE 模式 4 竖边批量 fillet (4 圆柱 r2) /
+    负例 (index 99 → 报 0..11+inspect_topology 指引); M6 回归 (修复后 5 面) 全过
+  - **几何知识 (沉淀)**: 单边 fillet 后块的 10mm 竖线 = 3 原有 + **2 条圆柱切线缝** = 5
+  - **L3: 待新 session 重启抽测** (新工具×2, golden rule #13)
+- build 0 warnings, dotnet format clean; CLAUDE 工具表 →58。
+- **意义**: 机械 Cursor 完成"点哪改哪"——inspect_topology 看地址 → fillet/chamfer_edges 打地址。
+  编辑深度三级全齐: 特征值 (modify_feature) / 特征结构 (delete/suppress) / **拓扑 (M52)**。
+
 ### M51 — inspect_topology (PR #?, 2026-06-12) — 深度 inspection: 面/边的几何"地址"
 
 **精准实体操作 (指定边 fillet / 指定面 cut) 的 read-first 前置 (同 M39-41 模式)。** inspect_part/
