@@ -986,7 +986,30 @@ hemisphere/frustum (revolve 模板) — 后续相同类零件 0.5-1h 可加新�
 `MateHelpers`), 后续相似模式 (例如未来 sketch primitives 共用 / drawing view 选择
 共用) 都可按此模式独立 refactor PR 推进。
 
-### M55 — 装配审计工具化: inspect_assembly 世界包络 + check_interference (PR #?, 2026-06-14) — 风扇 dogfooding 直接孵出
+### L3 清债 — M53①-④ / M54 / M55 长寿命 server 全过 zero-bug + 风扇干涉实锤 (2026-06-14)
+
+**本 session 一口气交付 6 PR (#68-73), L3 债一次性清完 (golden rule #13)。** 载体 = 在长寿命 MCP server 上
+**真建一台产品级电风扇** (`C:/tmp/fan_pro/pro_fan.sldasm`, 6 件: base/stand/housing/shaft/impeller/shroud) +
+targeted 抽测, 各工具 L3 表现:
+- **M53-① rotation**: base/stand `rotationX=90` 立成 Y 轴 ✓ (inspect orientation zAxis=(0,−1,0) 实证)。
+  踩坑沉淀: 旋转绕 frame origin → 非居中件 bbox 漂, post_center = AddPos + (0,−h/2,−h/2), delete+重加修正。
+- **M53-② delete_component** ✓ (底盘埋地下半截, 一键删重放)。
+- **M53-③ topology concentric** ✓ (shaft→impeller 内孔 `face2Index=3` / base→stand `faceIndex=0` 两件轴 Y)。
+- **M53-④ skipIfPresent** ✓ (对 pro_fan 重加 shaft → "already present, skipped, unchanged" 无幽灵)。
+- **M54 coincident faceIndex (平面)** ✓ (scratch 双块 `#4 plane ↔ #5 plane`, blockB 精确落到 z=5 共面)。
+- **M55 worldBoundingBoxMm** ✓ (6 件全报, 旋转的 base/stand 包络与手算**逐字段一致** x[−85,85]/[−14,14] 等)。
+- **M55 check_interference** ✓✓ **当场抓 bug**: 手算判"零碰撞"的 pro_fan, 工具报 **pro_housing↔pro_shaft 251.33 mm³**
+  (= π·R4²·5mm, 轴穿进**实心**电机壳 5mm)。`add_axial_hole` Ø10 镗穿壳 → 复测 **0 干涉**。
+- **add_axial_hole** ✓ (修壳, 顺带 L3)。
+
+**核心教训 (沉淀)**: **包络重叠 (bbox) 抓不到"实体套实体"** —— 轴本就该在壳的 bbox 内, 只有真·实体求交
+(check_interference) 能分辨"轴在镗孔里 (OK)" vs "轴在实心料里 (撞)"。这正是 check_interference 必须与
+worldBoundingBoxMm 并存的理由, M55 上线当天就证明了价值 (catch + fix + re-audit 闭环)。
+
+**结论**: 6 PR L3 全过, **零工具 bug**; check_interference 抓的是**模型设计缺陷** (非工具 bug), 是 dogfooding 大胜。
+风扇现有工具实锤的"无干涉"证明。残留弱点: 头部↔立柱垂直接合仍位置定位 (待 add_mate_tangent)。
+
+### M55 — 装配审计工具化: inspect_assembly 世界包络 + check_interference (PR #73, 2026-06-14) — 风扇 dogfooding 直接孵出
 
 **产品级风扇 dogfooding 实撞的 MCP 层缺口立项 (用户问"画的过程有什么 MCP 层问题")。** 建风扇时确认"无碰撞"
 全靠**手算**: 每个组件 positionMm (frame origin) + orientation 三轴 + 零件本地尺寸 → 推世界包络 → 两两查重叠,
