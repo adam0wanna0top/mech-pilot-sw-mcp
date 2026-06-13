@@ -11,8 +11,11 @@ using SolidWorks.Interop.swconst;
 namespace MechPilot.SwMcp.Tools;
 
 /// <summary>
-/// Adds one concentric mate between two components' first axial-Z
-/// cylindrical faces. Third member of the mate family alongside
+/// Adds one concentric mate between two components' cylindrical faces — by
+/// default the first axial-Z cylinder on each, or (M53-③) a SPECIFIC face
+/// addressed by its inspect_topology index (face1Index / face2Index) so the
+/// LLM can target e.g. the flange's 3rd bolt hole, not just whichever cylinder
+/// is found first. Third member of the mate family alongside
 /// <see cref="AddCoincidentMateTool"/> and <see cref="AddDistanceMateTool"/>;
 /// like them it uses the AddMate5 path with the v1 PR #20 magic
 /// positions (gear ratio 0.001, angle limits π/6), but the **selection
@@ -43,18 +46,22 @@ public static class AddConcentricMateTool
 {
     [McpServerTool(Name = "add_mate_concentric")]
     [Description(
-        "Add a concentric mate between two components' first axial-Z " +
-        "cylindrical faces in an existing SolidWorks assembly. The tool " +
-        "auto-finds a cylindrical face on each component (axis along ±Z, " +
-        "matching the extrusion direction of create_cylinder / create_flange " +
-        "and the inner faces of add_axial_hole / add_threaded_hole holes), " +
-        "so the LLM only supplies the two component instance names. " +
-        "Use inspect_assembly first to learn names (e.g. 'cyl-1'). alignment " +
-        "is 'aligned' (default), 'anti-aligned', or 'closest'. assemblyPath " +
-        "must be an absolute path to an existing .sldasm. outputPath optional: " +
-        "empty = overwrite in place. For parts with multiple Z-axial " +
-        "cylindrical faces, the first one found wins (future PR can add a " +
-        "faceIndex selector).")]
+        "Add a concentric mate between two components' cylindrical faces in an " +
+        "existing SolidWorks assembly. By default the tool auto-finds the first " +
+        "cylindrical face on each component (axis along ±Z, matching the " +
+        "extrusion direction of create_cylinder / create_flange and the inner " +
+        "faces of add_axial_hole / add_threaded_hole holes), so the LLM only " +
+        "supplies the two component instance names. To target a SPECIFIC face — " +
+        "e.g. 'the flange's 3rd bolt hole' rather than whichever cylinder is " +
+        "found first — pass face1Index / face2Index: the face index from " +
+        "running inspect_topology on that component's underlying .sldprt (the " +
+        "part's face order equals the component's in-assembly order for " +
+        "single-body parts, so the index bridges directly). Omit an index to " +
+        "auto-pick that side; the two sides are independent. " +
+        "Use inspect_assembly first to learn instance names (e.g. 'cyl-1'). " +
+        "alignment is 'aligned' (default), 'anti-aligned', or 'closest'. " +
+        "assemblyPath must be an absolute path to an existing .sldasm. " +
+        "outputPath optional: empty = overwrite in place.")]
     public static ToolResult Run(
         [Description("Absolute path to an existing .sldasm.")]
         string assemblyPath,
@@ -64,6 +71,10 @@ public static class AddConcentricMateTool
         string component2Name,
         [Description("Alignment: 'aligned' (default), 'anti-aligned', or 'closest'.")]
         string alignment = "aligned",
+        [Description("Optional inspect_topology face index on component1's part to mate that exact cylinder. Omit = auto-pick first axial-Z cylinder.")]
+        int? face1Index = null,
+        [Description("Optional inspect_topology face index on component2's part. Omit = auto-pick.")]
+        int? face2Index = null,
         [Description("Optional output .sldasm path. Empty = overwrite input in place.")]
         string? outputPath = null)
     {
@@ -73,6 +84,8 @@ public static class AddConcentricMateTool
             Component1Name = component1Name,
             Component2Name = component2Name,
             Alignment = alignment,
+            Face1Index = face1Index,
+            Face2Index = face2Index,
             OutputPath = outputPath,
         };
         return RunWithSpec(spec);
@@ -152,15 +165,13 @@ public static class AddConcentricMateTool
                 ?? throw new McpToolException(
                     $"Component '{spec.Component2Name}' not found in assembly.");
 
-            // ── 3. Find first axial-Z cylindrical face on each component ──
-            var face1 = FindFirstAxialCylinderFace(comp1)
-                ?? throw new McpToolException(
-                    $"Could not find an axial-Z cylindrical face on '{spec.Component1Name}'. " +
-                    "The component may have no cylindrical surface aligned with ±Z " +
-                    "(create_cylinder / create_flange / parts drilled with add_axial_hole all qualify).");
-            var face2 = FindFirstAxialCylinderFace(comp2)
-                ?? throw new McpToolException(
-                    $"Could not find an axial-Z cylindrical face on '{spec.Component2Name}'.");
+            // ── 3. Resolve a cylindrical face on each component: by topology
+            //   index when given (M53-③ precise addressing), else auto-find the
+            //   first axial-Z cylinder (back-compat). ────────────────────────
+            var (face1, face1Sig) = ResolveFace(
+                comp1, spec.Face1Index, spec.Component1Name);
+            var (face2, face2Sig) = ResolveFace(
+                comp2, spec.Face2Index, spec.Component2Name);
 
             // ── 4. Select both faces, mark=0 (AddMate5 path, M18/M19 same) ─
             model.ClearSelection2(true);
@@ -245,8 +256,9 @@ public static class AddConcentricMateTool
 
             return ToolResult.Ok(
                 message:
-                    $"Concentric mate: '{spec.Component1Name}' ↔ '{spec.Component2Name}' " +
-                    $"({spec.Alignment}); saved {(isInPlace ? "in place" : "as a copy")}",
+                    $"Concentric mate: '{spec.Component1Name}' [{face1Sig}] ↔ " +
+                    $"'{spec.Component2Name}' [{face2Sig}] ({spec.Alignment}); " +
+                    $"saved {(isInPlace ? "in place" : "as a copy")}",
                 path: targetPath);
         }
         finally
@@ -274,6 +286,32 @@ public static class AddConcentricMateTool
             }
         }
         return null;
+    }
+
+    /// <summary>
+    /// Resolves the cylindrical face to mate on a component: by inspect_topology
+    /// index when <paramref name="faceIndex"/> is given (M53-③ precise
+    /// addressing, shared <see cref="Internal.ComponentFaceSelector"/>), else
+    /// the first axial-Z cylinder (back-compat auto-pick). Returns the face plus
+    /// a short signature for the success message.
+    /// </summary>
+    private static (IFace2 Face, string Signature) ResolveFace(
+        IComponent2 comp, int? faceIndex, string componentName)
+    {
+        if (faceIndex is int idx)
+        {
+            return Internal.ComponentFaceSelector.GetCylindricalFaceByIndex(
+                comp, idx, componentName);
+        }
+
+        var auto = FindFirstAxialCylinderFace(comp)
+            ?? throw new McpToolException(
+                $"Could not find an axial-Z cylindrical face on '{componentName}'. " +
+                "The component may have no cylindrical surface aligned with ±Z " +
+                "(create_cylinder / create_flange / parts drilled with add_axial_hole " +
+                "all qualify). To target a specific face, run inspect_topology on the " +
+                "part and pass its face index.");
+        return (auto, "auto axial-Z cylinder");
     }
 
     /// <summary>

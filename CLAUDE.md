@@ -93,7 +93,7 @@ profile/path mark 1/4 + 几何 ⊥)**, 通用 layer 5/5 milestone 全完成。**
 | inspect_assembly | `mcp__mech_pilot_sw__inspect_assembly` | 读装配体: 组件（实例名/源/位置 + **M53-① orientation** xAxis/yAxis/zAxis 朝向单位向量 + **M40** kind ours/imported/subassembly + standardCandidate + 可改维度）+ **M41** mates（type/连谁/distance·angle 值）— 装配级 resize 编排"看"侧 |
 | add_mate_coincident | `mcp__mech_pilot_sw__add_mate_coincident` | 两组件 reference plane 重合配合 |
 | add_mate_distance | `mcp__mech_pilot_sw__add_mate_distance` | 两组件 reference plane 间距 N mm 配合 |
-| add_mate_concentric | `mcp__mech_pilot_sw__add_mate_concentric` | 两组件轴向 ±Z 圆柱面同轴配合 |
+| add_mate_concentric | `mcp__mech_pilot_sw__add_mate_concentric` | 两组件圆柱面同轴配合 (默认每件第一个 ±Z 圆柱面; **M53-③ face1Index/face2Index** 按 inspect_topology 面 index 精准选"第 N 个孔" — 装配级拓扑寻址) |
 | add_mate_angle | `mcp__mech_pilot_sw__add_mate_angle` | 两组件 reference plane 角度 N° 配合 (机械臂关节摆角/摇头风扇) |
 | add_shell | `mcp__mech_pilot_sw__add_shell` | 抽壳 (电机壳/泵壳/容器, 修正 v1 "API 不存在") |
 | insert_toolbox_fastener | `mcp__mech_pilot_sw__insert_toolbox_fastener` | 插 Toolbox 标准件进装配体, 按配置选尺寸 (**M47**, 风扇 dogfooding 孵出; 尺寸配置须已生成) + **rotationX/Y/Z 度立起横躺螺栓** (**M53-①**) |

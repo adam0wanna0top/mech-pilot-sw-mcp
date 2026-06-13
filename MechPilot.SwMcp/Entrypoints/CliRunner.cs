@@ -2604,6 +2604,16 @@ public static class CliRunner
             Description = "Alignment: 'aligned' (default), 'anti-aligned', or 'closest'.",
             DefaultValueFactory = _ => "aligned",
         };
+        var face1Opt = new Option<int?>("--face1-index")
+        {
+            Description = "Optional inspect_topology face index on component1's part. Omit = auto-pick.",
+            DefaultValueFactory = _ => null,
+        };
+        var face2Opt = new Option<int?>("--face2-index")
+        {
+            Description = "Optional inspect_topology face index on component2's part. Omit = auto-pick.",
+            DefaultValueFactory = _ => null,
+        };
         var outOpt = new Option<string>("--out")
         {
             Description = "Optional output .sldasm path. Omit to overwrite in place.",
@@ -2616,9 +2626,9 @@ public static class CliRunner
         };
 
         var cmd = new Command("add-mate-concentric",
-            "Add a concentric mate between two components' first axial-Z cylindrical faces.")
+            "Add a concentric mate between two components' cylindrical faces (auto-pick or by topology index).")
         {
-            asmOpt, comp1Opt, comp2Opt, alignOpt, outOpt, formatOpt,
+            asmOpt, comp1Opt, comp2Opt, alignOpt, face1Opt, face2Opt, outOpt, formatOpt,
         };
 
         cmd.SetAction(parseResult =>
@@ -2631,6 +2641,8 @@ public static class CliRunner
                     Component1Name = parseResult.GetValue(comp1Opt) ?? string.Empty,
                     Component2Name = parseResult.GetValue(comp2Opt) ?? string.Empty,
                     Alignment = parseResult.GetValue(alignOpt) ?? "aligned",
+                    Face1Index = parseResult.GetValue(face1Opt),
+                    Face2Index = parseResult.GetValue(face2Opt),
                     OutputPath = parseResult.GetValue(outOpt),
                 };
                 var result = AddConcentricMateTool.RunWithSpec(spec);
