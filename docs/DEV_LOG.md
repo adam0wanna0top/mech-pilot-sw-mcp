@@ -986,7 +986,29 @@ hemisphere/frustum (revolve 模板) — 后续相同类零件 0.5-1h 可加新�
 `MateHelpers`), 后续相似模式 (例如未来 sketch primitives 共用 / drawing view 选择
 共用) 都可按此模式独立 refactor PR 推进。
 
-### M56 — add_mate_tangent + concentric auto-pick 任意轴 (PR #?, 2026-06-14) — 补第 5 类 mate, 风扇头部↔立柱解锁
+### M57 — ping 报构建版本 (PR #?, 2026-06-14) — 探测 stale MCP server, 不再靠"搜某工具在不在"反推
+
+**风扇收尾时第 3 次被"exe 更新了但 MCP schema 没刷新"咬到 → 立项 (retrospective #1)。** 长寿命 server 跑哪个 build
+之前只能靠"ToolSearch 某新工具在不在"反推 (本 session 因此重启过一次会话)。M57 让 `ping` 直接报构建身份。
+- **build 时嵌入 git** (csproj `EmbedGitInfo` target): `git rev-parse --short HEAD` + `git status --porcelain`
+  (dirty) → 经 **`AssemblyAttribute` 项**发 `AssemblyMetadataAttribute(GitSha/GitDirty)`。**坑**: 先用
+  `<AssemblyMetadata>` 项在 target 内加不被消费 (target-timing), 改 `<AssemblyAttribute>` + `BeforeTargets=
+  "GetAssemblyAttributes"` 才生效 (DIAG message 确认 Exec 捕获到 sha 但没进 dll → 定位是 item 类型问题)。
+  ContinueOnError → 无 git/off-repo 回退 "unknown"。
+- **build 时间不嵌入** (避免每 build churn): 运行时读 exe 文件 `File.GetLastWriteTimeUtc(assembly.Location)`。
+- **`Tools/Internal/BuildInfo`** (新, SW-free L1-testable): `Read(assembly)` → (gitSha, gitDirty, buildTimeUtc) +
+  `Describe` 一行人类摘要。ping 返 `pong — git <sha>[-dirty], built <UTC>` + data {gitSha/gitDirty/buildTimeUtc}。
+- **测试**:
+  - L1: +4 (= 934): BuildInfoTests (Describe clean/dirty 格式 + Read 主程序集返真 SHA) + PingToolTests (message
+    含 git/built + data 三键)
+  - L2: `M1-ping.test.ps1` 改 (原断言 message=='pong' 必破): 现验 text 以 pong 开头 + 含 git/built, json data
+    有 gitSha/buildTimeUtc/gitDirty。实跑 `pong — git ccdeb6e-dirty, built 2026-06-13 19:42 UTC`。
+  - **L3: 待新 session 重启抽测** (重启后 ping 应报新 SHA + 非 dirty + 新 build 时间 = 自证)。
+- build 0 warnings, dotnet format clean; CLAUDE 工具表数不变 (61, ping 增强非新工具)。
+- **用法**: 怀疑 MCP 不是最新时先 `ping` —— SHA/build 时间比刚 build 的旧就重启会话刷新。本 session 反复被咬,
+  以后一眼可判。
+
+### M56 — add_mate_tangent + concentric auto-pick 任意轴 (PR #75, 2026-06-14) — 补第 5 类 mate, 风扇头部↔立柱解锁
 
 **风扇唯一弱点的根治 + 一个 ergonomics 修复。** 风扇电机壳 (横躺圆柱) 搁在立柱顶 (平面) 那个垂直接合, coincident/
 concentric 都表达不了 (圆柱搁平面 = 相切), 只能位置定位。M56 补**第 5 类 mate** + 顺带放宽 concentric auto-pick:
