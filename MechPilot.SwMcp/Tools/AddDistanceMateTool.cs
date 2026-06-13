@@ -26,29 +26,37 @@ public static class AddDistanceMateTool
 {
     [McpServerTool(Name = "add_mate_distance")]
     [Description(
-        "Add a distance mate between two components' default reference " +
-        "planes (Front / Top / Right) in an existing SolidWorks assembly, " +
-        "at a given mm distance. LLM use: 'the cylinder sits 25 mm above " +
+        "Add a distance mate between two components in an existing SolidWorks " +
+        "assembly, at a given mm distance — by default between their reference " +
+        "planes (Front / Top / Right). LLM use: 'the cylinder sits 25 mm above " +
         "the base block' → distance=25 plane1=top plane2=top alignment=aligned. " +
+        "To offset from a SPECIFIC planar model face instead of a reference " +
+        "plane, pass face1Index / face2Index: the planar face index from " +
+        "running inspect_topology on that component's .sldprt. A face index " +
+        "overrides the plane keyword for that side; sides are independent. " +
         "Use inspect_assembly first to learn the component instance names. " +
-        "plane1 / plane2 are 'front' / 'top' / 'right' (case-insensitive). " +
-        "alignment is 'aligned' (default), 'anti-aligned', or 'closest' — " +
-        "picks which side of plane1 plane2 sits on. assemblyPath must be an " +
-        "absolute path to an existing .sldasm. outputPath optional: " +
-        "empty = overwrite the input in place.")]
+        "plane1 / plane2 are 'front' / 'top' / 'right' (case-insensitive); omit " +
+        "a plane when its face index is given. alignment is 'aligned' " +
+        "(default), 'anti-aligned', or 'closest' — picks which side of " +
+        "reference 1 reference 2 sits on. assemblyPath must be an absolute path " +
+        "to an existing .sldasm. outputPath optional: empty = overwrite in place.")]
     public static ToolResult Run(
         [Description("Absolute path to an existing .sldasm.")]
         string assemblyPath,
         [Description("First component's instance name (from inspect_assembly).")]
         string component1Name,
-        [Description("Reference plane of component 1: 'front' / 'top' / 'right'.")]
-        string plane1,
         [Description("Second component's instance name.")]
         string component2Name,
-        [Description("Reference plane of component 2: 'front' / 'top' / 'right'.")]
-        string plane2,
         [Description("Mate distance in mm. Must be > 0.")]
         double distance,
+        [Description("Reference plane of component 1: 'front' / 'top' / 'right'. Omit if face1Index is given.")]
+        string? plane1 = null,
+        [Description("Reference plane of component 2: 'front' / 'top' / 'right'. Omit if face2Index is given.")]
+        string? plane2 = null,
+        [Description("Optional inspect_topology planar-face index on component1's part (overrides plane1).")]
+        int? face1Index = null,
+        [Description("Optional inspect_topology planar-face index on component2's part (overrides plane2).")]
+        int? face2Index = null,
         [Description("Alignment: 'aligned' (default), 'anti-aligned', or 'closest'.")]
         string alignment = "aligned",
         [Description("Optional output .sldasm path. Empty = overwrite input in place.")]
@@ -61,6 +69,8 @@ public static class AddDistanceMateTool
             Plane1 = plane1,
             Component2Name = component2Name,
             Plane2 = plane2,
+            Face1Index = face1Index,
+            Face2Index = face2Index,
             DistanceMm = distance,
             Alignment = alignment,
             OutputPath = outputPath,
@@ -128,31 +138,19 @@ public static class AddDistanceMateTool
             var asmDoc = (IAssemblyDoc)model;
             var asmTitle = Internal.MateHelpers.StripSldasmExt(model.GetTitle());
 
-            // ── 2. Select plane1 (mark=0, append=false) then plane2 (append=true) ──
-            var plane1Aliases = CoincidentMateSpec.PlaneAliases[spec.Plane1];
-            var plane2Aliases = CoincidentMateSpec.PlaneAliases[spec.Plane2];
-
+            // ── 2. Select each side: a specific planar face by topology index
+            //   (M54) or the named reference plane. ───────────────────────────
             model.ClearSelection2(true);
-            var selected1Name = Internal.MateHelpers.SelectFirstPlane(ext, plane1Aliases,
-                spec.Component1Name, asmTitle, append: false);
-            if (selected1Name == null)
-            {
-                throw new McpToolException(
-                    $"Could not select '{spec.Plane1}' plane on component " +
-                    $"'{spec.Component1Name}'. Tried " +
-                    $"{Internal.MateHelpers.FormatAttempts(plane1Aliases, spec.Component1Name, asmTitle)}. " +
-                    "Verify the component name with inspect_assembly first.");
-            }
-
-            var selected2Name = Internal.MateHelpers.SelectFirstPlane(ext, plane2Aliases,
-                spec.Component2Name, asmTitle, append: true);
-            if (selected2Name == null)
-            {
-                throw new McpToolException(
-                    $"Could not select '{spec.Plane2}' plane on component " +
-                    $"'{spec.Component2Name}'. Tried " +
-                    $"{Internal.MateHelpers.FormatAttempts(plane2Aliases, spec.Component2Name, asmTitle)}.");
-            }
+            var aliases1 = spec.Face1Index.HasValue
+                ? null : CoincidentMateSpec.PlaneAliases[spec.Plane1!];
+            var aliases2 = spec.Face2Index.HasValue
+                ? null : CoincidentMateSpec.PlaneAliases[spec.Plane2!];
+            var selected1Name = Internal.MateHelpers.SelectMateReference(
+                asmDoc, ext, spec.Component1Name, spec.Face1Index,
+                aliases1, spec.Plane1, asmTitle, append: false);
+            var selected2Name = Internal.MateHelpers.SelectMateReference(
+                asmDoc, ext, spec.Component2Name, spec.Face2Index,
+                aliases2, spec.Plane2, asmTitle, append: true);
 
             // ── 3. AddMate5 with type=DISTANCE and the 4 magic positions ───
             //   For distance mates, v1 PR #20 sets Distance + DistanceAbs
@@ -226,8 +224,8 @@ public static class AddDistanceMateTool
 
             return ToolResult.Ok(
                 message:
-                    $"Distance mate {spec.DistanceMm} mm: '{spec.Plane1}@{spec.Component1Name}' " +
-                    $"↔ '{spec.Plane2}@{spec.Component2Name}' ({spec.Alignment}); " +
+                    $"Distance mate {spec.DistanceMm} mm: '{selected1Name}' ↔ " +
+                    $"'{selected2Name}' ({spec.Alignment}); " +
                     $"saved {(isInPlace ? "in place" : "as a copy")}",
                 path: targetPath);
         }

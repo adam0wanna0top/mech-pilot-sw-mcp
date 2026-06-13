@@ -30,14 +30,29 @@ public sealed record CoincidentMateSpec
     /// </summary>
     public required string Component1Name { get; init; }
 
-    /// <summary>Reference plane of component 1: "front" / "top" / "right" (case-insensitive).</summary>
-    public required string Plane1 { get; init; }
+    /// <summary>
+    /// Reference plane of component 1: "front" / "top" / "right"
+    /// (case-insensitive). Required unless <see cref="Face1Index"/> is set,
+    /// which mates a specific planar model face instead.
+    /// </summary>
+    public string? Plane1 { get; init; }
 
     /// <summary>Second component's instance name.</summary>
     public required string Component2Name { get; init; }
 
-    /// <summary>Reference plane of component 2.</summary>
-    public required string Plane2 { get; init; }
+    /// <summary>Reference plane of component 2 (or omit and use <see cref="Face2Index"/>).</summary>
+    public string? Plane2 { get; init; }
+
+    /// <summary>
+    /// Optional inspect_topology face index on component1's part to mate that
+    /// EXACT planar face (M54) instead of a reference plane. Must be ≥ 0 and
+    /// point at a planar face. When set, <see cref="Plane1"/> is ignored.
+    /// </summary>
+    public int? Face1Index { get; init; }
+
+    /// <summary>Optional inspect_topology planar-face index on component2's part
+    /// (see <see cref="Face1Index"/>).</summary>
+    public int? Face2Index { get; init; }
 
     /// <summary>
     /// Mate alignment: "aligned" (default) / "anti-aligned" / "closest".
@@ -75,9 +90,9 @@ public sealed record CoincidentMateSpec
     {
         ValidateAssemblyPath(AssemblyPath);
         ValidateComponentName(Component1Name, "component1Name");
-        ValidatePlane(Plane1, "plane1");
+        ValidateSide(Plane1, Face1Index, "plane1", "face1Index");
         ValidateComponentName(Component2Name, "component2Name");
-        ValidatePlane(Plane2, "plane2");
+        ValidateSide(Plane2, Face2Index, "plane2", "face2Index");
         ValidateAlignment(Alignment);
         if (!string.IsNullOrWhiteSpace(OutputPath))
         {
@@ -125,12 +140,33 @@ public sealed record CoincidentMateSpec
         }
     }
 
-    private static void ValidatePlane(string plane, string field)
+    /// <summary>
+    /// Validates one side of the mate: a planar-face index (M54) takes
+    /// precedence — when given it must be ≥ 0 and the plane keyword is ignored;
+    /// otherwise a reference-plane keyword (front/top/right) is required.
+    /// </summary>
+    internal static void ValidateSide(string? plane, int? faceIndex, string planeField, string faceField)
+    {
+        if (faceIndex is int idx)
+        {
+            if (idx < 0)
+            {
+                throw new McpToolException(
+                    $"{faceField} must be ≥ 0 (got {idx}). It is the inspect_topology " +
+                    "face index of the component's part; omit it to mate a reference plane.");
+            }
+            return;
+        }
+        ValidatePlane(plane, planeField);
+    }
+
+    private static void ValidatePlane(string? plane, string field)
     {
         if (string.IsNullOrWhiteSpace(plane))
         {
             throw new McpToolException(
-                $"{field} must not be empty. Use 'front', 'top', or 'right'.");
+                $"{field} must not be empty (or pass a face index instead). " +
+                "Use 'front', 'top', or 'right'.");
         }
         if (!PlaneAliases.ContainsKey(plane))
         {

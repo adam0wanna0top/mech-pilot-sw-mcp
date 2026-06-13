@@ -2440,20 +2440,30 @@ public static class CliRunner
             Description = "First component's instance name (from inspect_assembly).",
             Required = true,
         };
-        var plane1Opt = new Option<string>("--plane1")
+        var plane1Opt = new Option<string?>("--plane1")
         {
-            Description = "Reference plane of component 1: 'front' / 'top' / 'right'.",
-            Required = true,
+            Description = "Reference plane of component 1: 'front' / 'top' / 'right'. Omit if --face1-index given.",
+            DefaultValueFactory = _ => null,
         };
         var comp2Opt = new Option<string>("--component2")
         {
             Description = "Second component's instance name.",
             Required = true,
         };
-        var plane2Opt = new Option<string>("--plane2")
+        var plane2Opt = new Option<string?>("--plane2")
         {
-            Description = "Reference plane of component 2: 'front' / 'top' / 'right'.",
-            Required = true,
+            Description = "Reference plane of component 2: 'front' / 'top' / 'right'. Omit if --face2-index given.",
+            DefaultValueFactory = _ => null,
+        };
+        var face1Opt = new Option<int?>("--face1-index")
+        {
+            Description = "Optional inspect_topology planar-face index on component1's part (overrides --plane1).",
+            DefaultValueFactory = _ => null,
+        };
+        var face2Opt = new Option<int?>("--face2-index")
+        {
+            Description = "Optional inspect_topology planar-face index on component2's part (overrides --plane2).",
+            DefaultValueFactory = _ => null,
         };
         var alignOpt = new Option<string>("--alignment")
         {
@@ -2472,9 +2482,10 @@ public static class CliRunner
         };
 
         var cmd = new Command("add-mate-coincident",
-            "Add a coincident mate between two components' reference planes in an assembly.")
+            "Add a coincident mate between two components — reference planes or specific planar faces by topology index.")
         {
-            asmOpt, comp1Opt, plane1Opt, comp2Opt, plane2Opt, alignOpt, outOpt, formatOpt,
+            asmOpt, comp1Opt, plane1Opt, comp2Opt, plane2Opt,
+            face1Opt, face2Opt, alignOpt, outOpt, formatOpt,
         };
 
         cmd.SetAction(parseResult =>
@@ -2485,9 +2496,11 @@ public static class CliRunner
                 {
                     AssemblyPath = parseResult.GetValue(asmOpt) ?? string.Empty,
                     Component1Name = parseResult.GetValue(comp1Opt) ?? string.Empty,
-                    Plane1 = parseResult.GetValue(plane1Opt) ?? string.Empty,
+                    Plane1 = parseResult.GetValue(plane1Opt),
                     Component2Name = parseResult.GetValue(comp2Opt) ?? string.Empty,
-                    Plane2 = parseResult.GetValue(plane2Opt) ?? string.Empty,
+                    Plane2 = parseResult.GetValue(plane2Opt),
+                    Face1Index = parseResult.GetValue(face1Opt),
+                    Face2Index = parseResult.GetValue(face2Opt),
                     Alignment = parseResult.GetValue(alignOpt) ?? "aligned",
                     OutputPath = parseResult.GetValue(outOpt),
                 };
@@ -2517,20 +2530,30 @@ public static class CliRunner
             Description = "First component's instance name (from inspect_assembly).",
             Required = true,
         };
-        var plane1Opt = new Option<string>("--plane1")
+        var plane1Opt = new Option<string?>("--plane1")
         {
-            Description = "Reference plane of component 1: 'front' / 'top' / 'right'.",
-            Required = true,
+            Description = "Reference plane of component 1: 'front' / 'top' / 'right'. Omit if --face1-index given.",
+            DefaultValueFactory = _ => null,
         };
         var comp2Opt = new Option<string>("--component2")
         {
             Description = "Second component's instance name.",
             Required = true,
         };
-        var plane2Opt = new Option<string>("--plane2")
+        var plane2Opt = new Option<string?>("--plane2")
         {
-            Description = "Reference plane of component 2: 'front' / 'top' / 'right'.",
-            Required = true,
+            Description = "Reference plane of component 2: 'front' / 'top' / 'right'. Omit if --face2-index given.",
+            DefaultValueFactory = _ => null,
+        };
+        var face1Opt = new Option<int?>("--face1-index")
+        {
+            Description = "Optional inspect_topology planar-face index on component1's part (overrides --plane1).",
+            DefaultValueFactory = _ => null,
+        };
+        var face2Opt = new Option<int?>("--face2-index")
+        {
+            Description = "Optional inspect_topology planar-face index on component2's part (overrides --plane2).",
+            DefaultValueFactory = _ => null,
         };
         var distOpt = new Option<double>("--distance")
         {
@@ -2554,9 +2577,10 @@ public static class CliRunner
         };
 
         var cmd = new Command("add-mate-distance",
-            "Add a distance mate between two components' reference planes in an assembly.")
+            "Add a distance mate between two components — reference planes or specific planar faces by topology index.")
         {
-            asmOpt, comp1Opt, plane1Opt, comp2Opt, plane2Opt, distOpt, alignOpt, outOpt, formatOpt,
+            asmOpt, comp1Opt, plane1Opt, comp2Opt, plane2Opt,
+            face1Opt, face2Opt, distOpt, alignOpt, outOpt, formatOpt,
         };
 
         cmd.SetAction(parseResult =>
@@ -2567,9 +2591,11 @@ public static class CliRunner
                 {
                     AssemblyPath = parseResult.GetValue(asmOpt) ?? string.Empty,
                     Component1Name = parseResult.GetValue(comp1Opt) ?? string.Empty,
-                    Plane1 = parseResult.GetValue(plane1Opt) ?? string.Empty,
+                    Plane1 = parseResult.GetValue(plane1Opt),
                     Component2Name = parseResult.GetValue(comp2Opt) ?? string.Empty,
-                    Plane2 = parseResult.GetValue(plane2Opt) ?? string.Empty,
+                    Plane2 = parseResult.GetValue(plane2Opt),
+                    Face1Index = parseResult.GetValue(face1Opt),
+                    Face2Index = parseResult.GetValue(face2Opt),
                     DistanceMm = parseResult.GetValue(distOpt),
                     Alignment = parseResult.GetValue(alignOpt) ?? "aligned",
                     OutputPath = parseResult.GetValue(outOpt),

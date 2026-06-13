@@ -40,28 +40,37 @@ public static class AddCoincidentMateTool
 {
     [McpServerTool(Name = "add_mate_coincident")]
     [Description(
-        "Add a coincident mate between two components' default reference " +
-        "planes (Front / Top / Right) in an existing SolidWorks assembly. " +
-        "This constrains the two planes to lie in the same world plane — " +
-        "the most common LLM mate type (~80% of 'put face A on face B' " +
-        "requests). Use inspect_assembly first to learn the component " +
+        "Add a coincident mate between two components in an existing " +
+        "SolidWorks assembly — by default their reference planes (Front / Top " +
+        "/ Right), constraining the two planes to lie in the same world plane " +
+        "(the most common LLM mate type, ~80% of 'put face A on face B' " +
+        "requests). To mate a SPECIFIC planar model face instead of a reference " +
+        "plane — e.g. the actual top face of a bracket — pass face1Index / " +
+        "face2Index: the planar face index from running inspect_topology on " +
+        "that component's .sldprt (the part's face order equals the " +
+        "component's in-assembly order for single-body parts). A face index " +
+        "overrides the plane keyword for that side; the two sides are " +
+        "independent. Use inspect_assembly first to learn the component " +
         "instance names (e.g. 'asm_cyl_123-1'). plane1 / plane2 are 'front', " +
-        "'top', or 'right' (case-insensitive). alignment is 'aligned' " +
-        "(default), 'anti-aligned', or 'closest'. assemblyPath must be an " +
-        "absolute path to an existing .sldasm. outputPath optional: empty = " +
-        "overwrite the input in place. For concentric (cylindrical-face) or " +
-        "distance mates, see future add_mate tools.")]
+        "'top', or 'right' (case-insensitive); omit a plane when its face index " +
+        "is given. alignment is 'aligned' (default), 'anti-aligned', or " +
+        "'closest'. assemblyPath must be an absolute path to an existing " +
+        ".sldasm. outputPath optional: empty = overwrite the input in place.")]
     public static ToolResult Run(
         [Description("Absolute path to an existing .sldasm.")]
         string assemblyPath,
         [Description("First component's instance name (from inspect_assembly).")]
         string component1Name,
-        [Description("Reference plane of component 1: 'front' / 'top' / 'right'.")]
-        string plane1,
         [Description("Second component's instance name.")]
         string component2Name,
-        [Description("Reference plane of component 2: 'front' / 'top' / 'right'.")]
-        string plane2,
+        [Description("Reference plane of component 1: 'front' / 'top' / 'right'. Omit if face1Index is given.")]
+        string? plane1 = null,
+        [Description("Reference plane of component 2: 'front' / 'top' / 'right'. Omit if face2Index is given.")]
+        string? plane2 = null,
+        [Description("Optional inspect_topology planar-face index on component1's part (overrides plane1).")]
+        int? face1Index = null,
+        [Description("Optional inspect_topology planar-face index on component2's part (overrides plane2).")]
+        int? face2Index = null,
         [Description("Alignment: 'aligned' (default), 'anti-aligned', or 'closest'.")]
         string alignment = "aligned",
         [Description("Optional output .sldasm path. Empty = overwrite input in place.")]
@@ -74,6 +83,8 @@ public static class AddCoincidentMateTool
             Plane1 = plane1,
             Component2Name = component2Name,
             Plane2 = plane2,
+            Face1Index = face1Index,
+            Face2Index = face2Index,
             Alignment = alignment,
             OutputPath = outputPath,
         };
@@ -142,33 +153,19 @@ public static class AddCoincidentMateTool
             // SW selection names use the assembly title sans extension.
             var asmTitle = Internal.MateHelpers.StripSldasmExt(model.GetTitle());
 
-            // ── 2. Build the qualified plane-selection names ────────────────
-            var plane1Aliases = CoincidentMateSpec.PlaneAliases[spec.Plane1];
-            var plane2Aliases = CoincidentMateSpec.PlaneAliases[spec.Plane2];
-
-            // ── 3. Select plane 1, mark=0 (same as v1 distance-mate path) ──
+            // ── 2-4. Select each side: a specific planar face by topology
+            //   index (M54) or the named reference plane. ────────────────────
             model.ClearSelection2(true);
-            var selected1Name = Internal.MateHelpers.SelectFirstPlane(ext, plane1Aliases,
-                spec.Component1Name, asmTitle, append: false);
-            if (selected1Name == null)
-            {
-                throw new McpToolException(
-                    $"Could not select '{spec.Plane1}' plane on component " +
-                    $"'{spec.Component1Name}'. Tried " +
-                    $"{Internal.MateHelpers.FormatAttempts(plane1Aliases, spec.Component1Name, asmTitle)}. " +
-                    "Verify the component name with inspect_assembly first.");
-            }
-
-            // ── 4. Select plane 2, mark=0, append=true ──────────────────────
-            var selected2Name = Internal.MateHelpers.SelectFirstPlane(ext, plane2Aliases,
-                spec.Component2Name, asmTitle, append: true);
-            if (selected2Name == null)
-            {
-                throw new McpToolException(
-                    $"Could not select '{spec.Plane2}' plane on component " +
-                    $"'{spec.Component2Name}'. Tried " +
-                    $"{Internal.MateHelpers.FormatAttempts(plane2Aliases, spec.Component2Name, asmTitle)}.");
-            }
+            var aliases1 = spec.Face1Index.HasValue
+                ? null : CoincidentMateSpec.PlaneAliases[spec.Plane1!];
+            var aliases2 = spec.Face2Index.HasValue
+                ? null : CoincidentMateSpec.PlaneAliases[spec.Plane2!];
+            var selected1Name = Internal.MateHelpers.SelectMateReference(
+                asmDoc, ext, spec.Component1Name, spec.Face1Index,
+                aliases1, spec.Plane1, asmTitle, append: false);
+            var selected2Name = Internal.MateHelpers.SelectMateReference(
+                asmDoc, ext, spec.Component2Name, spec.Face2Index,
+                aliases2, spec.Plane2, asmTitle, append: true);
 
             // ── 5. AddMate5 — coincident mate via v1 PR #20 recipe ──────────
             var alignment = Internal.MateHelpers.MapAlignment(spec.Alignment);
@@ -237,9 +234,8 @@ public static class AddCoincidentMateTool
 
             return ToolResult.Ok(
                 message:
-                    $"Coincident mate '{spec.Plane1}@{spec.Component1Name}' ↔ " +
-                    $"'{spec.Plane2}@{spec.Component2Name}' ({spec.Alignment}); " +
-                    $"saved {(isInPlace ? "in place" : "as a copy")}",
+                    $"Coincident mate '{selected1Name}' ↔ '{selected2Name}' " +
+                    $"({spec.Alignment}); saved {(isInPlace ? "in place" : "as a copy")}",
                 path: targetPath);
         }
         finally

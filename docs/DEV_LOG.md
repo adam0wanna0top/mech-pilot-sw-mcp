@@ -986,7 +986,37 @@ hemisphere/frustum (revolve 模板) — 后续相同类零件 0.5-1h 可加新�
 `MateHelpers`), 后续相似模式 (例如未来 sketch primitives 共用 / drawing view 选择
 共用) 都可按此模式独立 refactor PR 推进。
 
-### M53-④ — add_component 幂等防护 (PR #?, 2026-06-13) — skipIfPresent 防半失败重试产生幽灵
+### M54 — 拓扑寻址推广到 coincident/distance mate (PR #?, 2026-06-13) — 选指定平面, M53-③ 的平面版
+
+**M53-③ (concentric 认指定圆柱面) 的推广: coincident/distance mate 此前只认 front/top/right 三个参考面 —
+现加可选 `face1Index`/`face2Index` 选指定**平面模型面** (来自对零件跑 inspect_topology 的面 index)。** 让
+"把支架的真实顶面贴到底座的某个面"成为可能, 不再局限于基准面。给 index 则用该面, 否则走原参考面 (向后兼容)。
+
+- **复用 + 推广 M53-③ 设施**: `ComponentFaceSelector` 重构出共享核 `GetFaceByIndex(predicate, label, hint, sig)`,
+  原 `GetCylindricalFaceByIndex` (concentric 用) + 新 `GetPlanarFaceByIndex` (M54 用) 都委托它 — 同一越界/类型守卫,
+  圆柱守卫报 "not a cylinder", 平面守卫报 "not a plane", 都引导重 inspect_topology。
+- **`MateHelpers.SelectMateReference`** (新共享): 一个调用点处理两种选择 — 有 faceIndex 走
+  `FindComponentByName`→`GetPlanarFaceByIndex`→`IEntity.Select2`, 否则 `SelectFirstPlane` (原参考面逻辑)。
+  返回人类签名 ("#3 plane@block-1" / "top@cyl-1") 进成功消息。coincident/distance 两工具各两侧调它, 替换原
+  内联 plane 选择。`FindComponentByName` 也提到 MateHelpers (共享)。
+- **spec**: CoincidentMateSpec/DistanceMateSpec 的 Plane1/Plane2 改 nullable (有 faceIndex 时可省),
+  加 Face1Index/Face2Index; 新 `ValidateSide` (faceIndex 优先, ≥0; 否则 plane 必填合法关键字) — DistanceMateSpec
+  复用 CoincidentMateSpec.ValidateSide。**两者必居其一** (都缺报 planeN must not be empty)。
+- **测试**:
+  - L1: +7 (= 909): Coincident/DistanceMateSpecTests (面 index 替代 plane 通过 / 双面 index / 负 index 报 /
+    plane+face 都缺报)
+  - L2: `M54-topo-plane-mate.test.ps1` 6 检查全绿一次过, **几何级实锤"按 index 选对平面 + mate 精确求解"**:
+    block 40×30×10 拓扑找 +Z 顶面 (#4) / −Z 底面 (#5) → ① **coincident(顶#4, 底#5) → block2 精确落 30.0mm**
+    (底面与顶面共面, z 40→10) → ② **distance(顶, 底, 20) → block2 精确移 10.0mm** (底面距顶面 20) →
+    ③ **plane 关键字仍 mate** (back-compat, 签名 `top@...`) → ④ 圆柱面 index 报 "not a plane" → ⑤ 越界 999 报
+    "out of range"。回归 M18/M19 (关键字路径) + M21 (concentric 共享重构的 selector) 全绿。
+  - **L3: 待新 session 重启抽测** (改了 coincident/distance 签名 + 新 selector 路径, golden rule #13)
+- build 0 warnings, dotnet format clean; CLAUDE 工具表数不变 (59, 无新工具, 两 mate 工具能力扩展)。
+- **意义**: 拓扑寻址 mate 三类齐全 — concentric 选孔/轴 (M53-③) + coincident/distance 选平面 (M54)。配合
+  inspect_topology (看每面 index/类型/法向), AI 现在能"按面精准装配"。机械 Cursor 装配寻址能力收口。
+  下一步候选: 回头收风扇期末考 (工具全齐) / angle mate 也加面寻址。
+
+### M53-④ — add_component 幂等防护 (PR #71, 2026-06-13) — skipIfPresent 防半失败重试产生幽灵
 
 **装配回退能力的最后一块: M53-② delete_component 摘已有幽灵, M53-④ 从源头防幽灵。** memory 记的
 RPC_E_DISCONNECTED 半失败场景: add_component 插一半连接断, 组件已进装配但工具报错 → 重试 → 双实例 (1 幽灵

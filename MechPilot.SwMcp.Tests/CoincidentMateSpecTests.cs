@@ -153,6 +153,45 @@ public class CoincidentMateSpecTests : IDisposable
         Assert.Contains("plane2", ex.Message);
     }
 
+    // ── topology face indexing (M54) ──────────────────────────────────────
+
+    [Fact]
+    public void Face_index_replaces_plane_and_validates()
+    {
+        // A face index on a side makes its plane keyword optional (null).
+        var spec = Canonical() with { Plane1 = null, Face1Index = 3 };
+        spec.Validate();
+    }
+
+    [Fact]
+    public void Face_indexes_on_both_sides_validate()
+    {
+        var spec = Canonical() with
+        {
+            Plane1 = null,
+            Plane2 = null,
+            Face1Index = 0,
+            Face2Index = 5,
+        };
+        spec.Validate();
+    }
+
+    [Fact]
+    public void Negative_face1_index_throws()
+    {
+        var spec = Canonical() with { Plane1 = null, Face1Index = -1 };
+        var ex = Assert.Throws<McpToolException>(spec.Validate);
+        Assert.Contains("face1Index", ex.Message);
+    }
+
+    [Fact]
+    public void Neither_plane_nor_face_on_a_side_throws()
+    {
+        var spec = Canonical() with { Plane1 = null, Face1Index = null };
+        var ex = Assert.Throws<McpToolException>(spec.Validate);
+        Assert.Contains("plane1", ex.Message);
+    }
+
     // ── alignment validation ──────────────────────────────────────────────
 
     [Theory]
