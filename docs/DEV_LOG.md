@@ -986,7 +986,38 @@ hemisphere/frustum (revolve 模板) — 后续相同类零件 0.5-1h 可加新�
 `MateHelpers`), 后续相似模式 (例如未来 sketch primitives 共用 / drawing view 选择
 共用) 都可按此模式独立 refactor PR 推进。
 
-### M54 — 拓扑寻址推广到 coincident/distance mate (PR #?, 2026-06-13) — 选指定平面, M53-③ 的平面版
+### M55 — 装配审计工具化: inspect_assembly 世界包络 + check_interference (PR #?, 2026-06-14) — 风扇 dogfooding 直接孵出
+
+**产品级风扇 dogfooding 实撞的 MCP 层缺口立项 (用户问"画的过程有什么 MCP 层问题")。** 建风扇时确认"无碰撞"
+全靠**手算**: 每个组件 positionMm (frame origin) + orientation 三轴 + 零件本地尺寸 → 推世界包络 → 两两查重叠,
+一次审计脑算十几次。M55 把这套手工活工具化两件:
+- **inspect_assembly +`worldBoundingBoxMm`**: 每组件加**装配坐标系**下的实体包络 (min/max X/Y/Z, mm)。
+  `IComponent2.GetBox(includeRefPlanes=false, includeSketches=false)` 直接给世界 box (反射确认)。不同于
+  positionMm (frame origin, 在 +Z 拉伸件的底面 + 旋转后更难懂), 这是几何**实际所在** → 逐对重叠/支撑审计
+  直接读数, 不用手工变换。**对旋转件尤其关键** (L2 实证 Z90 → x/y 尺寸对调)。
+- **新工具 `check_interference`**: SW 真·实体求交。`IAssemblyDoc.InterferenceDetectionManager` →
+  `GetInterferenceCount()` 触发计算 → `GetInterferences()` 返 `IInterference[]` (每个: `.Volume` m³ + 干涉
+  `Component2` 对) → `Done()`。**默认 `TreatCoincidenceAsInterference=false`** → 仅真·实体重叠才报, 接触面
+  (件搁件/轴入孔等有意接触) 不误报; `treatCoincidentAsInterference=true` 才连零体积接触也标。只读 (ReadOnly 开关)。
+- **反射先行 (golden rule #5)**: GetBox 签名 + InterferenceDetectionMgr 全套 (GetInterferenceCount/
+  GetInterferences/IInterference.Volume·Components/Done) 对 SW 2026 DLL 核实。
+- **测试**:
+  - L1: +7 (= 916): CheckInterferenceSpecTests (.sldasm 存在/绝对/扩展名 + treatCoincident 旗标不影响校验)
+  - L2: `M55-assembly-audit.test.ps1` 5 检查全绿: block 40×30×10 → **worldBoundingBoxMm 存在且正确** (未旋转
+    @(50,0,0) → x[30,70]) + **追踪旋转** (Z90 → x 尺寸 30 / y 尺寸 40 对调, 证明是真世界几何非手算) +
+    **check_interference**: 隔 60mm → 0 干涉 / **重叠 20mm → 1 干涉 + 体积恰 6000 mm³ + 报组件对** /
+    接触面默认 0、`--treat-coincident` 才标 1。回归 M17/M41 绿。
+  - **InterferenceDetectionMgr 无头可用** (OpenDoc6 ReadOnly + 不需 active view, 一次过)。
+  - **L2 踩坑 (沉淀)**: PowerShell **变量名大小写不敏感** → `$bB` (零件路径) 与 `$bb` (bbox) 撞成同一变量,
+    check1 把零件路径覆写成 bbox 对象 → check2 add 报错。改名 `$box1/$box2` 修复; `$args` 也是自动变量, 改 `$cliArgs`。
+  - **L3: 待新 session 重启抽测** (新工具 + inspect_assembly 加键, golden rule #13)
+- build 0 warnings, dotnet format clean; CLAUDE 工具表 →60。
+- **意义**: `assembly-audit-before-claiming` memory 喊的"逐对包络审计"正式工具化 —— inspect_assembly 世界包络 (看
+  哪在哪) + check_interference (问谁撞谁)。装配交付前两次调用替代十几次手算。风扇 dogfooding 第一次直接产出
+  工具改进 (同 M36/M44/M47 模式)。下一步候选: ping 报构建版本 (探测 stale server) / concentric auto-pick 找任意轴圆柱 /
+  add_mate_tangent (圆柱搁平面)。
+
+### M54 — 拓扑寻址推广到 coincident/distance mate (PR #70+, 2026-06-13) — 选指定平面, M53-③ 的平面版
 
 **M53-③ (concentric 认指定圆柱面) 的推广: coincident/distance mate 此前只认 front/top/right 三个参考面 —
 现加可选 `face1Index`/`face2Index` 选指定**平面模型面** (来自对零件跑 inspect_topology 的面 index)。** 让

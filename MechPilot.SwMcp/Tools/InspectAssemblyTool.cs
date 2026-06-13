@@ -38,7 +38,11 @@ public static class InspectAssemblyTool
         "source file path + file name, world position in mm, 'orientation' " +
         "(each component's local +X/+Y/+Z axis as a unit vector in assembly " +
         "space — an un-rotated part reads xAxis [1,0,0]; use a fastener's " +
-        "zAxis to read its axial direction and audit pose), suppression " +
+        "zAxis to read its axial direction and audit pose), " +
+        "'worldBoundingBoxMm' (the component's solid extent min/max X/Y/Z in " +
+        "ASSEMBLY coordinates — read a pairwise overlap / support-gap audit " +
+        "straight off these instead of transforming each part's local box; for " +
+        "true clash checking use check_interference), suppression " +
         "state, and — for the resize/edit workflow — a 'kind' ('ourPart' = a " +
         "parametric part we built and can edit, 'imported' = a dumb STEP/" +
         "neutral body that must NOT be edited, 'subassembly', or 'unknown'), a " +
@@ -226,12 +230,38 @@ public static class InspectAssemblyTool
                 ["zAxis"] = new[] { Round(xform[6]), Round(xform[7]), Round(xform[8]) },
             };
         }
+
+        // World-space bounding box (M55): the component's solid extent in
+        // ASSEMBLY coordinates (metres → mm). Unlike positionMm (the frame
+        // origin, which sits at a +Z-extruded part's base face and shifts under
+        // rotation), this is where the geometry ACTUALLY is — so a pairwise
+        // overlap / support audit reads straight off these numbers instead of
+        // hand-transforming each part's local box by its orientation.
+        // GetBox(IncludeRefPlanes=false, IncludeSketches=false) = solid only.
+        object boxObj = comp.GetBox(false, false);
+        if (boxObj is double[] box && box.Length >= 6
+            && !(box[0] == 0 && box[1] == 0 && box[2] == 0
+                 && box[3] == 0 && box[4] == 0 && box[5] == 0))
+        {
+            info["worldBoundingBoxMm"] = new Dictionary<string, double>
+            {
+                ["minX"] = Round2Mm(box[0]),
+                ["minY"] = Round2Mm(box[1]),
+                ["minZ"] = Round2Mm(box[2]),
+                ["maxX"] = Round2Mm(box[3]),
+                ["maxY"] = Round2Mm(box[4]),
+                ["maxZ"] = Round2Mm(box[5]),
+            };
+        }
         return info;
     }
 
     /// <summary>Rounds an axis component to 6 decimals to shed
     /// double-precision noise (so an un-rotated axis reads a clean 1 / 0).</summary>
     private static double Round(double v) => Math.Round(v, 6);
+
+    /// <summary>Metres → mm, rounded to 2 decimals (shed SI noise).</summary>
+    private static double Round2Mm(double meters) => Math.Round(meters * 1000.0, 2);
 
     /// <summary>
     /// Classifies a component as ourPart / imported / subassembly / unknown and,
