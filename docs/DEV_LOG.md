@@ -986,7 +986,33 @@ hemisphere/frustum (revolve 模板) — 后续相同类零件 0.5-1h 可加新�
 `MateHelpers`), 后续相似模式 (例如未来 sketch primitives 共用 / drawing view 选择
 共用) 都可按此模式独立 refactor PR 推进。
 
-### M53-③ — 装配级拓扑寻址 mate (PR #?, 2026-06-13) — add_mate_concentric 认"第 N 个孔" (M51 的装配版)
+### M53-④ — add_component 幂等防护 (PR #?, 2026-06-13) — skipIfPresent 防半失败重试产生幽灵
+
+**装配回退能力的最后一块: M53-② delete_component 摘已有幽灵, M53-④ 从源头防幽灵。** memory 记的
+RPC_E_DISCONNECTED 半失败场景: add_component 插一半连接断, 组件已进装配但工具报错 → 重试 → 双实例 (1 幽灵
++ 1 真)。M53-④ 给 add_component 加可选 `skipIfPresent` (默认 false): 为 true 时插入前按**源文件路径**查重,
+已存在则跳过不插 (幂等重试)。默认 false → 同件多实例 (4 颗螺栓) 照常。
+
+- **设计要点**: 去重键是**源文件路径** (GetPathName) 非实例名 (实例名 block-1/block-2 本就不同, 同件多实例
+  合法)。`CountInstancesByPath` 扫顶层组件, 两侧 `Path.GetFullPath` normalize + 忽略大小写比对 (M20: SW 存
+  backslash canonical, LLM 可能传 forward-slash)。**含被压缩/幽灵实例** (GetPathName 仍返路径) — 正是要检测的。
+  命中则 return Ok (跳过, 不插不存), message 报"already present (N instance(s)) — skipped"。
+- **为何不默认开**: 同件多实例是合法装配 (螺栓/垫圈阵列), 默认 skip 会吞掉第 2 颗。flag 由 LLM 显式控制:
+  恢复/重试时设 true, 正常多实例 false (默认)。与 [[delete_component]] 配套 (一个防、一个摘)。
+- **测试**:
+  - L1: +2 (= 902): AddComponentSpecTests (SkipIfPresent true/false 均通过校验)
+  - L2: `M53d-add-component-idempotent.test.ps1` 5 检查全绿一次过: 插 block (1) → **同件 --skip-if-present →
+    跳过, 仍 1 (无幽灵)** + message "already present...skipped" → **异件 cyl --skip-if-present → 仍插, 2** (不阻新件) →
+    **无 flag 第 2 个 block 实例 → 允许, 3** (多实例兼容) → **forward-slash 路径 --skip-if-present → 仍匹配, 仍 3**
+    (路径归一化去重)。回归 M16 + M53-① rotation 绿。
+  - **L3: 待新 session 重启抽测** (改了 add_component 签名 + 幂等逻辑, golden rule #13; 重点验真半失败幽灵恢复)
+- build 0 warnings, dotnet format clean; CLAUDE 工具表数不变 (59, 无新工具, add_component 能力扩展)。
+- **意义**: 装配级编辑闭环最后收口 — 姿态 (M53-①) / 回退删 (M53-②) / 精准配 (M53-③) / **幂等防幽灵 (M53-④)**。
+  机械 Cursor 装配族 (new_assembly + add_component[姿态/幂等] + delete_component + inspect_assembly[朝向] +
+  add_mate_*[拓扑寻址]) 成型。**风扇 v2 现在可真正补全** (立螺栓 + 摘错件 + 精准配孔 + 防幽灵)。下一步候选:
+  拓扑寻址扩到 coincident/distance mate / 或回头收风扇期末考。
+
+### M53-③ — 装配级拓扑寻址 mate (PR #70, 2026-06-13) — add_mate_concentric 认"第 N 个孔" (M51 的装配版)
 
 **装配精准化收口: add_mate_concentric 此前只认每件第一个 ±Z 圆柱面 — "法兰第 3 孔 ↔ 螺栓杆"做不了 (auto-pick
 撞哪算哪)。** M53-③ 给它加可选 `face1Index`/`face2Index` (来自对该组件**零件文件**跑 inspect_topology 的面 index),

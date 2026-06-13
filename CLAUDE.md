@@ -89,7 +89,7 @@ profile/path mark 1/4 + 几何 ⊥)**, 通用 layer 5/5 milestone 全完成。**
 | export_part | `mcp__mech_pilot_sw__export_part` | 导出 STEP / STL / IGES / Parasolid |
 | import_step | `mcp__mech_pilot_sw__import_step` | 导入中性 CAD (STEP/IGES/Parasolid) 为 .sldprt 哑件 — 装配体固定锚点 (**M43** LoadFile4 + GetImportFileData; inspect_assembly 归类 imported) |
 | new_assembly | `mcp__mech_pilot_sw__new_assembly` | 创建空装配体 (.sldasm) |
-| add_component | `mcp__mech_pilot_sw__add_component` | 把零件/子装配体插入装配体 (x,y,z) 位置 + **rotationX/Y/Z 度定向** (绕 frame origin 原地转, 位置不变; **M53-①**) |
+| add_component | `mcp__mech_pilot_sw__add_component` | 把零件/子装配体插入装配体 (x,y,z) 位置 + **rotationX/Y/Z 度定向** (绕 frame origin 原地转, 位置不变; **M53-①**) + **skipIfPresent 幂等防护** (按源路径查重, 防半失败重试产生幽灵; **M53-④**) |
 | inspect_assembly | `mcp__mech_pilot_sw__inspect_assembly` | 读装配体: 组件（实例名/源/位置 + **M53-① orientation** xAxis/yAxis/zAxis 朝向单位向量 + **M40** kind ours/imported/subassembly + standardCandidate + 可改维度）+ **M41** mates（type/连谁/distance·angle 值）— 装配级 resize 编排"看"侧 |
 | add_mate_coincident | `mcp__mech_pilot_sw__add_mate_coincident` | 两组件 reference plane 重合配合 |
 | add_mate_distance | `mcp__mech_pilot_sw__add_mate_distance` | 两组件 reference plane 间距 N mm 配合 |

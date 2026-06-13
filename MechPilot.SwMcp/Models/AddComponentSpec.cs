@@ -43,6 +43,15 @@ public sealed record AddComponentSpec
     /// positioning. Default 0.</summary>
     public double RotationZDeg { get; init; }
 
+    /// <summary>
+    /// Idempotency guard (M53-④): when true, skip the insert if an instance of
+    /// the same component file is already in the assembly (dedup by source
+    /// path) — makes retrying a half-failed insert safe instead of producing a
+    /// duplicate/ghost. Default false so legitimate multi-instance inserts
+    /// (e.g. four bolts of the same part) still work.
+    /// </summary>
+    public bool SkipIfPresent { get; init; }
+
     private const double MaxAbsPositionMm = 100_000.0;
     private const double MaxAbsRotationDeg = 3_600.0;
 

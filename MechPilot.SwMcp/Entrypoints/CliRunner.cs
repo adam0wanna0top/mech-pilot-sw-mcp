@@ -2292,6 +2292,11 @@ public static class CliRunner
             Description = "Rotation about the world Z axis in degrees. Default 0.",
             DefaultValueFactory = _ => 0.0,
         };
+        var skipOpt = new Option<bool>("--skip-if-present")
+        {
+            Description = "Skip the insert if the same component file is already present (idempotent retry).",
+            DefaultValueFactory = _ => false,
+        };
         var formatOpt = new Option<string>("--output")
         {
             Description = "Output format: text | json",
@@ -2302,7 +2307,7 @@ public static class CliRunner
             "Insert one component (.sldprt or sub-.sldasm) into an existing assembly.")
         {
             asmOpt, compOpt, posXOpt, posYOpt, posZOpt,
-            rotXOpt, rotYOpt, rotZOpt, formatOpt,
+            rotXOpt, rotYOpt, rotZOpt, skipOpt, formatOpt,
         };
 
         cmd.SetAction(parseResult =>
@@ -2319,6 +2324,7 @@ public static class CliRunner
                     RotationXDeg = parseResult.GetValue(rotXOpt),
                     RotationYDeg = parseResult.GetValue(rotYOpt),
                     RotationZDeg = parseResult.GetValue(rotZOpt),
+                    SkipIfPresent = parseResult.GetValue(skipOpt),
                 };
                 var result = AddComponentTool.RunWithSpec(spec);
                 WriteResult(result, parseResult.GetValue(formatOpt) ?? "text");
