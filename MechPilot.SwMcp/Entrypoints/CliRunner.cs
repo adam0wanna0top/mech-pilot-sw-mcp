@@ -61,6 +61,7 @@ public static class CliRunner
         root.Subcommands.Add(BuildAddCountersinkCommand());
         root.Subcommands.Add(BuildNewAssemblyCommand());
         root.Subcommands.Add(BuildAddComponentCommand());
+        root.Subcommands.Add(BuildDeleteComponentCommand());
         root.Subcommands.Add(BuildInspectAssemblyCommand());
         root.Subcommands.Add(BuildAddCoincidentMateCommand());
         root.Subcommands.Add(BuildAddDistanceMateCommand());
@@ -2320,6 +2321,53 @@ public static class CliRunner
                     RotationZDeg = parseResult.GetValue(rotZOpt),
                 };
                 var result = AddComponentTool.RunWithSpec(spec);
+                WriteResult(result, parseResult.GetValue(formatOpt) ?? "text");
+                return 0;
+            }
+            catch (McpToolException ex)
+            {
+                Console.Error.WriteLine($"[error] {ex.Message}");
+                return 1;
+            }
+        });
+
+        return cmd;
+    }
+
+    private static Command BuildDeleteComponentCommand()
+    {
+        var asmOpt = new Option<string>("--assembly")
+        {
+            Description = "Absolute path to an existing .sldasm to remove from.",
+            Required = true,
+        };
+        var nameOpt = new Option<string>("--name")
+        {
+            Description = "Instance name to remove, as inspect_assembly reports it (e.g. 'bolt-2').",
+            Required = true,
+        };
+        var formatOpt = new Option<string>("--output")
+        {
+            Description = "Output format: text | json",
+            DefaultValueFactory = _ => "text",
+        };
+
+        var cmd = new Command("delete-component",
+            "Remove one component instance from an assembly by its instance name.")
+        {
+            asmOpt, nameOpt, formatOpt,
+        };
+
+        cmd.SetAction(parseResult =>
+        {
+            try
+            {
+                var spec = new DeleteComponentSpec
+                {
+                    AssemblyPath = parseResult.GetValue(asmOpt) ?? string.Empty,
+                    ComponentName = parseResult.GetValue(nameOpt) ?? string.Empty,
+                };
+                var result = DeleteComponentTool.RunWithSpec(spec);
                 WriteResult(result, parseResult.GetValue(formatOpt) ?? "text");
                 return 0;
             }

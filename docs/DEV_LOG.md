@@ -986,7 +986,34 @@ hemisphere/frustum (revolve 模板) — 后续相同类零件 0.5-1h 可加新�
 `MateHelpers`), 后续相似模式 (例如未来 sketch primitives 共用 / drawing view 选择
 共用) 都可按此模式独立 refactor PR 推进。
 
-### M53-① — 组件插入姿态 (rotation) + inspect_assembly 朝向 (PR #?, 2026-06-13) — 风扇 v1 横躺螺栓的根治
+### M53-② — delete_component (PR #69, 2026-06-13) — 装配级回退原语: 幽灵件/错件摘除
+
+**风扇 dogfooding 最痛缺口的装配级补全 (M48 delete_feature 的装配版)。** 之前装配体里插错件 / add_component
+半失败留下的幽灵实例 (RPC_E_DISCONNECTED 插一半, 见 memory) 都摘不掉 → 只能整个装配体重建。M53-②
+`delete_component` 按实例名删一个组件 + 级联带走它的 mate。
+
+- **反射先行 (golden rule #5)**: `IAssemblyDoc.GetComponentByName(name)` → `IComponent2` (按实例名直接拿) /
+  `IComponent2.Select2(append, mark)` / `IModelDocExtension.DeleteSelection2(opts)` (复用 M48 同一删除 API)。
+  **`swDelete_Children` 级联** → 引用该组件的 mate 一并删除 (无悬空 mate), L2 实证 mateCount 1→0。
+- **FILE 单模式** (装配体一律开文件改存关, 同 add_component/inspect_assembly; 非 delete_feature 的双模式 —
+  装配没有"活动 doc 边建边删"语义)。流程: M20 normalize → OpenDoc6 → 解析组件 → Select2 →
+  DeleteSelection2(Children) → EditRebuild3 → **顶层组件数守卫** (countAfter ≥ countBefore → 抛错,
+  防 returned-true-但-no-op 静默, chamfer-delta 教训 M52) → Save3 in place → finally CloseDoc。
+- **组件解析 + 友好报错** (M47 配置发现式): GetComponentByName 精确, miss 后扫 GetComponents(top-level)
+  按 Name2 精确/忽略大小写, 仍 miss → **列出可用实例名** (引导 LLM 重选)。**源文件不删** (只摘装配实例)。
+- **测试**:
+  - L1: +11 (= 868): DeleteComponentSpecTests (.sldasm 存在/绝对/扩展名 + 实例名非空带 inspect 提示 + 超长界;
+    含中文实例名 `凸台-拉伸2-3` 用例)
+  - L2: `M53b-delete-component.test.ps1` 6 检查全绿一次过: cyl+block 2 件 + 1 coincident mate → **删 cyl →
+    数 2→1 + message 报降 + 只剩 block + mateCount 1→0 (mate 级联)** + **源 .sldprt 在盘未删** + 未知名报
+    "not found"+列可用名 + 不存在装配体拒。回归 M16/M41 绿。
+  - **L3: 待新 session 重启抽测** (新工具, golden rule #13; 重点验半失败幽灵件场景 + 长寿命 server 删后状态)
+- build 0 warnings, dotnet format clean; CLAUDE 工具表 →59。
+- **意义**: 机械 Cursor 装配级编辑闭环补"删"维度 — inspect_assembly (看) + add_component/rotation (建/摆) +
+  **delete_component (删/回退)**。风扇 v2 的"幽灵件/横躺件"现在可摘掉重摆, 不必整件重建。**下一步 M53-③**
+  装配级拓扑寻址 mate (指定"法兰第 3 孔 ↔ 螺栓杆") / **-④** add_component 幂等防护 (插前查重名防幽灵)。
+
+### M53-① — 组件插入姿态 (rotation) + inspect_assembly 朝向 (PR #68, 2026-06-13) — 风扇 v1 横躺螺栓的根治
 
 **风扇期末考实锤缺口 #1 的根治: `add_component`/`insert_toolbox_fastener` 此前只接 (x,y,z) 位置,
 `AddComponent5` 没有朝向入参 → 任何"有用轴 ≠ 装配轴"的零件 (典型: Toolbox 螺栓杆沿其 local 轴)
@@ -1020,8 +1047,8 @@ hemisphere/frustum (revolve 模板) — 后续相同类零件 0.5-1h 可加新�
   - **L3: 待新 session 重启抽测** (写工具改了签名 + 新 orientation 读出, golden rule #13)
 - build 0 warnings, dotnet format clean; CLAUDE 工具表数不变 (58, 无新工具, 两插入工具 + inspect_assembly 能力扩展)。
 - **意义**: 装配从"只能平移摆放"进化到"摆位 + 定向"。风扇 v1 螺栓横躺的根因正式可解 (rotate 90° 立起来);
-  机械 Cursor 的装配级"姿态"读写闭环成型 (inspect 看朝向 → rotation 摆朝向)。**下一步 M53-②** delete_component /
-  **-③** 装配级拓扑寻址 mate / **-④** add_component 幂等防护 (见 CLAUDE "下一步候选")。
+  机械 Cursor 的装配级"姿态"读写闭环成型 (inspect 看朝向 → rotation 摆朝向)。**M53-②** delete_component
+  已落地 (见上) / **下一步 -③** 装配级拓扑寻址 mate / **-④** add_component 幂等防护 (见 CLAUDE "下一步候选")。
 
 ### M52 — fillet_edges + chamfer_edges (PR #?, 2026-06-12) — 拓扑级编辑 + 挖出 M6 add_chamfer 自出生即 no-op
 
