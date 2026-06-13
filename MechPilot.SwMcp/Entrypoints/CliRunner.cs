@@ -63,6 +63,7 @@ public static class CliRunner
         root.Subcommands.Add(BuildAddComponentCommand());
         root.Subcommands.Add(BuildDeleteComponentCommand());
         root.Subcommands.Add(BuildInspectAssemblyCommand());
+        root.Subcommands.Add(BuildCheckInterferenceCommand());
         root.Subcommands.Add(BuildAddCoincidentMateCommand());
         root.Subcommands.Add(BuildAddDistanceMateCommand());
         root.Subcommands.Add(BuildAddConcentricMateCommand());
@@ -2415,6 +2416,53 @@ public static class CliRunner
                     InputPath = parseResult.GetValue(inputOpt) ?? string.Empty,
                 };
                 var result = InspectAssemblyTool.RunWithSpec(spec);
+                WriteResult(result, parseResult.GetValue(formatOpt) ?? "text");
+                return 0;
+            }
+            catch (McpToolException ex)
+            {
+                Console.Error.WriteLine($"[error] {ex.Message}");
+                return 1;
+            }
+        });
+
+        return cmd;
+    }
+
+    private static Command BuildCheckInterferenceCommand()
+    {
+        var inputOpt = new Option<string>("--input")
+        {
+            Description = "Absolute path to an existing .sldasm to check.",
+            Required = true,
+        };
+        var coincOpt = new Option<bool>("--treat-coincident")
+        {
+            Description = "Also flag faces that merely touch (zero-volume contact). Default false.",
+            DefaultValueFactory = _ => false,
+        };
+        var formatOpt = new Option<string>("--output")
+        {
+            Description = "Output format: text | json",
+            DefaultValueFactory = _ => "text",
+        };
+
+        var cmd = new Command("check-interference",
+            "Run interference (clash) detection on an assembly; reports overlapping component pairs + volume.")
+        {
+            inputOpt, coincOpt, formatOpt,
+        };
+
+        cmd.SetAction(parseResult =>
+        {
+            try
+            {
+                var spec = new CheckInterferenceSpec
+                {
+                    AssemblyPath = parseResult.GetValue(inputOpt) ?? string.Empty,
+                    TreatCoincidentAsInterference = parseResult.GetValue(coincOpt),
+                };
+                var result = CheckInterferenceTool.RunWithSpec(spec);
                 WriteResult(result, parseResult.GetValue(formatOpt) ?? "text");
                 return 0;
             }

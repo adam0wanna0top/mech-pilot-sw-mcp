@@ -38,7 +38,7 @@ profile/path mark 1/4 + 几何 ⊥)**, 通用 layer 5/5 milestone 全完成。**
 **M36 inspect_active (边建边验) — E2E 验证撞到的"盲建"痛点直接孵出, 项目首个 dogfooding-born 工具**。
 **M37 face-based start_sketch (+z/-z/+x/-x/+y/-y 直接选极值平面建草图 — E2E 缺口 #2 闭合, 不用 ref plane)**。
 **M38 modify_feature (改已有特征主尺寸 + 重生成 — 机械 Cursor 第一个"编辑已有几何"原语; 绕开 NoPIA ModifyDefinition bug 改用 Parameter.SystemValue)**。
-**59 工具**:
+**60 工具**:
 
 | Tool | LLM-facing name | 用途 |
 |---|---|---|
@@ -90,7 +90,8 @@ profile/path mark 1/4 + 几何 ⊥)**, 通用 layer 5/5 milestone 全完成。**
 | import_step | `mcp__mech_pilot_sw__import_step` | 导入中性 CAD (STEP/IGES/Parasolid) 为 .sldprt 哑件 — 装配体固定锚点 (**M43** LoadFile4 + GetImportFileData; inspect_assembly 归类 imported) |
 | new_assembly | `mcp__mech_pilot_sw__new_assembly` | 创建空装配体 (.sldasm) |
 | add_component | `mcp__mech_pilot_sw__add_component` | 把零件/子装配体插入装配体 (x,y,z) 位置 + **rotationX/Y/Z 度定向** (绕 frame origin 原地转, 位置不变; **M53-①**) + **skipIfPresent 幂等防护** (按源路径查重, 防半失败重试产生幽灵; **M53-④**) |
-| inspect_assembly | `mcp__mech_pilot_sw__inspect_assembly` | 读装配体: 组件（实例名/源/位置 + **M53-① orientation** xAxis/yAxis/zAxis 朝向单位向量 + **M40** kind ours/imported/subassembly + standardCandidate + 可改维度）+ **M41** mates（type/连谁/distance·angle 值）— 装配级 resize 编排"看"侧 |
+| inspect_assembly | `mcp__mech_pilot_sw__inspect_assembly` | 读装配体: 组件（实例名/源/位置 + **M53-① orientation** xAxis/yAxis/zAxis 朝向单位向量 + **M55 worldBoundingBoxMm** 世界坐标实体包络 (逐对审计直接读数) + **M40** kind ours/imported/subassembly + standardCandidate + 可改维度）+ **M41** mates（type/连谁/distance·angle 值）— 装配级 resize 编排"看"侧 |
+| check_interference | `mcp__mech_pilot_sw__check_interference` | 装配体真·实体干涉检测 (InterferenceDetectionMgr; 报干涉组件对 + 重叠体积 mm³; 接触面默认不算, treatCoincident 才标) — 装配审计"问谁撞谁"侧 (**M55**, 风扇 dogfooding 孵出) |
 | add_mate_coincident | `mcp__mech_pilot_sw__add_mate_coincident` | 两组件重合配合 (默认 reference plane front/top/right; **M54 face1Index/face2Index** 按 inspect_topology 选指定**平面**模型面 — 拓扑寻址) |
 | add_mate_distance | `mcp__mech_pilot_sw__add_mate_distance` | 两组件间距 N mm 配合 (默认 reference plane; **M54 face1Index/face2Index** 选指定平面 — 拓扑寻址) |
 | add_mate_concentric | `mcp__mech_pilot_sw__add_mate_concentric` | 两组件圆柱面同轴配合 (默认每件第一个 ±Z 圆柱面; **M53-③ face1Index/face2Index** 按 inspect_topology 面 index 精准选"第 N 个孔" — 装配级拓扑寻址) |
