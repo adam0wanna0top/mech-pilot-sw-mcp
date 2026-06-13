@@ -45,7 +45,13 @@ public static class AddComponentTool
         "axis isn't aligned with the assembly (e.g. a part modelled along its " +
         "local axis that should stand up along assembly Z — rotate 90° about " +
         "the appropriate axis). Rotation is applied about the world origin " +
-        "before the part is moved to position.")]
+        "before the part is moved to position. Set skipIfPresent=true to make " +
+        "the insert idempotent: if an instance of the same component file is " +
+        "already in the assembly it is left unchanged (no duplicate) — use this " +
+        "when retrying after a possible half-failed insert (a dropped " +
+        "connection can leave a ghost instance). Leave it false (default) for " +
+        "legitimate repeated instances of the same part (e.g. four identical " +
+        "bolts).")]
     public static ToolResult Run(
         [Description("Absolute path to an existing .sldasm to insert into.")]
         string assemblyPath,
@@ -62,7 +68,9 @@ public static class AddComponentTool
         [Description("Rotation about the world Y axis in degrees. Default 0.")]
         double rotationY = 0,
         [Description("Rotation about the world Z axis in degrees. Default 0.")]
-        double rotationZ = 0)
+        double rotationZ = 0,
+        [Description("Skip the insert if the same component file is already present (idempotent retry). Default false.")]
+        bool skipIfPresent = false)
     {
         var spec = new AddComponentSpec
         {
@@ -74,6 +82,7 @@ public static class AddComponentTool
             RotationXDeg = rotationX,
             RotationYDeg = rotationY,
             RotationZDeg = rotationZ,
+            SkipIfPresent = skipIfPresent,
         };
         return RunWithSpec(spec);
     }
@@ -172,6 +181,28 @@ public static class AddComponentTool
             }
 
             var asmDoc = (IAssemblyDoc)asmModel;
+
+            // ── 3. Idempotency guard (M53-④): when skipIfPresent, don't
+            //   re-insert a component already in the assembly (dedup by source
+            //   file path). Makes retrying a half-failed insert safe — a
+            //   dropped connection mid-insert can leave a ghost instance, and a
+            //   naive retry would then produce a duplicate. Default false keeps
+            //   legitimate multi-instance inserts (e.g. four bolts) working. ──
+            if (spec.SkipIfPresent)
+            {
+                var existing = CountInstancesByPath(asmDoc, compPathNorm);
+                if (existing > 0)
+                {
+                    var presentName = Path.GetFileNameWithoutExtension(compPathNorm);
+                    return ToolResult.Ok(
+                        message:
+                            $"Component '{presentName}' already present " +
+                            $"({existing} instance(s)) — skipped (skipIfPresent); " +
+                            "assembly unchanged.",
+                        path: spec.AssemblyPath);
+                }
+            }
+
             var xM = spec.PositionXMm / 1000.0;
             var yM = spec.PositionYMm / 1000.0;
             var zM = spec.PositionZMm / 1000.0;
@@ -247,6 +278,44 @@ public static class AddComponentTool
             }
             swApp.CloseDoc(compModel.GetTitle());
         }
+    }
+
+    /// <summary>
+    /// Counts top-level component instances whose source file is
+    /// <paramref name="normPath"/> (the M20-normalized component path).
+    /// GetPathName is normalized + compared case-insensitively so a
+    /// forward-slash input still matches SW's backslash-canonical store.
+    /// Suppressed / ghost instances still carry a path, so they are counted —
+    /// which is exactly what the idempotency guard needs to detect.
+    /// </summary>
+    private static int CountInstancesByPath(IAssemblyDoc asmDoc, string normPath)
+    {
+        var count = 0;
+        object compsObj = asmDoc.GetComponents(true);
+        if (compsObj is not object[] comps)
+        {
+            return count;
+        }
+        foreach (var c in comps)
+        {
+            if (c is not IComponent2 comp)
+            {
+                continue;
+            }
+            var p = comp.GetPathName();
+            if (string.IsNullOrEmpty(p))
+            {
+                continue;
+            }
+            string pNorm;
+            try { pNorm = Path.GetFullPath(p); }
+            catch { pNorm = p; }
+            if (string.Equals(pNorm, normPath, StringComparison.OrdinalIgnoreCase))
+            {
+                count++;
+            }
+        }
+        return count;
     }
 #endif
 }

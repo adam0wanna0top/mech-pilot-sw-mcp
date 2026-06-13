@@ -69,6 +69,14 @@ public class AddComponentSpecTests : IDisposable
         spec.Validate();
     }
 
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public void SkipIfPresent_does_not_affect_validation(bool skip)
+    {
+        (Canonical() with { SkipIfPresent = skip }).Validate();
+    }
+
     // ── assembly path validation ──────────────────────────────────────────
 
     [Fact]
