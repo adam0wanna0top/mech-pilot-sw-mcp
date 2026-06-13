@@ -21,8 +21,15 @@ namespace MechPilot.SwMcp.Models;
 /// create_flange (have a clear axial cylindrical face) and parts edited
 /// by add_axial_hole / add_threaded_hole etc. (the hole's inner surface
 /// is also a Z-axial cylindrical face). For parts with multiple cylindrical
-/// faces in the same direction, the **first one found wins** — a future
-/// PR can add a faceIndex selector if needed.
+/// faces in the same direction, the **first one found wins**.
+///
+/// **Topology addressing (M53-③)**: to target a SPECIFIC cylindrical face —
+/// e.g. "the flange's 3rd bolt hole" rather than whichever cylinder is found
+/// first — supply <see cref="Face1Index"/> / <see cref="Face2Index"/>, the
+/// face index from running inspect_topology on that component's underlying
+/// .sldprt. The part's face order equals the component's in-assembly face
+/// order (single-body parts), so the index bridges directly. Omit an index to
+/// keep the auto-pick for that side; the two sides are independent.
 /// </summary>
 public sealed record ConcentricMateSpec
 {
@@ -34,6 +41,17 @@ public sealed record ConcentricMateSpec
 
     /// <summary>Second component's instance name.</summary>
     public required string Component2Name { get; init; }
+
+    /// <summary>
+    /// Optional inspect_topology face index on component1's part to mate that
+    /// EXACT cylindrical face (M53-③). Null = auto-pick the first axial-Z
+    /// cylinder. Must be ≥ 0 and point at a cylindrical face.
+    /// </summary>
+    public int? Face1Index { get; init; }
+
+    /// <summary>Optional inspect_topology face index on component2's part (see
+    /// <see cref="Face1Index"/>).</summary>
+    public int? Face2Index { get; init; }
 
     /// <summary>
     /// Mate alignment: "aligned" (default) / "anti-aligned" / "closest".
@@ -54,6 +72,8 @@ public sealed record ConcentricMateSpec
         ValidateAssemblyPath(AssemblyPath);
         ValidateComponentName(Component1Name, "component1Name");
         ValidateComponentName(Component2Name, "component2Name");
+        ValidateFaceIndex(Face1Index, "face1Index");
+        ValidateFaceIndex(Face2Index, "face2Index");
         ValidateAlignment(Alignment);
         if (!string.IsNullOrWhiteSpace(OutputPath))
         {
@@ -96,6 +116,17 @@ public sealed record ConcentricMateSpec
         {
             throw new McpToolException(
                 $"{field} must not be empty. Use inspect_assembly to learn component instance names.");
+        }
+    }
+
+    private static void ValidateFaceIndex(int? index, string field)
+    {
+        if (index is < 0)
+        {
+            throw new McpToolException(
+                $"{field} must be ≥ 0 (got {index}). It is the inspect_topology " +
+                "face index of the component's part; omit it to auto-pick the " +
+                "first axial-Z cylindrical face.");
         }
     }
 

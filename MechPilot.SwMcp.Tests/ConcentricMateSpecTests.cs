@@ -58,6 +58,42 @@ public class ConcentricMateSpecTests : IDisposable
         spec.Validate();
     }
 
+    // ── topology face indexing (M53-③) ────────────────────────────────────
+
+    [Fact]
+    public void Null_face_indexes_validate_auto_pick()
+    {
+        var spec = Canonical() with { Face1Index = null, Face2Index = null };
+        spec.Validate();
+    }
+
+    [Theory]
+    [InlineData(0, 0)]
+    [InlineData(3, null)]
+    [InlineData(null, 7)]
+    [InlineData(12, 5)]
+    public void Valid_face_indexes_validate(int? f1, int? f2)
+    {
+        var spec = Canonical() with { Face1Index = f1, Face2Index = f2 };
+        spec.Validate();
+    }
+
+    [Fact]
+    public void Negative_face1_index_throws()
+    {
+        var spec = Canonical() with { Face1Index = -1 };
+        var ex = Assert.Throws<McpToolException>(spec.Validate);
+        Assert.Contains("face1Index", ex.Message);
+    }
+
+    [Fact]
+    public void Negative_face2_index_throws()
+    {
+        var spec = Canonical() with { Face2Index = -5 };
+        var ex = Assert.Throws<McpToolException>(spec.Validate);
+        Assert.Contains("face2Index", ex.Message);
+    }
+
     [Theory]
     [InlineData("")]
     [InlineData("parallel")]

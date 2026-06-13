@@ -986,6 +986,34 @@ hemisphere/frustum (revolve 模板) — 后续相同类零件 0.5-1h 可加新�
 `MateHelpers`), 后续相似模式 (例如未来 sketch primitives 共用 / drawing view 选择
 共用) 都可按此模式独立 refactor PR 推进。
 
+### M53-③ — 装配级拓扑寻址 mate (PR #?, 2026-06-13) — add_mate_concentric 认"第 N 个孔" (M51 的装配版)
+
+**装配精准化收口: add_mate_concentric 此前只认每件第一个 ±Z 圆柱面 — "法兰第 3 孔 ↔ 螺栓杆"做不了 (auto-pick
+撞哪算哪)。** M53-③ 给它加可选 `face1Index`/`face2Index` (来自对该组件**零件文件**跑 inspect_topology 的面 index),
+精准选指定圆柱面配合。M51 (看面地址) 的装配版, 不给 index 则保持 auto-pick (向后兼容)。
+
+- **桥接洞察 (反射证)**: `IComponent2.GetBodies2(swSolidBody)` = `IPartDoc.GetBodies2` 的**装配上下文版** —
+  同 body→GetFaces flat 序, 所以**对零件跑 inspect_topology 拿的面 index, 直接寻址装配里该组件实例的同一面**
+  (单体零件; 多体边角情形未覆盖)。且 `comp.GetBody().GetFaces()` 的面可在装配上下文 Select 做 mate (M21 早证)。
+- **`Tools/Internal/ComponentFaceSelector`** (新共享 helper, 同 M52 EdgeSelector 模式): 按 TopologyReader **严格同序**
+  重枚举组件面 (`GetBodies2(swSolidBody)`→GetFaces flat) → 取 index 处的面, **守卫: 越界报有效范围 + 非圆柱面报
+  "not a cylinder" (concentric 需轴)**, 都引导重 inspect_topology; 返签名 ("#4 cylinder r4") 进成功消息供 LLM 核对。
+- **接入 AddConcentricMateTool**: `ResolveFace(comp, index?, name)` — 有 index 走 selector, 无则 FindFirstAxialCylinderFace
+  (原 auto-pick 逻辑不变)。两侧独立。spec 加 `Face1Index?`/`Face2Index?` (≥0 校验)。
+- **测试**:
+  - L1: +7 (= 900): ConcentricMateSpecTests (null/有效 index 通过 + 负 index 报 faceN Index)
+  - L2: `M53c-topo-mate.test.ps1` 5 检查全绿一次过, **几何级实锤"寻址命中正确面"**: 4 孔法兰 (OD80/中心孔20/
+    螺栓 Ø8@PCD55) + Ø8 销 → inspect_topology 找螺栓孔面 (r4 偏心, 实测 **#4 @ (0,−27.5)**) → ① **auto-pick →
+    销居中 (0,0)** (向后兼容) → ② **--face1-index 4 → 销移到 (0,−27.5)** = 正是该孔, 非轴心 (寻址生效!) +
+    message 回显 `#4` → ③ 平面 index 报 "not a cylinder" → ④ 越界 9999 报 "out of range"。回归 M21 (auto-pick) 绿。
+  - **几何知识 (沉淀)**: 零件文件的面 index ≡ 装配组件实例的面 index (单体零件), GetBodies2 两上下文同序 — L2 用
+    "对零件 inspect → 用 index 在装配寻址 → 销精确落到该孔 (x,y)" 端到端证实, 同 M52 EdgeSelector↔TopologyReader 契约。
+  - **L3: 待新 session 重启抽测** (改了 add_mate_concentric 签名 + 新 selector, golden rule #13)
+- build 0 warnings, dotnet format clean; CLAUDE 工具表数不变 (59, 无新工具, add_mate_concentric 能力扩展)。
+- **意义**: 装配级编辑补上"精准配合"维度 — inspect_topology (看哪个面) → add_mate_concentric face index (配那个面)。
+  机械 Cursor 装配三件套 (姿态 M53-① / 回退 M53-② / 精准寻址 M53-③) 收口。**下一步 M53-④** add_component
+  幂等防护 (插前查重名防幽灵) / 或拓扑寻址扩到 coincident/distance mate (选指定平面)。
+
 ### M53-② — delete_component (PR #69, 2026-06-13) — 装配级回退原语: 幽灵件/错件摘除
 
 **风扇 dogfooding 最痛缺口的装配级补全 (M48 delete_feature 的装配版)。** 之前装配体里插错件 / add_component
