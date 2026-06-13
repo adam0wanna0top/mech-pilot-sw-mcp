@@ -23,14 +23,28 @@ public sealed record DistanceMateSpec
     /// <summary>First component's instance name (e.g. "asm_cyl_123-1"). Get from inspect_assembly.</summary>
     public required string Component1Name { get; init; }
 
-    /// <summary>Reference plane of component 1: "front" / "top" / "right" (case-insensitive).</summary>
-    public required string Plane1 { get; init; }
+    /// <summary>
+    /// Reference plane of component 1: "front" / "top" / "right"
+    /// (case-insensitive). Required unless <see cref="Face1Index"/> is set,
+    /// which mates a specific planar model face instead.
+    /// </summary>
+    public string? Plane1 { get; init; }
 
     /// <summary>Second component's instance name.</summary>
     public required string Component2Name { get; init; }
 
-    /// <summary>Reference plane of component 2.</summary>
-    public required string Plane2 { get; init; }
+    /// <summary>Reference plane of component 2 (or omit and use <see cref="Face2Index"/>).</summary>
+    public string? Plane2 { get; init; }
+
+    /// <summary>
+    /// Optional inspect_topology planar-face index on component1's part to mate
+    /// that EXACT face (M54) instead of a reference plane. ≥ 0; when set,
+    /// <see cref="Plane1"/> is ignored.
+    /// </summary>
+    public int? Face1Index { get; init; }
+
+    /// <summary>Optional inspect_topology planar-face index on component2's part.</summary>
+    public int? Face2Index { get; init; }
 
     /// <summary>Mate distance in mm. Must be &gt; 0.</summary>
     public required double DistanceMm { get; init; }
@@ -55,9 +69,9 @@ public sealed record DistanceMateSpec
     {
         ValidateAssemblyPath(AssemblyPath);
         ValidateComponentName(Component1Name, "component1Name");
-        ValidatePlane(Plane1, "plane1");
+        CoincidentMateSpec.ValidateSide(Plane1, Face1Index, "plane1", "face1Index");
         ValidateComponentName(Component2Name, "component2Name");
-        ValidatePlane(Plane2, "plane2");
+        CoincidentMateSpec.ValidateSide(Plane2, Face2Index, "plane2", "face2Index");
         ValidateDistance(DistanceMm);
         ValidateAlignment(Alignment);
         if (!string.IsNullOrWhiteSpace(OutputPath))
@@ -100,21 +114,6 @@ public sealed record DistanceMateSpec
         {
             throw new McpToolException(
                 $"{field} must not be empty. Use inspect_assembly to learn component instance names.");
-        }
-    }
-
-    private static void ValidatePlane(string plane, string field)
-    {
-        if (string.IsNullOrWhiteSpace(plane))
-        {
-            throw new McpToolException(
-                $"{field} must not be empty. Use 'front', 'top', or 'right'.");
-        }
-        if (!CoincidentMateSpec.PlaneAliases.ContainsKey(plane))
-        {
-            throw new McpToolException(
-                $"{field} '{plane}' is not recognized. Supported: " +
-                $"{string.Join(", ", CoincidentMateSpec.PlaneAliases.Keys)}.");
         }
     }
 

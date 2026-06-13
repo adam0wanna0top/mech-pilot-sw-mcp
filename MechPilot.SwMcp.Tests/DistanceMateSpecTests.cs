@@ -125,4 +125,29 @@ public class DistanceMateSpecTests : IDisposable
         var ex = Assert.Throws<McpToolException>(spec.Validate);
         Assert.Contains("component1Name", ex.Message);
     }
+
+    // ── topology face indexing (M54) ──────────────────────────────────────
+
+    [Fact]
+    public void Face_index_replaces_plane_and_validates()
+    {
+        var spec = Canonical() with { Plane2 = null, Face2Index = 4 };
+        spec.Validate();
+    }
+
+    [Fact]
+    public void Negative_face2_index_throws()
+    {
+        var spec = Canonical() with { Plane2 = null, Face2Index = -3 };
+        var ex = Assert.Throws<McpToolException>(spec.Validate);
+        Assert.Contains("face2Index", ex.Message);
+    }
+
+    [Fact]
+    public void Neither_plane_nor_face_on_a_side_throws()
+    {
+        var spec = Canonical() with { Plane2 = null, Face2Index = null };
+        var ex = Assert.Throws<McpToolException>(spec.Validate);
+        Assert.Contains("plane2", ex.Message);
+    }
 }

@@ -65,6 +65,71 @@ internal static class MateHelpers
             aliases.Select(a => $"'{a}@{componentName}@{asmTitle}'"));
 
     /// <summary>
+    /// Selects the mate reference on one side of a coincident / distance mate
+    /// (M54): a SPECIFIC planar model face by inspect_topology index when
+    /// <paramref name="faceIndex"/> is given, otherwise the named reference
+    /// plane (Front / Top / Right) — the same call site handles both. Returns a
+    /// human signature for the success message ("front@cyl-1" or
+    /// "#3 plane@block-1"); throws <see cref="McpToolException"/> on failure.
+    /// </summary>
+    public static string SelectMateReference(
+        IAssemblyDoc asmDoc, IModelDocExtension ext,
+        string componentName, int? faceIndex,
+        IReadOnlyList<string>? planeAliases, string? planeLabel,
+        string asmTitle, bool append)
+    {
+        if (faceIndex is int idx)
+        {
+            var comp = FindComponentByName(asmDoc, componentName)
+                ?? throw new McpToolException(
+                    $"Component '{componentName}' not found in the assembly. " +
+                    "Verify the instance name with inspect_assembly first.");
+            var (face, sig) = ComponentFaceSelector.GetPlanarFaceByIndex(
+                comp, idx, componentName);
+            if (!((IEntity)face).Select2(append, 0))
+            {
+                throw new McpToolException(
+                    $"Failed to select face {sig} on '{componentName}'.");
+            }
+            return $"{sig}@{componentName}";
+        }
+
+        var selected = SelectFirstPlane(ext, planeAliases!, componentName, asmTitle, append);
+        if (selected == null)
+        {
+            throw new McpToolException(
+                $"Could not select '{planeLabel}' plane on component " +
+                $"'{componentName}'. Tried " +
+                $"{FormatAttempts(planeAliases!, componentName, asmTitle)}. " +
+                "Verify the component name with inspect_assembly first.");
+        }
+        return $"{planeLabel}@{componentName}";
+    }
+
+    /// <summary>
+    /// Finds a top-level component by its <c>Name2</c> (case-insensitive).
+    /// Returns null if none match. (NoPIA: GetComponents returns object → an
+    /// explicit object local before the array cast.)
+    /// </summary>
+    public static IComponent2? FindComponentByName(IAssemblyDoc asmDoc, string name)
+    {
+        object compsObj = asmDoc.GetComponents(true);
+        if (compsObj is not object[] comps)
+        {
+            return null;
+        }
+        foreach (var c in comps)
+        {
+            if (c is IComponent2 comp
+                && string.Equals(comp.Name2, name, StringComparison.OrdinalIgnoreCase))
+            {
+                return comp;
+            }
+        }
+        return null;
+    }
+
+    /// <summary>
     /// Map an LLM-facing alignment keyword to the <see cref="swMateAlign_e"/>
     /// enum int passed to AddMate5. Throws <see cref="McpToolException"/> for
     /// unrecognized keywords (spec-layer validation should catch these

@@ -21,14 +21,53 @@ internal static class ComponentFaceSelector
 {
     /// <summary>
     /// Returns the cylindrical face at the given topology index on the
-    /// component, with a short signature ("#3 cylinder r3") for the caller's
-    /// success message so the LLM can cross-check it hit the intended face.
-    /// Throws a friendly error on an out-of-range index, or when the face at
-    /// that index is not cylindrical (concentric needs an axis) — both point
-    /// the LLM back at inspect_topology.
+    /// component (for concentric mates), with a short signature
+    /// ("#3 cylinder r3"). Throws a friendly error on an out-of-range index or
+    /// when the face is not cylindrical — both steer the LLM to inspect_topology.
     /// </summary>
     public static (IFace2 Face, string Signature) GetCylindricalFaceByIndex(
         IComponent2 comp, int index, string componentName)
+    {
+        return GetFaceByIndex(
+            comp, index, componentName,
+            wanted: s => s.IsCylinder(),
+            wantedLabel: "cylinder",
+            wantedHint: "a concentric mate needs a cylindrical face (a hole wall or a shaft)",
+            signature: (i, s) =>
+            {
+                var radius = s.CylinderParams is double[] cp && cp.Length >= 7
+                    ? $" r{Math.Round(cp[6] * 1000.0, 2)}" : string.Empty;
+                return $"#{i} cylinder{radius}";
+            });
+    }
+
+    /// <summary>
+    /// Returns the planar face at the given topology index on the component
+    /// (for coincident / distance mates, M54), with a short signature
+    /// ("#3 plane"). Throws a friendly error on an out-of-range index or when
+    /// the face is not planar — both steer the LLM to inspect_topology.
+    /// </summary>
+    public static (IFace2 Face, string Signature) GetPlanarFaceByIndex(
+        IComponent2 comp, int index, string componentName)
+    {
+        return GetFaceByIndex(
+            comp, index, componentName,
+            wanted: s => s.IsPlane(),
+            wantedLabel: "plane",
+            wantedHint: "a coincident / distance mate needs a planar face",
+            signature: (i, _) => $"#{i} plane");
+    }
+
+    /// <summary>
+    /// Shared core: bounds-checks the topology index, fetches the face, and
+    /// verifies its surface matches <paramref name="wanted"/> — friendly errors
+    /// (valid range, or "is a &lt;type&gt;, not a &lt;wantedLabel&gt;") point back at
+    /// inspect_topology. Returns the face + a caller-supplied signature.
+    /// </summary>
+    private static (IFace2 Face, string Signature) GetFaceByIndex(
+        IComponent2 comp, int index, string componentName,
+        Func<ISurface, bool> wanted, string wantedLabel, string wantedHint,
+        Func<int, ISurface, string> signature)
     {
         var faces = EnumerateFaces(comp);
         var maxIndex = faces.Count - 1;
@@ -47,18 +86,16 @@ internal static class ComponentFaceSelector
 
         var face = faces[index];
         object surfObj = face.GetSurface();
-        if (surfObj is not ISurface surface || !surface.IsCylinder())
+        if (surfObj is not ISurface surface || !wanted(surface))
         {
             var type = DescribeSurface(surfObj);
             throw new McpToolException(
-                $"face #{index} on '{componentName}' is a {type}, not a cylinder — a " +
-                "concentric mate needs a cylindrical face (a hole wall or a shaft). " +
-                "Run inspect_topology on the part and pick a face whose type is 'cylinder'.");
+                $"face #{index} on '{componentName}' is a {type}, not a {wantedLabel} — " +
+                $"{wantedHint}. Run inspect_topology on the part and pick a face whose " +
+                $"type is '{wantedLabel}'.");
         }
 
-        var radius = surface.CylinderParams is double[] cp && cp.Length >= 7
-            ? $" r{Math.Round(cp[6] * 1000.0, 2)}" : string.Empty;
-        return (face, $"#{index} cylinder{radius}");
+        return (face, signature(index, surface));
     }
 
     /// <summary>Flat face list in TopologyReader's exact enumeration order, but
