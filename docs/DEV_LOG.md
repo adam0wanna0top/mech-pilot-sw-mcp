@@ -986,6 +986,27 @@ hemisphere/frustum (revolve 模板) — 后续相同类零件 0.5-1h 可加新�
 `MateHelpers`), 后续相似模式 (例如未来 sketch primitives 共用 / drawing view 选择
 共用) 都可按此模式独立 refactor PR 推进。
 
+### M56 — add_mate_tangent + concentric auto-pick 任意轴 (PR #?, 2026-06-14) — 补第 5 类 mate, 风扇头部↔立柱解锁
+
+**风扇唯一弱点的根治 + 一个 ergonomics 修复。** 风扇电机壳 (横躺圆柱) 搁在立柱顶 (平面) 那个垂直接合, coincident/
+concentric 都表达不了 (圆柱搁平面 = 相切), 只能位置定位。M56 补**第 5 类 mate** + 顺带放宽 concentric auto-pick:
+- **新工具 `add_mate_tangent`**: 曲面 (圆柱/球/锥) 相切于平面或另一曲面。`AddMate5(swMateTANGENT=4)` + v1#20 magic
+  positions (同其余 mate)。**两侧都按 inspect_topology faceIndex 选** (相切无参考面 shorthand 无 auto-pick —
+  本质是两个具体面), 守卫**至少一面是曲面** (两平面 → 报错引导用 coincident)。新 `ComponentFaceSelector.
+  GetAnyFaceByIndex` (不限类型, 返签名 + IsCurved; 抽出共享 `FaceAtIndex` 边界检查)。
+- **concentric auto-pick 任意轴回退 (M56)**: 原 `FindFirstAxialCylinderFace` 死守 ±Z 轴 → 旋转件 (轴 X/Y) auto-pick
+  返 null 报错, 被迫 faceIndex。现改: **优先 ±Z, 找不到回退第一个任意轴圆柱**。非旋转件行为不变 (向后兼容),
+  旋转件不再被迫 faceIndex。
+- **测试**:
+  - L1: +14 (= 930): TangentMateSpecTests (双面 index ≥0 必填 + alignment 默认 closest + 同件拒 + 路径)
+  - L2: `M56-tangent-mate.test.ps1` 4 检查全绿 (RPC 瞬断重跑即过): **tangent** Z 圆柱 OD 相切薄板 +X 面 →
+    圆柱被拉到刚好接触 (minX→5, 几何实证) + 签名回显 / **两平面拒** ("at least one curved") /
+    **concentric auto-pick 对旋转件 (轴 Y) 现在找得到圆柱** (回退生效, 原会报 no-axial-Z)。回归 M21/M53c 绿。
+  - **L3: 待新 session 重启抽测** (新工具 + concentric auto-pick 改动, golden rule #13)
+- build 0 warnings, dotnet format clean; CLAUDE 工具表 →61。
+- **意义**: mate 家族补齐第 5 类 (coincident/distance/concentric/angle/**tangent**), 风扇头部↔立柱可真·相切配合
+  (不再悬浮)。concentric 对旋转件也免 faceIndex 了。**风扇用 add_mate_tangent 收尾后即全 mate** (本 PR 后应用)。
+
 ### L3 清债 — M53①-④ / M54 / M55 长寿命 server 全过 zero-bug + 风扇干涉实锤 (2026-06-14)
 
 **本 session 一口气交付 6 PR (#68-73), L3 债一次性清完 (golden rule #13)。** 载体 = 在长寿命 MCP server 上

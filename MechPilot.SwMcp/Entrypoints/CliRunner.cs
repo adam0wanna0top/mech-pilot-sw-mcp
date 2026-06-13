@@ -67,6 +67,7 @@ public static class CliRunner
         root.Subcommands.Add(BuildAddCoincidentMateCommand());
         root.Subcommands.Add(BuildAddDistanceMateCommand());
         root.Subcommands.Add(BuildAddConcentricMateCommand());
+        root.Subcommands.Add(BuildAddTangentMateCommand());
         root.Subcommands.Add(BuildAddAngleMateCommand());
         root.Subcommands.Add(BuildAddShellCommand());
         root.Subcommands.Add(BuildInsertToolboxFastenerCommand());
@@ -2726,6 +2727,83 @@ public static class CliRunner
                     OutputPath = parseResult.GetValue(outOpt),
                 };
                 var result = AddConcentricMateTool.RunWithSpec(spec);
+                WriteResult(result, parseResult.GetValue(formatOpt) ?? "text");
+                return 0;
+            }
+            catch (McpToolException ex)
+            {
+                Console.Error.WriteLine($"[error] {ex.Message}");
+                return 1;
+            }
+        });
+
+        return cmd;
+    }
+
+    private static Command BuildAddTangentMateCommand()
+    {
+        var asmOpt = new Option<string>("--assembly")
+        {
+            Description = "Absolute path to an existing .sldasm.",
+            Required = true,
+        };
+        var comp1Opt = new Option<string>("--component1")
+        {
+            Description = "First component's instance name (from inspect_assembly).",
+            Required = true,
+        };
+        var comp2Opt = new Option<string>("--component2")
+        {
+            Description = "Second component's instance name.",
+            Required = true,
+        };
+        var face1Opt = new Option<int>("--face1-index")
+        {
+            Description = "inspect_topology face index on component1's part.",
+            Required = true,
+        };
+        var face2Opt = new Option<int>("--face2-index")
+        {
+            Description = "inspect_topology face index on component2's part.",
+            Required = true,
+        };
+        var alignOpt = new Option<string>("--alignment")
+        {
+            Description = "Alignment: 'closest' (default), 'aligned', or 'anti-aligned'.",
+            DefaultValueFactory = _ => "closest",
+        };
+        var outOpt = new Option<string>("--out")
+        {
+            Description = "Optional output .sldasm path. Omit to overwrite in place.",
+            DefaultValueFactory = _ => string.Empty,
+        };
+        var formatOpt = new Option<string>("--output")
+        {
+            Description = "Output format: text | json",
+            DefaultValueFactory = _ => "text",
+        };
+
+        var cmd = new Command("add-mate-tangent",
+            "Add a tangent mate between two components by topology face index (a cylinder on a flat, etc.).")
+        {
+            asmOpt, comp1Opt, comp2Opt, face1Opt, face2Opt, alignOpt, outOpt, formatOpt,
+        };
+
+        cmd.SetAction(parseResult =>
+        {
+            try
+            {
+                var spec = new TangentMateSpec
+                {
+                    AssemblyPath = parseResult.GetValue(asmOpt) ?? string.Empty,
+                    Component1Name = parseResult.GetValue(comp1Opt) ?? string.Empty,
+                    Component2Name = parseResult.GetValue(comp2Opt) ?? string.Empty,
+                    Face1Index = parseResult.GetValue(face1Opt),
+                    Face2Index = parseResult.GetValue(face2Opt),
+                    Alignment = parseResult.GetValue(alignOpt) ?? "closest",
+                    OutputPath = parseResult.GetValue(outOpt),
+                };
+                var result = AddTangentMateTool.RunWithSpec(spec);
                 WriteResult(result, parseResult.GetValue(formatOpt) ?? "text");
                 return 0;
             }

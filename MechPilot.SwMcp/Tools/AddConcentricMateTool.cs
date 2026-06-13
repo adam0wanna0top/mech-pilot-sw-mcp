@@ -306,18 +306,20 @@ public static class AddConcentricMateTool
 
         var auto = FindFirstAxialCylinderFace(comp)
             ?? throw new McpToolException(
-                $"Could not find an axial-Z cylindrical face on '{componentName}'. " +
-                "The component may have no cylindrical surface aligned with ±Z " +
-                "(create_cylinder / create_flange / parts drilled with add_axial_hole " +
-                "all qualify). To target a specific face, run inspect_topology on the " +
-                "part and pass its face index.");
-        return (auto, "auto axial-Z cylinder");
+                $"Could not find any cylindrical face on '{componentName}' to mate " +
+                "concentric. The component has no cylinder (a hole wall, a shaft, a " +
+                "boss). To target a specific face, run inspect_topology on the part " +
+                "and pass its face index.");
+        return (auto, "auto cylinder");
     }
 
     /// <summary>
-    /// Walks the component's body's faces and returns the first one whose
-    /// surface is cylindrical with its axis aligned with ±Z
-    /// (|axis.Z| > 0.99 cos similarity). Returns null if none.
+    /// Walks the component's body's faces and returns a cylindrical face to
+    /// mate, preferring one whose axis is along ±Z (|axis.Z| > 0.99 — matches
+    /// every create_* tool's extrusion direction), and **falling back to the
+    /// first cylinder of any axis** (M56) so a rotated part — whose cylinders
+    /// now run along X or Y — still auto-picks instead of forcing a faceIndex.
+    /// Returns null only if the component has no cylindrical face at all.
     /// </summary>
     /// <remarks>
     /// <c>ISurface.get_CylinderParams</c> returns a 7-double array:
@@ -330,19 +332,21 @@ public static class AddConcentricMateTool
         if (comp.GetBody() is not IBody2 body) return null;
         if (body.GetFaces() is not object[] faces) return null;
 
+        IFace2? firstCylinder = null;
         foreach (var faceObj in faces)
         {
             var face = (IFace2)faceObj;
             var surface = (ISurface)face.GetSurface();
             if (!surface.IsCylinder()) continue;
             if (surface.CylinderParams is not double[] cp || cp.Length < 6) continue;
-            // axis direction at indices 3..5
+            firstCylinder ??= face;
+            // Prefer an axis along ±Z (axis direction at indices 3..5).
             if (Math.Abs(cp[5]) > ZAxisThreshold)
             {
                 return face;
             }
         }
-        return null;
+        return firstCylinder;
     }
 
     // MapAlignment extracted to Tools/Internal/MateHelpers.cs (PR #30).
