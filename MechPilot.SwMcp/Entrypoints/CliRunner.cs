@@ -2191,6 +2191,21 @@ public static class CliRunner
             Description = "Component origin Z in the assembly in mm. Default 0.",
             DefaultValueFactory = _ => 0.0,
         };
+        var rotXOpt = new Option<double>("--rotation-x")
+        {
+            Description = "Rotation about the world X axis in degrees. Default 0.",
+            DefaultValueFactory = _ => 0.0,
+        };
+        var rotYOpt = new Option<double>("--rotation-y")
+        {
+            Description = "Rotation about the world Y axis in degrees. Default 0.",
+            DefaultValueFactory = _ => 0.0,
+        };
+        var rotZOpt = new Option<double>("--rotation-z")
+        {
+            Description = "Rotation about the world Z axis in degrees. Default 0.",
+            DefaultValueFactory = _ => 0.0,
+        };
         var formatOpt = new Option<string>("--output")
         {
             Description = "Output format: text | json",
@@ -2200,7 +2215,8 @@ public static class CliRunner
         var cmd = new Command("insert-toolbox-fastener",
             "Insert a Toolbox standard part into an assembly at a chosen size (configuration).")
         {
-            asmOpt, partOpt, configOpt, posXOpt, posYOpt, posZOpt, formatOpt,
+            asmOpt, partOpt, configOpt, posXOpt, posYOpt, posZOpt,
+            rotXOpt, rotYOpt, rotZOpt, formatOpt,
         };
 
         cmd.SetAction(parseResult =>
@@ -2215,6 +2231,9 @@ public static class CliRunner
                     PositionXMm = parseResult.GetValue(posXOpt),
                     PositionYMm = parseResult.GetValue(posYOpt),
                     PositionZMm = parseResult.GetValue(posZOpt),
+                    RotationXDeg = parseResult.GetValue(rotXOpt),
+                    RotationYDeg = parseResult.GetValue(rotYOpt),
+                    RotationZDeg = parseResult.GetValue(rotZOpt),
                 };
                 var result = InsertToolboxFastenerTool.RunWithSpec(spec);
                 WriteResult(result, parseResult.GetValue(formatOpt) ?? "text");
@@ -2257,6 +2276,21 @@ public static class CliRunner
             Description = "Component origin Z in the assembly in mm. Default 0.",
             DefaultValueFactory = _ => 0.0,
         };
+        var rotXOpt = new Option<double>("--rotation-x")
+        {
+            Description = "Rotation about the world X axis in degrees. Default 0.",
+            DefaultValueFactory = _ => 0.0,
+        };
+        var rotYOpt = new Option<double>("--rotation-y")
+        {
+            Description = "Rotation about the world Y axis in degrees. Default 0.",
+            DefaultValueFactory = _ => 0.0,
+        };
+        var rotZOpt = new Option<double>("--rotation-z")
+        {
+            Description = "Rotation about the world Z axis in degrees. Default 0.",
+            DefaultValueFactory = _ => 0.0,
+        };
         var formatOpt = new Option<string>("--output")
         {
             Description = "Output format: text | json",
@@ -2266,7 +2300,8 @@ public static class CliRunner
         var cmd = new Command("add-component",
             "Insert one component (.sldprt or sub-.sldasm) into an existing assembly.")
         {
-            asmOpt, compOpt, posXOpt, posYOpt, posZOpt, formatOpt,
+            asmOpt, compOpt, posXOpt, posYOpt, posZOpt,
+            rotXOpt, rotYOpt, rotZOpt, formatOpt,
         };
 
         cmd.SetAction(parseResult =>
@@ -2280,6 +2315,9 @@ public static class CliRunner
                     PositionXMm = parseResult.GetValue(posXOpt),
                     PositionYMm = parseResult.GetValue(posYOpt),
                     PositionZMm = parseResult.GetValue(posZOpt),
+                    RotationXDeg = parseResult.GetValue(rotXOpt),
+                    RotationYDeg = parseResult.GetValue(rotYOpt),
+                    RotationZDeg = parseResult.GetValue(rotZOpt),
                 };
                 var result = AddComponentTool.RunWithSpec(spec);
                 WriteResult(result, parseResult.GetValue(formatOpt) ?? "text");

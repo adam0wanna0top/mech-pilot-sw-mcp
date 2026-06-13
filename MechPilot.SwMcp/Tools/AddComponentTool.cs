@@ -4,6 +4,7 @@ using MechPilot.SwMcp.Models;
 using ModelContextProtocol.Server;
 #if HAS_SOLIDWORKS
 using MechPilot.SwMcp.Interop;
+using MechPilot.SwMcp.Tools.Internal;
 using SolidWorks.Interop.sldworks;
 using SolidWorks.Interop.swconst;
 #endif
@@ -35,10 +36,16 @@ public static class AddComponentTool
     [Description(
         "Insert one component (.sldprt or sub-.sldasm) into an existing " +
         "SolidWorks assembly at a given (positionX, positionY, positionZ) " +
-        "world position in mm. The component is placed but not mated — for " +
-        "mating use a future add_mate tool. assemblyPath must be an absolute " +
-        "path to an existing .sldasm. componentPath must be an absolute path " +
-        "to an existing .sldprt or .sldasm. Position defaults to (0, 0, 0).")]
+        "world position in mm, optionally rotated by (rotationX/Y/Z) degrees. " +
+        "The component is placed but not mated — for mating use add_mate_*. " +
+        "assemblyPath must be an absolute path to an existing .sldasm. " +
+        "componentPath must be an absolute path to an existing .sldprt or " +
+        ".sldasm. Position defaults to (0, 0, 0); rotation to (0, 0, 0) = the " +
+        "part's own orientation. Use rotation to orient a part whose useful " +
+        "axis isn't aligned with the assembly (e.g. a part modelled along its " +
+        "local axis that should stand up along assembly Z — rotate 90° about " +
+        "the appropriate axis). Rotation is applied about the world origin " +
+        "before the part is moved to position.")]
     public static ToolResult Run(
         [Description("Absolute path to an existing .sldasm to insert into.")]
         string assemblyPath,
@@ -49,7 +56,13 @@ public static class AddComponentTool
         [Description("Component origin Y in the assembly in mm. Default 0.")]
         double positionY = 0,
         [Description("Component origin Z in the assembly in mm. Default 0.")]
-        double positionZ = 0)
+        double positionZ = 0,
+        [Description("Rotation about the world X axis in degrees. Default 0.")]
+        double rotationX = 0,
+        [Description("Rotation about the world Y axis in degrees. Default 0.")]
+        double rotationY = 0,
+        [Description("Rotation about the world Z axis in degrees. Default 0.")]
+        double rotationZ = 0)
     {
         var spec = new AddComponentSpec
         {
@@ -58,6 +71,9 @@ public static class AddComponentTool
             PositionXMm = positionX,
             PositionYMm = positionY,
             PositionZMm = positionZ,
+            RotationXDeg = rotationX,
+            RotationYDeg = rotationY,
+            RotationZDeg = rotationZ,
         };
         return RunWithSpec(spec);
     }
@@ -181,6 +197,20 @@ public static class AddComponentTool
                     "errors), or the assembly was not the active doc when called.");
             }
 
+            // ── 4b. Orient the component if a rotation was requested (M53-①).
+            //   AddComponent5 has no orientation argument — it always drops the
+            //   part at its own orientation. When rotation is asked for, spin it
+            //   in place about its frame origin (position preserved). All-zero
+            //   rotation skips this entirely → the default path stays
+            //   byte-identical to pre-M53 behaviour.
+            if (ComponentTransform.HasRotation(
+                spec.RotationXDeg, spec.RotationYDeg, spec.RotationZDeg))
+            {
+                ComponentTransform.Apply(
+                    swApp, asmModel, component,
+                    spec.RotationXDeg, spec.RotationYDeg, spec.RotationZDeg);
+            }
+
             // ── 5. Save assembly in-place (M5 lesson: Save3 not SaveAs) ─────
             int saveErrors = 0;
             int saveWarnings = 0;
@@ -197,10 +227,15 @@ public static class AddComponentTool
             }
 
             var compName = Path.GetFileNameWithoutExtension(compPathNorm);
+            var rotNote = ComponentTransform.HasRotation(
+                spec.RotationXDeg, spec.RotationYDeg, spec.RotationZDeg)
+                ? $" rotated ({spec.RotationXDeg}, {spec.RotationYDeg}, " +
+                  $"{spec.RotationZDeg})°"
+                : string.Empty;
             return ToolResult.Ok(
                 message:
                     $"Inserted '{compName}' at ({spec.PositionXMm}, {spec.PositionYMm}, " +
-                    $"{spec.PositionZMm}) mm; saved assembly in place",
+                    $"{spec.PositionZMm}) mm{rotNote}; saved assembly in place",
                 path: spec.AssemblyPath);
         }
         finally

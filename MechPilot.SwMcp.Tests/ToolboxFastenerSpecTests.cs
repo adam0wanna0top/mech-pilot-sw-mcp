@@ -169,4 +169,41 @@ public sealed class ToolboxFastenerSpecTests : IDisposable
         var ex = Assert.Throws<McpToolException>(() => spec.Validate());
         Assert.Contains("sanity", ex.Message);
     }
+
+    // ── rotation (M53-①) ─────────────────────────────────────────────────────
+
+    [Theory]
+    [InlineData(0, 0, 0)]
+    [InlineData(90, 0, 0)]
+    [InlineData(0, 90, 0)]
+    [InlineData(-45.5, 270, 3600)]
+    public void Various_rotations_pass(double rx, double ry, double rz)
+    {
+        var spec = MakeValid() with
+        {
+            RotationXDeg = rx,
+            RotationYDeg = ry,
+            RotationZDeg = rz,
+        };
+        spec.Validate();
+    }
+
+    [Theory]
+    [InlineData(double.NaN)]
+    [InlineData(double.PositiveInfinity)]
+    public void Non_finite_rotation_throws(double bad)
+    {
+        var spec = MakeValid() with { RotationYDeg = bad };
+        var ex = Assert.Throws<McpToolException>(() => spec.Validate());
+        Assert.Contains("finite", ex.Message);
+    }
+
+    [Fact]
+    public void Rotation_beyond_sanity_bound_throws_with_degrees_hint()
+    {
+        var spec = MakeValid() with { RotationXDeg = -4_000 };
+        var ex = Assert.Throws<McpToolException>(() => spec.Validate());
+        Assert.Contains("RotationX", ex.Message);
+        Assert.Contains("DEGREES", ex.Message);
+    }
 }

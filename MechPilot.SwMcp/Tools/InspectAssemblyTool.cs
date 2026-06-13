@@ -12,7 +12,8 @@ namespace MechPilot.SwMcp.Tools;
 
 /// <summary>
 /// Reads metadata from an existing assembly: title, top-level component
-/// list (instance name, source path, world position, suppression state).
+/// list (instance name, source path, world position, orientation axes,
+/// suppression state).
 /// Pure read-only — opens with ReadOnly flag and closes without saving.
 ///
 /// Sibling of InspectPartTool — same Open(ReadOnly) → walk → Close pattern,
@@ -34,7 +35,10 @@ public static class InspectAssemblyTool
         "Read metadata from an existing SolidWorks assembly (read-only). " +
         "Returns the assembly's title, top-level component count, and a list " +
         "of components with their instance name (e.g. 'asm_cyl_123-1'), " +
-        "source file path + file name, world position in mm, suppression " +
+        "source file path + file name, world position in mm, 'orientation' " +
+        "(each component's local +X/+Y/+Z axis as a unit vector in assembly " +
+        "space — an un-rotated part reads xAxis [1,0,0]; use a fastener's " +
+        "zAxis to read its axial direction and audit pose), suppression " +
         "state, and — for the resize/edit workflow — a 'kind' ('ourPart' = a " +
         "parametric part we built and can edit, 'imported' = a dumb STEP/" +
         "neutral body that must NOT be edited, 'subassembly', or 'unknown'), a " +
@@ -207,9 +211,27 @@ public static class InspectAssemblyTool
                 ["y"] = xform[10] * 1000.0,
                 ["z"] = xform[11] * 1000.0,
             };
+
+            // Orientation (M53-①): the rotation block [0..8] is column-major —
+            // each column is where the component's local +X / +Y / +Z axis
+            // points in assembly space (unit vectors). An un-rotated component
+            // reads xAxis (1,0,0), yAxis (0,1,0), zAxis (0,0,1); after a 90°
+            // rotation about Z, xAxis becomes (0,1,0). This is what add_component
+            // / insert_toolbox_fastener's rotation parameters drive, and lets
+            // the LLM read a fastener's axial direction (zAxis) to audit pose.
+            info["orientation"] = new Dictionary<string, double[]>
+            {
+                ["xAxis"] = new[] { Round(xform[0]), Round(xform[1]), Round(xform[2]) },
+                ["yAxis"] = new[] { Round(xform[3]), Round(xform[4]), Round(xform[5]) },
+                ["zAxis"] = new[] { Round(xform[6]), Round(xform[7]), Round(xform[8]) },
+            };
         }
         return info;
     }
+
+    /// <summary>Rounds an axis component to 6 decimals to shed
+    /// double-precision noise (so an un-rotated axis reads a clean 1 / 0).</summary>
+    private static double Round(double v) => Math.Round(v, 6);
 
     /// <summary>
     /// Classifies a component as ourPart / imported / subassembly / unknown and,
