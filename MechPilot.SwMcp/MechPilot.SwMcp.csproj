@@ -21,6 +21,37 @@
     <InternalsVisibleTo Include="MechPilot.SwMcp.Tests" />
   </ItemGroup>
 
+  <!-- M57: embed the git commit + dirty flag as AssemblyMetadata so `ping`
+       can report which build is running (detect a stale long-lived server
+       without guessing from the tool list). Runs at BUILD time in the repo;
+       runtime needs no git. ContinueOnError → "unknown" off-repo / no-git. -->
+  <Target Name="EmbedGitInfo" BeforeTargets="GetAssemblyAttributes">
+    <Exec Command="git rev-parse --short HEAD" ConsoleToMSBuild="true" ContinueOnError="true" StandardOutputImportance="low">
+      <Output TaskParameter="ConsoleOutput" PropertyName="_GitSha" />
+      <Output TaskParameter="ExitCode" PropertyName="_GitShaExit" />
+    </Exec>
+    <Exec Command="git status --porcelain" ConsoleToMSBuild="true" ContinueOnError="true" StandardOutputImportance="low">
+      <Output TaskParameter="ConsoleOutput" PropertyName="_GitStatus" />
+    </Exec>
+    <PropertyGroup>
+      <_GitSha Condition="'$(_GitShaExit)' != '0' or '$(_GitSha)' == ''">unknown</_GitSha>
+      <_GitDirty Condition="'$(_GitStatus)' != ''">true</_GitDirty>
+      <_GitDirty Condition="'$(_GitDirty)' == ''">false</_GitDirty>
+    </PropertyGroup>
+    <!-- AssemblyAttribute items (consumed by GetAssemblyAttributes) reliably
+         emit attributes when added inside a target, unlike bare AssemblyMetadata. -->
+    <ItemGroup>
+      <AssemblyAttribute Include="System.Reflection.AssemblyMetadataAttribute">
+        <_Parameter1>GitSha</_Parameter1>
+        <_Parameter2>$(_GitSha)</_Parameter2>
+      </AssemblyAttribute>
+      <AssemblyAttribute Include="System.Reflection.AssemblyMetadataAttribute">
+        <_Parameter1>GitDirty</_Parameter1>
+        <_Parameter2>$(_GitDirty)</_Parameter2>
+      </AssemblyAttribute>
+    </ItemGroup>
+  </Target>
+
   <!-- SolidWorks 官方预编译 .NET Interop DLL (决策 #14) -->
   <!-- HintPath 绝对路径仅本机用; CI 上跳过该 ItemGroup (HasSolidWorks=false) -->
   <PropertyGroup>

@@ -42,7 +42,7 @@ profile/path mark 1/4 + 几何 ⊥)**, 通用 layer 5/5 milestone 全完成。**
 
 | Tool | LLM-facing name | 用途 |
 |---|---|---|
-| ping | `mcp__mech_pilot_sw__ping` | sanity check |
+| ping | `mcp__mech_pilot_sw__ping` | sanity check + **报构建版本** (git SHA/-dirty + build time, **M57** 探测 stale server: SHA/时间比上次 build 旧就重启会话) |
 | new_part | `mcp__mech_pilot_sw__new_part` | 开空 part (通用原语 layer 入口) |
 | save_part | `mcp__mech_pilot_sw__save_part` | 存 active part + close (通用原语 layer 出口) |
 | start_sketch | `mcp__mech_pilot_sw__start_sketch` | 进 sketch 模式 (front/top/right / RefPlane name / **面选择器 +z/-z/+x/-x/+y/-y 直接选极值平面 M37**) |
