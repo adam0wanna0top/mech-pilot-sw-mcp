@@ -4,6 +4,7 @@ using MechPilot.SwMcp.Models;
 using ModelContextProtocol.Server;
 #if HAS_SOLIDWORKS
 using MechPilot.SwMcp.Interop;
+using MechPilot.SwMcp.Tools.Internal;
 using SolidWorks.Interop.sldworks;
 using SolidWorks.Interop.swconst;
 #endif
@@ -62,7 +63,12 @@ public static class InsertToolboxFastenerTool
         "size. If configName doesn't match, the error lists the available " +
         "configuration names to choose from. The component is " +
         "placed at (positionX/Y/Z) mm but not mated — use add_mate_* after. " +
-        "assemblyPath must be an existing .sldasm (new_assembly creates one).")]
+        "A Toolbox fastener's shank runs along the part's own local axis, so " +
+        "it lands lying flat by default; use (rotationX/Y/Z) degrees to stand " +
+        "it up along the desired assembly axis (e.g. rotate 90° so the shank " +
+        "points along assembly Z). Rotation is applied about the world origin " +
+        "before positioning. assemblyPath must be an existing .sldasm " +
+        "(new_assembly creates one).")]
     public static ToolResult Run(
         [Description("Absolute path to an existing .sldasm to insert into.")]
         string assemblyPath,
@@ -75,7 +81,13 @@ public static class InsertToolboxFastenerTool
         [Description("Component origin Y in the assembly in mm. Default 0.")]
         double positionY = 0,
         [Description("Component origin Z in the assembly in mm. Default 0.")]
-        double positionZ = 0)
+        double positionZ = 0,
+        [Description("Rotation about the world X axis in degrees. Default 0.")]
+        double rotationX = 0,
+        [Description("Rotation about the world Y axis in degrees. Default 0.")]
+        double rotationY = 0,
+        [Description("Rotation about the world Z axis in degrees. Default 0.")]
+        double rotationZ = 0)
     {
         var spec = new ToolboxFastenerSpec
         {
@@ -85,6 +97,9 @@ public static class InsertToolboxFastenerTool
             PositionXMm = positionX,
             PositionYMm = positionY,
             PositionZMm = positionZ,
+            RotationXDeg = rotationX,
+            RotationYDeg = rotationY,
+            RotationZDeg = rotationZ,
         };
         return RunWithSpec(spec);
     }
@@ -231,6 +246,20 @@ public static class InsertToolboxFastenerTool
                 }
             }
 
+            // ── 5b. Orient the fastener if a rotation was requested (M53-①).
+            //   AddComponent5 drops the part at its own orientation — a bolt's
+            //   shank along its local axis lands lying flat. Spin it in place
+            //   about its frame origin (position preserved). Done after the
+            //   config force so its EditRebuild3 can't reset the transform.
+            //   All-zero rotation skips this → pre-M53 behaviour preserved.
+            if (ComponentTransform.HasRotation(
+                spec.RotationXDeg, spec.RotationYDeg, spec.RotationZDeg))
+            {
+                ComponentTransform.Apply(
+                    swApp, asmModel, component,
+                    spec.RotationXDeg, spec.RotationYDeg, spec.RotationZDeg);
+            }
+
             // ── 6. Save assembly in-place (M5 lesson: Save3, not SaveAs) ────
             int saveErrors = 0;
             int saveWarnings = 0;
@@ -250,11 +279,16 @@ public static class InsertToolboxFastenerTool
             var configNote = referenced.Length > 0
                 ? $" config='{referenced}'{(forced ? " (set post-insert)" : string.Empty)}"
                 : string.Empty;
+            var rotNote = ComponentTransform.HasRotation(
+                spec.RotationXDeg, spec.RotationYDeg, spec.RotationZDeg)
+                ? $" rotated ({spec.RotationXDeg}, {spec.RotationYDeg}, " +
+                  $"{spec.RotationZDeg})°"
+                : string.Empty;
             return ToolResult.Ok(
                 message:
                     $"Inserted Toolbox part '{partName}'{configNote} at " +
-                    $"({spec.PositionXMm}, {spec.PositionYMm}, {spec.PositionZMm}) mm; " +
-                    "saved assembly in place",
+                    $"({spec.PositionXMm}, {spec.PositionYMm}, {spec.PositionZMm}) mm" +
+                    $"{rotNote}; saved assembly in place",
                 path: spec.AssemblyPath);
         }
         finally

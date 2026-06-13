@@ -986,6 +986,43 @@ hemisphere/frustum (revolve 模板) — 后续相同类零件 0.5-1h 可加新�
 `MateHelpers`), 后续相似模式 (例如未来 sketch primitives 共用 / drawing view 选择
 共用) 都可按此模式独立 refactor PR 推进。
 
+### M53-① — 组件插入姿态 (rotation) + inspect_assembly 朝向 (PR #?, 2026-06-13) — 风扇 v1 横躺螺栓的根治
+
+**风扇期末考实锤缺口 #1 的根治: `add_component`/`insert_toolbox_fastener` 此前只接 (x,y,z) 位置,
+`AddComponent5` 没有朝向入参 → 任何"有用轴 ≠ 装配轴"的零件 (典型: Toolbox 螺栓杆沿其 local 轴)
+插进去就横躺, 没法用 (v1 装配干涉的根源)。** M53-① 把"姿态" = 位置 + 朝向补全: 两个插入工具加
+`rotationX/Y/Z` (度), `inspect_assembly` 加 `orientation` 读回 (写侧 + 读侧一个完整能力)。
+
+- **反射先行 (golden rule #5, 零盲调)**: `IComponent2.Transform2` (get/set `MathTransform`) +
+  `ISldWorks.GetMathUtility()` → `IMathUtility.CreateTransform(object[16])` + `IMathTransform.ArrayData`。
+  ArrayData 16 元: `[0..8]`=3×3 旋转**列主序** (每列 = 组件 local +X/+Y/+Z 轴在装配空间的指向,
+  与 `GetData` 的 XAxis/YAxis/ZAxis 一致) / `[9..11]`=平移(米) / `[12]`=scale / `[13..15]`=0。
+- **`Tools/Internal/ComponentTransform`** (新共享 helper, 两工具共用): `BuildTransformArray`
+  (XYZ-Euler 度 → R=Rz·Ry·Rx, 列主序 16 元数组; **纯 SW-free → L1 可直测**, 同 `DimensionFormat` 模式) +
+  `Apply` (#if; 读回 AddComponent5 已设的平移, **只换旋转块 → 绕零件 frame origin 原地转, 位置零跳变** +
+  EditRebuild3) + `HasRotation` (任一非零才走 → **全零旋转跳过, 默认路径 byte-identical 不动既有行为/风扇装配**)。
+- **位置一致性坑 (设计要点)**: `AddComponent5(x,y,z)` 把零件**包络中心**放到 (x,y,z) (M17 实证: cyl L30
+  在 z=0 → frame origin z=−15)。若整体覆写 translation=position, 非居中件会跳半个体长。改成"读现有平移只换
+  旋转块"后, 旋转件 `positionMm` 与未旋转件**逐字段相同** (L2 断言 spin-in-place)。
+- **inspect_assembly +orientation**: 从 `GetXform[0..8]` 出 xAxis/yAxis/zAxis 单位向量 (未旋转读
+  (1,0,0)/(0,1,0)/(0,0,1))。read-first 审计姿态 (呼应 memory `assembly-audit-before-claiming`:
+  inspect 数字 ≠ 空间正确, 现在能读朝向了); 也给 L2 干净交叉验证 (写的 BuildTransformArray 列 = 读的 GetXform 列)。
+- **测试**:
+  - L1: +25 (= 882): ComponentTransformTests (恒等/平移 mm→m/三轴 90°/复合角列正交性/HasRotation) +
+    两 spec 各 +rotation 校验 (finite + ±3600° 界 + "DEGREES not radians" 提示)
+  - L2: `M53-component-rotation.test.ps1` 6 检查全绿一次过, **几何级实证 + 列主序一次命中**:
+    block 60×20×20 → baseline 恒等朝向 / **Z90 → xAxis (0,1,0)** + 位置不变 (spin in place) /
+    **Y90 → xAxis (0,0,−1), zAxis (1,0,0)** / **X90 → yAxis (0,0,1), zAxis (0,−1,0)** /
+    offset (50,10)+Z90 → 朝向变且位置守在 (50,10) / 负例 5000° → 报 DEGREES 提示。
+    回归: M16/M17/M40/M41 (装配族) + M47 (toolbox 默认路径) 全绿, orientation 加键纯增量不破坏。
+  - **几何知识 (沉淀)**: `GetXform` 读回 = `Transform2` 写入的同一列主序矩阵 (非逆/转置) — 二者平移槽
+    `[9..11]` 一致 (M17 早证), 旋转块 `[0..8]` 同样一致, L2 三轴 90° 全部一次命中预测值证实。
+  - **L3: 待新 session 重启抽测** (写工具改了签名 + 新 orientation 读出, golden rule #13)
+- build 0 warnings, dotnet format clean; CLAUDE 工具表数不变 (58, 无新工具, 两插入工具 + inspect_assembly 能力扩展)。
+- **意义**: 装配从"只能平移摆放"进化到"摆位 + 定向"。风扇 v1 螺栓横躺的根因正式可解 (rotate 90° 立起来);
+  机械 Cursor 的装配级"姿态"读写闭环成型 (inspect 看朝向 → rotation 摆朝向)。**下一步 M53-②** delete_component /
+  **-③** 装配级拓扑寻址 mate / **-④** add_component 幂等防护 (见 CLAUDE "下一步候选")。
+
 ### M52 — fillet_edges + chamfer_edges (PR #?, 2026-06-12) — 拓扑级编辑 + 挖出 M6 add_chamfer 自出生即 no-op
 
 **"建→看→精准改"的临门一脚: 消费 M51 的边地址, 指定边圆角/倒角 (多边批量), 告别 add_fillet/chamfer

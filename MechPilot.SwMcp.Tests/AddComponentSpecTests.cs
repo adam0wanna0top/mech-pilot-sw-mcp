@@ -163,4 +163,42 @@ public class AddComponentSpecTests : IDisposable
         var ex = Assert.Throws<McpToolException>(spec.Validate);
         Assert.Contains("PositionY", ex.Message);
     }
+
+    // ── rotation validation (M53-①) ───────────────────────────────────────
+
+    [Theory]
+    [InlineData(0, 0, 0)]
+    [InlineData(90, 0, 0)]
+    [InlineData(0, -90, 0)]
+    [InlineData(45.5, 180, -270)]
+    [InlineData(3600, -3600, 3600)]
+    public void Various_rotations_validate(double rx, double ry, double rz)
+    {
+        var spec = Canonical() with
+        {
+            RotationXDeg = rx,
+            RotationYDeg = ry,
+            RotationZDeg = rz,
+        };
+        spec.Validate();
+    }
+
+    [Theory]
+    [InlineData(double.NaN)]
+    [InlineData(double.NegativeInfinity)]
+    public void NonFinite_rotation_throws(double bad)
+    {
+        var spec = Canonical() with { RotationXDeg = bad };
+        var ex = Assert.Throws<McpToolException>(spec.Validate);
+        Assert.Contains("RotationX", ex.Message);
+    }
+
+    [Fact]
+    public void Rotation_above_sanity_throws_with_degrees_hint()
+    {
+        var spec = Canonical() with { RotationZDeg = 5_000 };
+        var ex = Assert.Throws<McpToolException>(spec.Validate);
+        Assert.Contains("RotationZ", ex.Message);
+        Assert.Contains("DEGREES", ex.Message);
+    }
 }

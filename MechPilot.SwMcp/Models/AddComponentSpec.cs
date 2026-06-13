@@ -31,7 +31,20 @@ public sealed record AddComponentSpec
     /// <summary>Component-origin Z position in the assembly in mm. Default 0.</summary>
     public double PositionZMm { get; init; }
 
+    /// <summary>Rotation about the world X axis in degrees, applied before
+    /// positioning. Default 0.</summary>
+    public double RotationXDeg { get; init; }
+
+    /// <summary>Rotation about the world Y axis in degrees, applied before
+    /// positioning. Default 0.</summary>
+    public double RotationYDeg { get; init; }
+
+    /// <summary>Rotation about the world Z axis in degrees, applied before
+    /// positioning. Default 0.</summary>
+    public double RotationZDeg { get; init; }
+
     private const double MaxAbsPositionMm = 100_000.0;
+    private const double MaxAbsRotationDeg = 3_600.0;
 
     /// <summary>Throws <see cref="McpToolException"/> if any field is invalid.</summary>
     public void Validate()
@@ -41,6 +54,9 @@ public sealed record AddComponentSpec
         ValidatePosition(PositionXMm, nameof(PositionXMm));
         ValidatePosition(PositionYMm, nameof(PositionYMm));
         ValidatePosition(PositionZMm, nameof(PositionZMm));
+        ValidateRotation(RotationXDeg, nameof(RotationXDeg));
+        ValidateRotation(RotationYDeg, nameof(RotationYDeg));
+        ValidateRotation(RotationZDeg, nameof(RotationZDeg));
     }
 
     private static void ValidateAssemblyPath(string path)
@@ -101,6 +117,20 @@ public sealed record AddComponentSpec
         {
             throw new McpToolException(
                 $"{name} {v} mm exceeds ±{MaxAbsPositionMm} mm sanity bound.");
+        }
+    }
+
+    private static void ValidateRotation(double v, string name)
+    {
+        if (double.IsNaN(v) || double.IsInfinity(v))
+        {
+            throw new McpToolException($"{name} must be a finite number (got {v}).");
+        }
+        if (Math.Abs(v) > MaxAbsRotationDeg)
+        {
+            throw new McpToolException(
+                $"{name} {v} exceeds ±{MaxAbsRotationDeg}° sanity bound — angles " +
+                "are DEGREES, not radians.");
         }
     }
 }
