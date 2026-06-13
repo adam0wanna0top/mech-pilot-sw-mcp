@@ -59,6 +59,32 @@ internal static class ComponentFaceSelector
     }
 
     /// <summary>
+    /// Returns the face at the given index regardless of surface type, with a
+    /// type-aware signature ("#5 cylinder r14" / "#3 plane") and an
+    /// <c>IsCurved</c> flag (cylinder / cone / sphere / torus = true). For
+    /// tangent mates (M56), which accept a curved face against a plane or
+    /// another curved face — the caller checks at least one side is curved.
+    /// </summary>
+    public static (IFace2 Face, string Signature, bool IsCurved) GetAnyFaceByIndex(
+        IComponent2 comp, int index, string componentName)
+    {
+        var (face, surface) = FaceAtIndex(comp, index, componentName);
+        if (surface is null)
+        {
+            return (face, $"#{index} (unknown surface)", false);
+        }
+        if (surface.IsCylinder())
+        {
+            var r = surface.CylinderParams is double[] cp && cp.Length >= 7
+                ? $" r{Math.Round(cp[6] * 1000.0, 2)}" : string.Empty;
+            return (face, $"#{index} cylinder{r}", true);
+        }
+        var label = DescribeSurface(surface);
+        var curved = !surface.IsPlane();
+        return (face, $"#{index} {label}", curved);
+    }
+
+    /// <summary>
     /// Shared core: bounds-checks the topology index, fetches the face, and
     /// verifies its surface matches <paramref name="wanted"/> — friendly errors
     /// (valid range, or "is a &lt;type&gt;, not a &lt;wantedLabel&gt;") point back at
@@ -68,6 +94,24 @@ internal static class ComponentFaceSelector
         IComponent2 comp, int index, string componentName,
         Func<ISurface, bool> wanted, string wantedLabel, string wantedHint,
         Func<int, ISurface, string> signature)
+    {
+        var (face, surface) = FaceAtIndex(comp, index, componentName);
+        if (surface is null || !wanted(surface))
+        {
+            var type = DescribeSurface(surface!);
+            throw new McpToolException(
+                $"face #{index} on '{componentName}' is a {type}, not a {wantedLabel} — " +
+                $"{wantedHint}. Run inspect_topology on the part and pick a face whose " +
+                $"type is '{wantedLabel}'.");
+        }
+
+        return (face, signature(index, surface));
+    }
+
+    /// <summary>Bounds-checks the index and returns the face + its surface
+    /// (null if SW gave no surface). Throws a friendly range error.</summary>
+    private static (IFace2 Face, ISurface? Surface) FaceAtIndex(
+        IComponent2 comp, int index, string componentName)
     {
         var faces = EnumerateFaces(comp);
         var maxIndex = faces.Count - 1;
@@ -85,17 +129,7 @@ internal static class ComponentFaceSelector
         }
 
         var face = faces[index];
-        object surfObj = face.GetSurface();
-        if (surfObj is not ISurface surface || !wanted(surface))
-        {
-            var type = DescribeSurface(surfObj);
-            throw new McpToolException(
-                $"face #{index} on '{componentName}' is a {type}, not a {wantedLabel} — " +
-                $"{wantedHint}. Run inspect_topology on the part and pick a face whose " +
-                $"type is '{wantedLabel}'.");
-        }
-
-        return (face, signature(index, surface));
+        return (face, face.GetSurface() as ISurface);
     }
 
     /// <summary>Flat face list in TopologyReader's exact enumeration order, but

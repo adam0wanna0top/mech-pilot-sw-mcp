@@ -38,7 +38,7 @@ profile/path mark 1/4 + 几何 ⊥)**, 通用 layer 5/5 milestone 全完成。**
 **M36 inspect_active (边建边验) — E2E 验证撞到的"盲建"痛点直接孵出, 项目首个 dogfooding-born 工具**。
 **M37 face-based start_sketch (+z/-z/+x/-x/+y/-y 直接选极值平面建草图 — E2E 缺口 #2 闭合, 不用 ref plane)**。
 **M38 modify_feature (改已有特征主尺寸 + 重生成 — 机械 Cursor 第一个"编辑已有几何"原语; 绕开 NoPIA ModifyDefinition bug 改用 Parameter.SystemValue)**。
-**60 工具**:
+**61 工具**:
 
 | Tool | LLM-facing name | 用途 |
 |---|---|---|
@@ -94,7 +94,8 @@ profile/path mark 1/4 + 几何 ⊥)**, 通用 layer 5/5 milestone 全完成。**
 | check_interference | `mcp__mech_pilot_sw__check_interference` | 装配体真·实体干涉检测 (InterferenceDetectionMgr; 报干涉组件对 + 重叠体积 mm³; 接触面默认不算, treatCoincident 才标) — 装配审计"问谁撞谁"侧 (**M55**, 风扇 dogfooding 孵出) |
 | add_mate_coincident | `mcp__mech_pilot_sw__add_mate_coincident` | 两组件重合配合 (默认 reference plane front/top/right; **M54 face1Index/face2Index** 按 inspect_topology 选指定**平面**模型面 — 拓扑寻址) |
 | add_mate_distance | `mcp__mech_pilot_sw__add_mate_distance` | 两组件间距 N mm 配合 (默认 reference plane; **M54 face1Index/face2Index** 选指定平面 — 拓扑寻址) |
-| add_mate_concentric | `mcp__mech_pilot_sw__add_mate_concentric` | 两组件圆柱面同轴配合 (默认每件第一个 ±Z 圆柱面; **M53-③ face1Index/face2Index** 按 inspect_topology 面 index 精准选"第 N 个孔" — 装配级拓扑寻址) |
+| add_mate_concentric | `mcp__mech_pilot_sw__add_mate_concentric` | 两组件圆柱面同轴配合 (默认每件第一个圆柱面, **M56 优先 ±Z 找不到回退任意轴** → 旋转件免 faceIndex; **M53-③ face1Index/face2Index** 按 inspect_topology 面 index 精准选"第 N 个孔" — 装配级拓扑寻址) |
+| add_mate_tangent | `mcp__mech_pilot_sw__add_mate_tangent` | 两组件相切配合 (曲面搁平面/圆柱碰圆柱, 第 5 类 mate; 两侧 faceIndex 选面, 至少一面曲面) — 风扇电机壳搁立柱顶那种垂直接合 (**M56**) |
 | add_mate_angle | `mcp__mech_pilot_sw__add_mate_angle` | 两组件 reference plane 角度 N° 配合 (机械臂关节摆角/摇头风扇) |
 | add_shell | `mcp__mech_pilot_sw__add_shell` | 抽壳 (电机壳/泵壳/容器, 修正 v1 "API 不存在") |
 | insert_toolbox_fastener | `mcp__mech_pilot_sw__insert_toolbox_fastener` | 插 Toolbox 标准件进装配体, 按配置选尺寸 (**M47**, 风扇 dogfooding 孵出; 尺寸配置须已生成) + **rotationX/Y/Z 度立起横躺螺栓** (**M53-①**) |
